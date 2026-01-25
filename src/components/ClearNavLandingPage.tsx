@@ -6,6 +6,10 @@ export default function ClearNavLandingPage() {
     window.location.href = getPlatformAdminUrl();
   };
 
+  const navigateToSignup = () => {
+    window.location.href = '/signup';
+  };
+
   const navigateToContact = () => {
     window.location.hash = '#contact';
     window.scrollTo({ top: document.getElementById('contact')?.offsetTop || 0, behavior: 'smooth' });
@@ -113,10 +117,10 @@ export default function ClearNavLandingPage() {
                 Admin Login
               </button>
               <button
-                onClick={navigateToContact}
-                className="px-6 py-2 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all"
+                onClick={navigateToSignup}
+                className="px-6 py-2 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all font-medium"
               >
-                Get Started
+                Start Free Trial
               </button>
             </div>
           </div>
@@ -138,17 +142,17 @@ export default function ClearNavLandingPage() {
             </p>
             <div className="flex justify-center space-x-4">
               <button
-                onClick={navigateToContact}
-                className="group flex items-center space-x-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all text-lg font-medium"
+                onClick={navigateToSignup}
+                className="group flex items-center space-x-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all text-lg font-medium shadow-lg shadow-blue-500/25"
               >
-                <span>Request Demo</span>
+                <span>Start Free Trial</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
               <button
-                onClick={navigateToAdmin}
+                onClick={navigateToContact}
                 className="px-8 py-4 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-all text-lg font-medium border border-slate-700"
               >
-                Platform Login
+                Request Demo
               </button>
             </div>
           </div>
@@ -243,14 +247,14 @@ export default function ClearNavLandingPage() {
                   ))}
                 </ul>
                 <button
-                  onClick={navigateToContact}
+                  onClick={navigateToSignup}
                   className={`w-full py-3 rounded-lg font-medium transition-all ${
                     plan.highlighted
                       ? 'bg-gradient-to-r from-blue-600 to-teal-600 text-white hover:from-blue-700 hover:to-teal-700'
                       : 'bg-slate-700 text-white hover:bg-slate-600'
                   }`}
                 >
-                  Get Started
+                  Start Free Trial
                 </button>
               </div>
             ))}
@@ -265,15 +269,24 @@ export default function ClearNavLandingPage() {
             Ready to Launch Your <span className="font-semibold">Hedge Fund Platform?</span>
           </h2>
           <p className="text-xl text-slate-300 mb-10">
-            Join leading hedge funds using ClearNav to power their operations
+            Join leading hedge funds using ClearNav to power their operations. Start your 30-day free trial today.
           </p>
-          <button
-            onClick={navigateToContact}
-            className="group inline-flex items-center space-x-2 px-10 py-5 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all text-lg font-medium"
-          >
-            <span>Schedule a Demo</span>
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-          </button>
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={navigateToSignup}
+              className="group inline-flex items-center space-x-2 px-10 py-5 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all text-lg font-medium shadow-lg shadow-blue-500/25"
+            >
+              <span>Start Free Trial</span>
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </button>
+            <button
+              onClick={navigateToContact}
+              className="inline-flex items-center space-x-2 px-10 py-5 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-all text-lg font-medium border border-slate-700"
+            >
+              <span>Schedule a Demo</span>
+              <ArrowRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
 

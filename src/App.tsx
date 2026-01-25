@@ -1,29 +1,30 @@
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
-import { PlatformProvider, usePlatform } from './lib/platformContext';
 import { isPlatformAdminDomain } from './lib/tenantResolver';
 import LandingPage from './components/LandingPage';
 import ClearNavLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
 import ClientPortal from './components/ClientPortal';
 import AcceptInvitation from './components/AcceptInvitation';
+import ClientSignup from './components/ClientSignup';
 
 const ManagerPortal = lazy(() => import('./components/ManagerPortal'));
 const PlatformAdminPortal = lazy(() => import('./components/platform/PlatformAdminPortal'));
 
 function AppContent() {
-  const { user, loading, isStaff } = useAuth();
-  const { isPlatformAdmin, currentTenant, isLoading: platformLoading } = usePlatform();
-  const [view, setView] = useState<'landing' | 'login' | 'accept-invite'>('landing');
+  const { user, loading, isStaff, isPlatformAdmin, currentTenant } = useAuth();
+  const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup'>('landing');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('token')) {
       setView('accept-invite');
+    } else if (window.location.pathname === '/signup') {
+      setView('signup');
     }
   }, []);
 
-  if (loading || platformLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
@@ -35,8 +36,12 @@ function AppContent() {
     return <AcceptInvitation />;
   }
 
+  if (view === 'signup') {
+    return <ClientSignup />;
+  }
+
   if (user) {
-    if (isPlatformAdminDomain() && isPlatformAdmin) {
+    if (isPlatformAdmin && isPlatformAdminDomain()) {
       return (
         <Suspense fallback={
           <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -76,9 +81,7 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <PlatformProvider>
-        <AppContent />
-      </PlatformProvider>
+      <AppContent />
     </AuthProvider>
   );
 }
