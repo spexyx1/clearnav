@@ -1,8 +1,13 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { Database } from '../types/database';
+import { resolveTenantFromDomain, isPlatformAdminDomain } from './tenantResolver';
 
-type UserRole = 'general_manager' | 'compliance_manager' | 'accountant' | 'cfo' | 'legal_counsel' | 'admin' | 'client';
+type UserRole = 'general_manager' | 'compliance_manager' | 'accountant' | 'cfo' | 'legal_counsel' | 'admin' | 'client' | 'platform_admin';
+type Tenant = Database['public']['Tables']['platform_tenants']['Row'];
+type PlatformAdminUser = Database['public']['Tables']['platform_admin_users']['Row'];
+type TenantUser = Database['public']['Tables']['tenant_users']['Row'];
 
 interface StaffAccount {
   id: string;
@@ -11,6 +16,7 @@ interface StaffAccount {
   role: UserRole;
   status: string;
   permissions: any;
+  tenant_id?: string;
 }
 
 interface AuthContextType {
@@ -20,8 +26,13 @@ interface AuthContextType {
   userRole: UserRole | null;
   isStaff: boolean;
   staffAccount: StaffAccount | null;
+  isPlatformAdmin: boolean;
+  platformAdminUser: PlatformAdminUser | null;
+  currentTenant: Tenant | null;
+  tenantUser: TenantUser | null;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refetch: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,8 +44,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isStaff, setIsStaff] = useState(false);
   const [staffAccount, setStaffAccount] = useState<StaffAccount | null>(null);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [platformAdminUser, setPlatformAdminUser] = useState<PlatformAdminUser | null>(null);
+  const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
+  const [tenantUser, setTenantUser] = useState<TenantUser | null>(null);
 
   const loadUserRole = async (userId: string) => {
+    const resolved = await resolveTenantFromDomain(window.location.hostname);
+    setCurrentTenant(resolved.tenant);
+
+    if (isPlatformAdminDomain()) {
+      const { data: adminData } = await supabase
+        .from('platform_admin_users')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (adminData) {
+        setIsPlatformAdmin(true);
+        setPlatformAdminUser(adminData);
+        setUserRole('platform_admin');
+        setIsStaff(false);
+        setStaffAccount(null);
+        return;
+      }
+    }
+
     const { data: staffData } = await supabase
       .from('staff_accounts')
       .select('*')
@@ -46,6 +81,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsStaff(true);
       setUserRole(staffData.role);
       setStaffAccount(staffData);
+      setIsPlatformAdmin(false);
+      setPlatformAdminUser(null);
+
+      if (resolved.tenant && staffData.tenant_id === resolved.tenant.id) {
+        const { data: tenantUserData } = await supabase
+          .from('tenant_users')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('tenant_id', resolved.tenant.id)
+          .maybeSingle();
+        setTenantUser(tenantUserData);
+      }
     } else {
       const { data: clientData } = await supabase
         .from('client_profiles')
@@ -57,26 +104,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsStaff(false);
         setUserRole('client');
         setStaffAccount(null);
+        setIsPlatformAdmin(false);
+        setPlatformAdminUser(null);
       }
     }
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       setUser(session?.user ?? null);
+
+      const resolved = await resolveTenantFromDomain(window.location.hostname);
+      setCurrentTenant(resolved.tenant);
 
       if (session?.user) {
         await loadUserRole(session.user.id);
       }
 
       setLoading(false);
-    });
+    };
+
+    initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       (async () => {
         setSession(session);
         setUser(session?.user ?? null);
+
+        const resolved = await resolveTenantFromDomain(window.location.hostname);
+        setCurrentTenant(resolved.tenant);
 
         if (session?.user) {
           await loadUserRole(session.user.id);
@@ -84,6 +142,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUserRole(null);
           setIsStaff(false);
           setStaffAccount(null);
+          setIsPlatformAdmin(false);
+          setPlatformAdminUser(null);
+          setTenantUser(null);
         }
       })();
     });
@@ -101,10 +162,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserRole(null);
     setIsStaff(false);
     setStaffAccount(null);
+    setIsPlatformAdmin(false);
+    setPlatformAdminUser(null);
+    setCurrentTenant(null);
+    setTenantUser(null);
+  };
+
+  const refetch = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await loadUserRole(session.user.id);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, userRole, isStaff, staffAccount, signIn, signOut }}>
+    <AuthContext.Provider value={{
+      user,
+      session,
+      loading,
+      userRole,
+      isStaff,
+      staffAccount,
+      isPlatformAdmin,
+      platformAdminUser,
+      currentTenant,
+      tenantUser,
+      signIn,
+      signOut,
+      refetch
+    }}>
       {children}
     </AuthContext.Provider>
   );
