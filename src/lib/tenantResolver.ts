@@ -72,14 +72,10 @@ export function isPlatformAdminDomain(): boolean {
 
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
     const params = new URLSearchParams(window.location.search);
-    const isAdmin = params.get('mode') === 'admin';
-    console.log('[tenantResolver] isPlatformAdminDomain (localhost):', { isAdmin, mode: params.get('mode'), search: window.location.search });
-    return isAdmin;
+    return params.get('mode') === 'admin';
   }
 
-  const isAdmin = hostname.split('.')[0] === 'admin';
-  console.log('[tenantResolver] isPlatformAdminDomain (production):', { isAdmin, hostname });
-  return isAdmin;
+  return hostname.split('.')[0] === 'admin';
 }
 
 export function getTenantUrl(slug: string): string {
@@ -103,9 +99,7 @@ export function getPlatformAdminUrl(): string {
   const parts = hostname.split('.');
 
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
-    const url = `${window.location.protocol}//${hostname}${window.location.port ? ':' + window.location.port : ''}?mode=admin`;
-    console.log('[tenantResolver] getPlatformAdminUrl (localhost):', url);
-    return url;
+    return `${window.location.protocol}//${hostname}${window.location.port ? ':' + window.location.port : ''}?mode=admin`;
   }
 
   if (parts.length >= 2) {

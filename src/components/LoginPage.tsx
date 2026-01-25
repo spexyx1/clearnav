@@ -1,25 +1,27 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Shield } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { usePlatform } from '../lib/platformContext';
 import { supabase } from '../lib/supabase';
+import { isPlatformAdminDomain } from '../lib/tenantResolver';
 
 interface LoginPageProps {
   onBack: () => void;
 }
 
 export default function LoginPage({ onBack }: LoginPageProps) {
-  const { signIn } = useAuth();
-  const { currentTenant } = usePlatform();
+  const { signIn, currentTenant } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [tenantSettings, setTenantSettings] = useState<any>(null);
+  const isAdminMode = isPlatformAdminDomain();
 
   useEffect(() => {
-    loadTenantSettings();
-  }, [currentTenant]);
+    if (!isAdminMode) {
+      loadTenantSettings();
+    }
+  }, [currentTenant, isAdminMode]);
 
   const loadTenantSettings = async () => {
     if (!currentTenant) return;
@@ -39,9 +41,13 @@ export default function LoginPage({ onBack }: LoginPageProps) {
     }
   };
 
-  const companyName = tenantSettings?.branding?.company_name || currentTenant?.name || 'Grey Alpha';
+  const companyName = isAdminMode
+    ? 'ClearNav'
+    : (tenantSettings?.branding?.company_name || currentTenant?.name || 'Grey Alpha');
   const primaryColor = tenantSettings?.branding?.primary_color || '#06b6d4';
-  const contactEmail = tenantSettings?.landing_page?.contact_email || 'support@greyalpha.co';
+  const contactEmail = isAdminMode
+    ? 'admin@clearnav.com'
+    : (tenantSettings?.landing_page?.contact_email || 'support@greyalpha.co');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,17 +75,37 @@ export default function LoginPage({ onBack }: LoginPageProps) {
         </button>
 
         <div className="bg-slate-900 border border-slate-800 rounded-lg p-8">
-          <div className="flex items-center space-x-3 mb-8">
-            <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-sm"></div>
-            <span className="text-2xl font-light tracking-wider text-white">{companyName}</span>
-          </div>
+          {isAdminMode ? (
+            <>
+              <div className="flex items-center space-x-3 mb-8">
+                <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-2xl font-light tracking-wider text-white">{companyName}</span>
+              </div>
 
-          <h2 className="text-2xl font-light text-white mb-2">
-            Client <span className="font-semibold">Portal</span>
-          </h2>
-          <p className="text-slate-400 mb-8">
-            Sign in to access your account and investment information.
-          </p>
+              <h2 className="text-2xl font-light text-white mb-2">
+                Platform <span className="font-semibold">Admin</span>
+              </h2>
+              <p className="text-slate-400 mb-8">
+                Sign in to manage tenants, billing, and platform settings.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center space-x-3 mb-8">
+                <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-sm"></div>
+                <span className="text-2xl font-light tracking-wider text-white">{companyName}</span>
+              </div>
+
+              <h2 className="text-2xl font-light text-white mb-2">
+                Client <span className="font-semibold">Portal</span>
+              </h2>
+              <p className="text-slate-400 mb-8">
+                Sign in to access your account and investment information.
+              </p>
+            </>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
