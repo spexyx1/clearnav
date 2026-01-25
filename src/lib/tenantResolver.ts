@@ -71,8 +71,7 @@ export function isPlatformAdminDomain(): boolean {
   const hostname = window.location.hostname;
 
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('mode') === 'admin';
+    return !getTenantSlugFromUrl();
   }
 
   return hostname.split('.')[0] === 'admin';
@@ -99,7 +98,7 @@ export function getPlatformAdminUrl(): string {
   const parts = hostname.split('.');
 
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
-    return `${window.location.protocol}//${hostname}${window.location.port ? ':' + window.location.port : ''}?mode=admin`;
+    return `${window.location.protocol}//${hostname}${window.location.port ? ':' + window.location.port : ''}`;
   }
 
   if (parts.length >= 2) {

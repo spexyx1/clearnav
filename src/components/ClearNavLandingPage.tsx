@@ -1,11 +1,10 @@
 import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe } from 'lucide-react';
-import { getPlatformAdminUrl } from '../lib/tenantResolver';
 
-export default function ClearNavLandingPage() {
-  const navigateToAdmin = () => {
-    window.location.href = getPlatformAdminUrl();
-  };
+interface ClearNavLandingPageProps {
+  onLoginClick: () => void;
+}
 
+export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPageProps) {
   const navigateToSignup = () => {
     window.location.href = '/signup';
   };
@@ -111,14 +110,14 @@ export default function ClearNavLandingPage() {
                 Pricing
               </a>
               <button
-                onClick={navigateToAdmin}
-                className="px-4 py-2 text-slate-300 hover:text-white transition-colors"
+                onClick={onLoginClick}
+                className="px-5 py-2 text-slate-300 hover:text-white transition-all duration-200 font-medium border border-slate-700 hover:border-slate-500 rounded-lg hover:bg-slate-800/50"
               >
-                Admin Login
+                Login
               </button>
               <button
                 onClick={navigateToSignup}
-                className="px-6 py-2 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all font-medium"
+                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/40 transform hover:-translate-y-0.5 active:translate-y-0"
               >
                 Start Free Trial
               </button>

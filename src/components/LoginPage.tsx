@@ -79,37 +79,20 @@ export default function LoginPage({ onBack }: LoginPageProps) {
         </button>
 
         <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-8 shadow-2xl shadow-black/20">
-          {isAdminMode ? (
-            <div className="text-center mb-10">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-cyan-400 via-cyan-500 to-blue-600 rounded-2xl mb-4 shadow-lg shadow-cyan-500/30">
-                <Shield className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-3xl font-light text-white mb-2 tracking-tight">
-                {companyName}
-              </h1>
-              <h2 className="text-xl font-semibold text-white mb-2">
-                Platform Admin
-              </h2>
-              <p className="text-slate-400 text-sm">
-                Manage tenants, billing, and platform settings
-              </p>
+          <div className="text-center mb-10">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-cyan-400 via-cyan-500 to-blue-600 rounded-2xl mb-4 shadow-lg shadow-cyan-500/30">
+              <Shield className="w-8 h-8 text-white" />
             </div>
-          ) : (
-            <div className="text-center mb-10">
-              <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl mb-4 shadow-lg shadow-cyan-500/30">
-                <div className="w-7 h-7 bg-white/20 rounded"></div>
-              </div>
-              <h1 className="text-3xl font-light text-white mb-2 tracking-tight">
-                {companyName}
-              </h1>
-              <h2 className="text-xl font-semibold text-white mb-2">
-                Client Portal
-              </h2>
-              <p className="text-slate-400 text-sm">
-                Access your account and investment information
-              </p>
-            </div>
-          )}
+            <h1 className="text-3xl font-light text-white mb-2 tracking-tight">
+              {companyName}
+            </h1>
+            <h2 className="text-xl font-semibold text-white mb-2">
+              Welcome Back
+            </h2>
+            <p className="text-slate-400 text-sm">
+              Sign in to access your portal
+            </p>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>

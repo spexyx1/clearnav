@@ -23,8 +23,6 @@ function AppContent() {
         setView('accept-invite');
       } else if (window.location.pathname === '/signup') {
         setView('signup');
-      } else if (params.get('mode') === 'admin') {
-        setView('login');
       }
     };
 
@@ -86,7 +84,7 @@ function AppContent() {
   }
 
   if (!currentTenant) {
-    return <ClearNavLandingPage />;
+    return <ClearNavLandingPage onLoginClick={() => setView('login')} />;
   }
 
   return <LandingPage onLoginClick={() => setView('login')} />;
