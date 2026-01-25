@@ -11,12 +11,6 @@ import AcceptInvitation from './components/AcceptInvitation';
 const ManagerPortal = lazy(() => import('./components/ManagerPortal'));
 const PlatformAdminPortal = lazy(() => import('./components/platform/PlatformAdminPortal'));
 
-function isRootDomain(): boolean {
-  const hostname = window.location.hostname;
-  const parts = hostname.split('.');
-  return parts.length <= 2 || (parts.length === 3 && parts[0] === 'www');
-}
-
 function AppContent() {
   const { user, loading, isStaff } = useAuth();
   const { isPlatformAdmin, currentTenant, isLoading: platformLoading } = usePlatform();
@@ -72,7 +66,7 @@ function AppContent() {
     return <LoginPage onBack={() => setView('landing')} />;
   }
 
-  if (isRootDomain() && !currentTenant) {
+  if (!currentTenant) {
     return <ClearNavLandingPage />;
   }
 
