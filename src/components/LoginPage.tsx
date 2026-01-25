@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import { usePlatform } from '../lib/platformContext';
+import { supabase } from '../lib/supabase';
 
 interface LoginPageProps {
   onBack: () => void;
@@ -8,10 +10,38 @@ interface LoginPageProps {
 
 export default function LoginPage({ onBack }: LoginPageProps) {
   const { signIn } = useAuth();
+  const { currentTenant } = usePlatform();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [tenantSettings, setTenantSettings] = useState<any>(null);
+
+  useEffect(() => {
+    loadTenantSettings();
+  }, [currentTenant]);
+
+  const loadTenantSettings = async () => {
+    if (!currentTenant) return;
+
+    try {
+      const { data } = await supabase
+        .from('tenant_settings')
+        .select('branding, landing_page')
+        .eq('tenant_id', currentTenant.id)
+        .maybeSingle();
+
+      if (data) {
+        setTenantSettings(data);
+      }
+    } catch (error) {
+      console.error('Error loading tenant settings:', error);
+    }
+  };
+
+  const companyName = tenantSettings?.branding?.company_name || currentTenant?.name || 'Grey Alpha';
+  const primaryColor = tenantSettings?.branding?.primary_color || '#06b6d4';
+  const contactEmail = tenantSettings?.landing_page?.contact_email || 'support@greyalpha.co';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +71,7 @@ export default function LoginPage({ onBack }: LoginPageProps) {
         <div className="bg-slate-900 border border-slate-800 rounded-lg p-8">
           <div className="flex items-center space-x-3 mb-8">
             <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-sm"></div>
-            <span className="text-2xl font-light tracking-wider text-white">GREY<span className="font-semibold">ALPHA</span></span>
+            <span className="text-2xl font-light tracking-wider text-white">{companyName}</span>
           </div>
 
           <h2 className="text-2xl font-light text-white mb-2">
@@ -98,8 +128,8 @@ export default function LoginPage({ onBack }: LoginPageProps) {
           <div className="mt-8 pt-6 border-t border-slate-800">
             <p className="text-sm text-slate-500 text-center">
               Need assistance? Contact us at{' '}
-              <a href="mailto:support@greyalpha.co" className="text-cyan-400 hover:text-cyan-300 transition-colors">
-                support@greyalpha.co
+              <a href={`mailto:${contactEmail}`} className="text-cyan-400 hover:text-cyan-300 transition-colors">
+                {contactEmail}
               </a>
             </p>
           </div>

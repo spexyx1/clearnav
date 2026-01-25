@@ -32,7 +32,7 @@ export default function ClientPortal() {
   const [profile, setProfile] = useState<any>(null);
   const [branding, setBranding] = useState<TenantBranding>({
     logo_url: '',
-    company_name: 'Grey Alpha',
+    company_name: currentTenant?.name || 'Portal',
     colors: {
       primary: '#06b6d4',
       secondary: '#0ea5e9',

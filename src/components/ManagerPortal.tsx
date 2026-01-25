@@ -40,7 +40,7 @@ export default function ManagerPortal() {
   });
   const [branding, setBranding] = useState<TenantBranding>({
     logo_url: '',
-    company_name: 'Grey Alpha',
+    company_name: currentTenant?.name || 'Manager Portal',
     colors: {
       primary: '#06b6d4',
       secondary: '#0ea5e9',

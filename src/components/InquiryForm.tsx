@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { usePlatform } from '../lib/platformContext';
 
 interface InquiryFormProps {
   onClose: () => void;
 }
 
 export default function InquiryForm({ onClose }: InquiryFormProps) {
+  const { currentTenant } = usePlatform();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -69,7 +71,7 @@ export default function InquiryForm({ onClose }: InquiryFormProps) {
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-white mb-2">Inquiry Submitted</h3>
-            <p className="text-slate-400">Thank you for your interest in Grey Alpha.</p>
+            <p className="text-slate-400">Thank you for your interest in {currentTenant?.name}.</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
