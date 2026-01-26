@@ -45,7 +45,7 @@ export default function LoginPage({ onBack }: LoginPageProps) {
 
   const companyName = isAdminMode
     ? 'ClearNav'
-    : (tenantSettings?.branding?.company_name || currentTenant?.name || 'Grey Alpha');
+    : (tenantSettings?.branding?.company_name || currentTenant?.name || 'ClearNAV');
   const contactEmail = isAdminMode
     ? 'admin@clearnav.com'
     : (tenantSettings?.landing_page?.contact_email || 'support@greyalpha.co');
