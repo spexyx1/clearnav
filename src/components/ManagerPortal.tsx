@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Users, Contact, UserCheck, FileText, MessageSquare, CheckSquare, BarChart3, Settings, Shield, Briefcase, UserCog, TrendingUp, Building2, Layers, Wallet, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, FileCheck, Package, Coins } from 'lucide-react';
+import { LogOut, Users, Contact, UserCheck, FileText, MessageSquare, CheckSquare, BarChart3, Settings, Shield, Briefcase, UserCog, TrendingUp, Building2, Layers, Wallet, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, FileCheck, Package, Coins, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { useTenantBranding } from '../lib/hooks';
@@ -29,8 +29,9 @@ import WaterfallCalculator from './manager/WaterfallCalculator';
 import TaxDocumentManager from './manager/TaxDocumentManager';
 import CarriedInterestTracker from './manager/CarriedInterestTracker';
 import SidePocketManager from './manager/SidePocketManager';
+import ExchangeManagement from './manager/ExchangeManagement';
 
-type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users';
+type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users';
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant } = useAuth();
@@ -81,6 +82,7 @@ export default function ManagerPortal() {
     { id: 'carried_interest' as TabType, label: 'Carry', icon: Coins },
     { id: 'side_pockets' as TabType, label: 'Side Pockets', icon: Package },
     { id: 'tax_docs' as TabType, label: 'Tax Docs', icon: FileCheck },
+    { id: 'exchange' as TabType, label: 'Exchange', icon: ShoppingCart },
     { id: 'contacts' as TabType, label: 'Contacts', icon: Contact },
     { id: 'onboarding' as TabType, label: 'Onboarding', icon: UserCheck },
     { id: 'clients' as TabType, label: 'Clients', icon: Users },
@@ -197,6 +199,7 @@ export default function ManagerPortal() {
           {activeTab === 'carried_interest' && <CarriedInterestTracker />}
           {activeTab === 'side_pockets' && <SidePocketManager />}
           {activeTab === 'tax_docs' && <TaxDocumentManager />}
+          {activeTab === 'exchange' && <ExchangeManagement />}
           {activeTab === 'contacts' && <ContactList />}
           {activeTab === 'onboarding' && <OnboardingManager />}
           {activeTab === 'clients' && <ClientManager />}
