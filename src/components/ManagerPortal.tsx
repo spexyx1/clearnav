@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Users, Contact, UserCheck, FileText, MessageSquare, CheckSquare, BarChart3, Settings, Shield, Briefcase, UserCog, TrendingUp, Building2 } from 'lucide-react';
+import { LogOut, Users, Contact, UserCheck, FileText, MessageSquare, CheckSquare, BarChart3, Settings, Shield, Briefcase, UserCog, TrendingUp, Building2, Layers, Wallet } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { useTenantBranding } from '../lib/hooks';
@@ -15,8 +15,10 @@ import ClientManager from './manager/ClientManager';
 import UserManagement from './manager/UserManagement';
 import NAVDashboard from './manager/NAVDashboard';
 import FundManagement from './manager/FundManagement';
+import ShareClassManager from './manager/ShareClassManager';
+import CapitalAccountManager from './manager/CapitalAccountManager';
 
-type TabType = 'dashboard' | 'funds' | 'nav' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users';
+type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users';
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant } = useAuth();
@@ -52,6 +54,8 @@ export default function ManagerPortal() {
   const tabs = [
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: BarChart3 },
     { id: 'funds' as TabType, label: 'Funds', icon: Building2 },
+    { id: 'classes' as TabType, label: 'Share Classes', icon: Layers },
+    { id: 'accounts' as TabType, label: 'Capital Accounts', icon: Wallet },
     { id: 'nav' as TabType, label: 'NAV', icon: TrendingUp },
     { id: 'contacts' as TabType, label: 'Contacts', icon: Contact },
     { id: 'onboarding' as TabType, label: 'Onboarding', icon: UserCheck },
@@ -154,6 +158,8 @@ export default function ManagerPortal() {
         <div className="animate-fadeIn">
           {activeTab === 'dashboard' && <CRMDashboard onNavigate={setActiveTab} />}
           {activeTab === 'funds' && <FundManagement />}
+          {activeTab === 'classes' && <ShareClassManager />}
+          {activeTab === 'accounts' && <CapitalAccountManager />}
           {activeTab === 'nav' && <NAVDashboard />}
           {activeTab === 'contacts' && <ContactList />}
           {activeTab === 'onboarding' && <OnboardingManager />}
