@@ -179,7 +179,7 @@ export async function provisionTenant(data: SignupData): Promise<ProvisioningRes
       tenant_id: tenant.id,
       user_id: authUser.user.id,
       role: 'admin',
-      status: 'active',
+      onboarding_status: 'in_progress',
     });
 
     await supabase

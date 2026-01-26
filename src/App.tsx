@@ -49,7 +49,7 @@ function AppContent() {
   }
 
   if (view === 'signup') {
-    return <ClientSignup />;
+    return <ClientSignup onBack={() => setView('landing')} />;
   }
 
   if (user) {

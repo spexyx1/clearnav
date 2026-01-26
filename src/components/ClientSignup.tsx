@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
-import { Building2, User, Mail, Phone, Lock, ArrowRight, Check, Rocket } from 'lucide-react';
+import { Building2, User, Mail, Phone, Lock, ArrowRight, Check, Rocket, ArrowLeft } from 'lucide-react';
 import { provisionTenant, SignupData } from '../lib/tenantProvisioning';
 import SubdomainValidator from './SubdomainValidator';
+import TenantQuestionnaire from './TenantQuestionnaire';
 
-export default function ClientSignup() {
+interface ClientSignupProps {
+  onBack?: () => void;
+}
+
+export default function ClientSignup({ onBack }: ClientSignupProps) {
   const [formData, setFormData] = useState({
     companyName: '',
     contactName: '',
@@ -17,6 +22,8 @@ export default function ClientSignup() {
   const [isSlugValid, setIsSlugValid] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showQuestionnaire, setShowQuestionnaire] = useState(false);
+  const [tenantId, setTenantId] = useState<string | null>(null);
   const [success, setSuccess] = useState<{
     slug: string;
     subdomainUrl: string;
@@ -65,18 +72,39 @@ export default function ClientSignup() {
 
     const result = await provisionTenant(signupData);
 
-    if (result.success && result.slug && result.subdomainUrl) {
+    if (result.success && result.slug && result.subdomainUrl && result.tenantId) {
+      setTenantId(result.tenantId);
       setSuccess({
         slug: result.slug,
         subdomainUrl: result.subdomainUrl,
       });
+      setShowQuestionnaire(true);
+      setIsLoading(false);
     } else {
       setError(result.error || 'Failed to create your account. Please try again.');
       setIsLoading(false);
     }
   };
 
-  if (success) {
+  const handleQuestionnaireComplete = () => {
+    setShowQuestionnaire(false);
+  };
+
+  const handleQuestionnaireSkip = () => {
+    setShowQuestionnaire(false);
+  };
+
+  if (showQuestionnaire && tenantId) {
+    return (
+      <TenantQuestionnaire
+        tenantId={tenantId}
+        onComplete={handleQuestionnaireComplete}
+        onSkip={handleQuestionnaireSkip}
+      />
+    );
+  }
+
+  if (success && !showQuestionnaire) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-slate-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full">
@@ -153,6 +181,16 @@ export default function ClientSignup() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-slate-50 py-12 px-4">
       <div className="max-w-4xl mx-auto">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mb-6 flex items-center space-x-2 text-slate-600 hover:text-slate-900 transition-colors group"
+          >
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+            <span className="font-medium">Back</span>
+          </button>
+        )}
+
         <div className="text-center mb-12">
           <div className="flex items-center justify-center space-x-3 mb-6">
             <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
