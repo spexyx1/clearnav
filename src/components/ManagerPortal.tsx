@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Users, Contact, UserCheck, FileText, MessageSquare, CheckSquare, BarChart3, Settings, Shield, Briefcase, UserCog } from 'lucide-react';
+import { LogOut, Users, Contact, UserCheck, FileText, MessageSquare, CheckSquare, BarChart3, Settings, Shield, Briefcase, UserCog, TrendingUp, Building2 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
-import { usePlatform } from '../lib/platformContext';
+import { useTenantBranding } from '../lib/hooks';
 import CRMDashboard from './manager/CRMDashboard';
 import ContactList from './manager/ContactList';
 import OnboardingManager from './manager/OnboardingManager';
@@ -13,24 +13,14 @@ import StaffManagement from './manager/StaffManagement';
 import ComplianceCenter from './manager/ComplianceCenter';
 import ClientManager from './manager/ClientManager';
 import UserManagement from './manager/UserManagement';
+import NAVDashboard from './manager/NAVDashboard';
+import FundManagement from './manager/FundManagement';
 
-type TabType = 'dashboard' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users';
-
-interface TenantBranding {
-  logo_url: string;
-  company_name: string;
-  colors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-    background: string;
-    text: string;
-  };
-}
+type TabType = 'dashboard' | 'funds' | 'nav' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users';
 
 export default function ManagerPortal() {
-  const { staffAccount, userRole, signOut } = useAuth();
-  const { currentTenant } = usePlatform();
+  const { staffAccount, userRole, signOut, currentTenant } = useAuth();
+  const { branding } = useTenantBranding();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [stats, setStats] = useState({
     totalContacts: 0,
@@ -38,21 +28,9 @@ export default function ManagerPortal() {
     pendingTasks: 0,
     totalClients: 0,
   });
-  const [branding, setBranding] = useState<TenantBranding>({
-    logo_url: '',
-    company_name: currentTenant?.name || 'Manager Portal',
-    colors: {
-      primary: '#06b6d4',
-      secondary: '#0ea5e9',
-      accent: '#22d3ee',
-      background: '#020617',
-      text: '#ffffff',
-    },
-  });
 
   useEffect(() => {
     loadStats();
-    loadBranding();
   }, [currentTenant]);
 
   const loadStats = async () => {
@@ -71,27 +49,10 @@ export default function ManagerPortal() {
     });
   };
 
-  const loadBranding = async () => {
-    if (!currentTenant) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('tenant_settings')
-        .select('branding')
-        .eq('tenant_id', currentTenant.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (data?.branding) {
-        setBranding(data.branding as TenantBranding);
-      }
-    } catch (error) {
-      console.error('Error loading branding:', error);
-    }
-  };
-
   const tabs = [
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: BarChart3 },
+    { id: 'funds' as TabType, label: 'Funds', icon: Building2 },
+    { id: 'nav' as TabType, label: 'NAV', icon: TrendingUp },
     { id: 'contacts' as TabType, label: 'Contacts', icon: Contact },
     { id: 'onboarding' as TabType, label: 'Onboarding', icon: UserCheck },
     { id: 'clients' as TabType, label: 'Clients', icon: Users },
@@ -192,6 +153,8 @@ export default function ManagerPortal() {
 
         <div className="animate-fadeIn">
           {activeTab === 'dashboard' && <CRMDashboard onNavigate={setActiveTab} />}
+          {activeTab === 'funds' && <FundManagement />}
+          {activeTab === 'nav' && <NAVDashboard />}
           {activeTab === 'contacts' && <ContactList />}
           {activeTab === 'onboarding' && <OnboardingManager />}
           {activeTab === 'clients' && <ClientManager />}
