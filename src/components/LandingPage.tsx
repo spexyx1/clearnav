@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Zap, Shield, ChevronRight, Mail, Building2, FileText } from 'lucide-react';
+import { TrendingUp, Zap, Shield, ChevronRight, Mail, Building2, FileText, BarChart3, Lock, Globe, Users, Bell, FileCheck, CreditCard, LineChart, Calculator, BookOpen, HelpCircle } from 'lucide-react';
 import InquiryForm from './InquiryForm';
 import { usePlatform } from '../lib/platformContext';
 import { supabase } from '../lib/supabase';
@@ -44,6 +44,7 @@ interface TenantSettings {
 
 export default function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
   const [showInquiryForm, setShowInquiryForm] = useState(false);
+  const [showFAQ, setShowFAQ] = useState(false);
   const { currentTenant } = usePlatform();
   const [settings, setSettings] = useState<TenantSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -174,6 +175,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
           <div className="flex items-center space-x-8">
             <a href="#about" className="text-sm text-slate-300 hover:text-white transition-colors tracking-wide">ABOUT</a>
             <a href="#features" className="text-sm text-slate-300 hover:text-white transition-colors tracking-wide">FEATURES</a>
+            <a href="#platform" className="text-sm text-slate-300 hover:text-white transition-colors tracking-wide">PLATFORM</a>
+            <button onClick={() => setShowFAQ(true)} className="text-sm text-slate-300 hover:text-white transition-colors tracking-wide">FAQ</button>
             <a href="#contact" className="text-sm text-slate-300 hover:text-white transition-colors tracking-wide">CONTACT</a>
             <button
               onClick={onLoginClick}
@@ -263,7 +266,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
         </div>
       </section>
 
-      <section id="features" className="py-32 px-6 border-t border-slate-800/50">
+      <section id="platform" className="py-32 px-6 border-t border-slate-800/50 bg-slate-900/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <div className="text-xs font-medium tracking-widest mb-4" style={{ color: branding.colors.primary }}>COMPREHENSIVE PLATFORM</div>
@@ -273,6 +276,98 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             <p className="text-lg text-slate-400 max-w-3xl mx-auto">
               Access powerful tools for portfolio management, client communication, compliance, and detailed reporting—all in one integrated platform.
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <BarChart3 className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Portfolio Analytics</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Real-time performance tracking, attribution analysis, and comprehensive reporting with customizable dashboards.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Lock className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Compliance Suite</h3>
+              <p className="text-slate-400 leading-relaxed">
+                KYC/AML workflows, document verification, regulatory reporting, and comprehensive audit trails for full compliance.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Globe className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">IBKR Integration</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Seamless Interactive Brokers connectivity for automated portfolio syncing, real-time position tracking, and trade reconciliation.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Users className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Client Portal</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Branded investor portals with real-time access to statements, documents, and performance metrics with secure login.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Bell className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Communication Hub</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Automated email notifications, investor updates, and secure messaging with full communication history tracking.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <FileCheck className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Document Management</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Centralized storage for subscription docs, K-1s, quarterly reports with version control and secure sharing.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <CreditCard className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Capital Management</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Track capital calls, distributions, redemptions, and side pockets with automated calculations and investor notifications.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <LineChart className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">NAV Calculation</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Automated net asset value calculations with support for multiple share classes, waterfalls, and carried interest.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Calculator className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Fee Management</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Automated management and performance fee calculations with high water marks and customizable fee structures.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -343,6 +438,73 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
       </footer>
 
       {showInquiryForm && <InquiryForm onClose={() => setShowInquiryForm(false)} />}
+      {showFAQ && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+          <div className="bg-slate-900 rounded-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto border border-slate-800">
+            <div className="sticky top-0 bg-slate-900 border-b border-slate-800 p-6 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <HelpCircle className="w-6 h-6" style={{ color: branding.colors.primary }} />
+                <h2 className="text-2xl font-semibold text-white">Frequently Asked Questions</h2>
+              </div>
+              <button onClick={() => setShowFAQ(false)} className="text-slate-400 hover:text-white">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">How do I access my investor account?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  You'll receive an email invitation with secure login credentials. Click the link in the email to set your password and access your personalized investor portal where you can view performance, documents, and statements 24/7.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">What documents will I receive?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Investors receive monthly statements, quarterly performance reports, annual audited financials, and tax documents (K-1s). All documents are securely stored in your portal and you'll receive email notifications when new documents are available.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">How often is performance updated?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Portfolio performance is updated in real-time through our Interactive Brokers integration. NAV calculations and official performance reports are typically updated monthly, with detailed attribution analysis and risk metrics.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">What are the minimum investment requirements?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Minimum investment amounts vary by fund structure and investor type. Contact us directly to discuss specific requirements and investment opportunities that match your capital allocation goals.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">How do redemptions work?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Redemption terms are outlined in the fund documents. You can submit redemption requests through your investor portal. The system tracks notice periods, processing dates, and redemption queues automatically.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">Is my data secure?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Yes. We employ bank-level security with encryption at rest and in transit, multi-factor authentication, regular security audits, and comprehensive access controls. All data is stored in secure, SOC 2 compliant infrastructure.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">Can I make additional investments?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Additional investments are typically accepted during designated subscription periods. You can submit subscription requests through your portal, and our team will coordinate the capital call process and required documentation.
+                </p>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-2">How do I contact support?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  You can reach our team via email at {landingPage.contact.email}, through the secure messaging system in your investor portal, or by submitting an inquiry through the contact form on this website. We aim to respond to all inquiries within one business day.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
