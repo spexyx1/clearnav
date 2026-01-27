@@ -1,10 +1,13 @@
-import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe } from 'lucide-react';
+import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCircle } from 'lucide-react';
+import { useState } from 'react';
 
 interface ClearNavLandingPageProps {
   onLoginClick: () => void;
 }
 
 export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPageProps) {
+  const [showFAQ, setShowFAQ] = useState(false);
+
   const navigateToSignup = () => {
     window.location.href = '/signup';
   };
@@ -109,6 +112,13 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
               <a href="#pricing" className="text-slate-300 hover:text-white transition-colors">
                 Pricing
               </a>
+              <button
+                onClick={() => setShowFAQ(true)}
+                className="text-slate-300 hover:text-white transition-colors flex items-center space-x-1"
+              >
+                <HelpCircle className="w-4 h-4" />
+                <span>FAQ</span>
+              </button>
               <button
                 onClick={onLoginClick}
                 className="px-5 py-2 text-slate-300 hover:text-white transition-all duration-200 font-medium border border-slate-700 hover:border-slate-500 rounded-lg hover:bg-slate-800/50"
@@ -305,6 +315,74 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
           </div>
         </div>
       </footer>
+
+      {showFAQ && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+          <div className="bg-slate-900 rounded-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto border border-slate-800">
+            <div className="sticky top-0 bg-slate-900 border-b border-slate-800 p-6 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <HelpCircle className="w-6 h-6 text-teal-400" />
+                <h2 className="text-2xl font-semibold text-white">Frequently Asked Questions</h2>
+              </div>
+              <button onClick={() => setShowFAQ(false)} className="text-slate-400 hover:text-white">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">What is ClearNav?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  ClearNav is a complete SaaS platform built for hedge fund managers and investors. It provides portfolio management, CRM, compliance tools, IBKR integration, and a white-label investor portal—everything needed to run a modern hedge fund operation.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">How quickly can we launch our platform?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Most hedge funds go live within days. You get a fully branded, multi-tenant instance, custom domain setup, and complete investor portal with a single subscription. No lengthy implementation process—just configure your branding and start onboarding investors.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">What's included in each pricing tier?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Starter includes CRM, compliance tools, and document management. Professional adds IBKR integration and custom domains. Enterprise includes API access, unlimited storage, and dedicated support. All tiers include investor portal access and full white-labeling capabilities.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">Does ClearNav integrate with Interactive Brokers?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Yes. Professional and Enterprise plans include seamless IBKR integration for real-time portfolio syncing, automated position tracking, and accurate performance calculations. Starter tier can integrate custom data sources.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">Is our data secure?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Absolutely. We maintain SOC 2 certification, bank-level encryption, multi-factor authentication, comprehensive audit trails, and complete data isolation in our multi-tenant architecture. Each hedge fund's data is completely separated from others.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">Can we customize the platform for our fund?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Yes. Full white-labeling means complete brand customization, custom domains, tailored email templates, and branding throughout the investor portal. Enterprise plans include custom integrations and API access for additional flexibility.
+                </p>
+              </div>
+              <div className="border-b border-slate-800 pb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">What's the difference between a subdomain and custom domain?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  All plans include a clearnav.cv subdomain (e.g., yourfund.clearnav.cv). Professional and Enterprise plans support custom domains (e.g., investors.yourfund.com) for complete brand consistency.
+                </p>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-2">What support do you provide?</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Starter includes email support. Professional includes priority support. Enterprise includes dedicated account management and 24/7 support. All plans include comprehensive documentation and our onboarding team helps you get set up quickly.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
