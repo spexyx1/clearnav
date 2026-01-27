@@ -55,23 +55,21 @@ Deno.serve(async (req: Request) => {
     let targetUserId = userId;
 
     if (email && !userId) {
-      const listUsersResponse = await fetch(
-        `${supabaseUrl}/auth/v1/admin/users`,
-        {
-          headers: {
-            "Authorization": `Bearer ${serviceRoleKey}`,
-            "apikey": serviceRoleKey,
-          },
+      const { createClient } = await import("jsr:@supabase/supabase-js@2");
+      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
         }
-      );
+      });
 
-      if (!listUsersResponse.ok) {
-        const errorText = await listUsersResponse.text();
+      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.listUsers();
+
+      if (userError) {
         return new Response(
           JSON.stringify({
             error: "Error listing users",
-            details: errorText,
-            status: listUsersResponse.status
+            details: userError.message,
           }),
           {
             status: 500,
@@ -83,15 +81,14 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const usersData = await listUsersResponse.json();
-      const user = usersData.users?.find((u: any) => u.email === email);
+      const user = userData.users.find((u: any) => u.email === email);
 
       if (!user) {
         return new Response(
           JSON.stringify({
             error: `User with email ${email} not found`,
             checkedEmail: email,
-            totalUsers: usersData.users?.length || 0
+            totalUsers: userData.users.length
           }),
           {
             status: 404,

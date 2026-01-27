@@ -7,13 +7,14 @@ import LoginPage from './components/LoginPage';
 import ClientPortal from './components/ClientPortal';
 import AcceptInvitation from './components/AcceptInvitation';
 import ClientSignup from './components/ClientSignup';
+import DebugLogin from './components/DebugLogin';
 
 const ManagerPortal = lazy(() => import('./components/ManagerPortal'));
 const PlatformAdminPortal = lazy(() => import('./components/platform/PlatformAdminPortal'));
 
 function AppContent() {
   const { user, loading, isStaff, isPlatformAdmin, currentTenant } = useAuth();
-  const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup'>('landing');
+  const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug'>('landing');
 
   useEffect(() => {
     const checkRoute = () => {
@@ -23,6 +24,8 @@ function AppContent() {
         setView('accept-invite');
       } else if (window.location.pathname === '/signup') {
         setView('signup');
+      } else if (window.location.pathname === '/debug') {
+        setView('debug');
       }
     };
 
@@ -42,6 +45,10 @@ function AppContent() {
         <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
       </div>
     );
+  }
+
+  if (view === 'debug') {
+    return <DebugLogin />;
   }
 
   if (view === 'accept-invite') {
