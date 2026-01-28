@@ -1,33 +1,137 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Edit, Trash2, Shield } from 'lucide-react';
+import { UserPlus, Edit, Trash2, Shield, X, Settings } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
+interface StaffPermissions {
+  can_manage_users: boolean;
+  can_invite_clients: boolean;
+  can_create_newsletters: boolean;
+  can_approve_redemptions: boolean;
+  can_view_performance: boolean;
+}
+
 export default function StaffManagement() {
-  const { staffAccount, userRole } = useAuth();
+  const { staffAccount, userRole, currentTenant, isTenantAdmin } = useAuth();
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<any>(null);
+  const [permissions, setPermissions] = useState<StaffPermissions>({
+    can_manage_users: false,
+    can_invite_clients: false,
+    can_create_newsletters: false,
+    can_approve_redemptions: false,
+    can_view_performance: false,
+  });
 
   useEffect(() => {
-    if (userRole === 'general_manager') {
+    if (userRole === 'general_manager' || isTenantAdmin) {
       loadStaff();
     }
-  }, [userRole]);
+  }, [userRole, isTenantAdmin]);
 
   const loadStaff = async () => {
+    if (!currentTenant) return;
+
     const { data } = await supabase
       .from('staff_accounts')
-      .select('*')
+      .select(`
+        *,
+        staff_permissions (
+          can_manage_users,
+          can_invite_clients,
+          can_create_newsletters,
+          can_approve_redemptions,
+          can_view_performance
+        )
+      `)
+      .eq('tenant_id', currentTenant.id)
       .order('created_at', { ascending: false });
     setStaff(data || []);
     setLoading(false);
   };
 
-  if (userRole !== 'general_manager') {
+  const openPermissionsModal = async (member: any) => {
+    setSelectedStaff(member);
+
+    if (member.staff_permissions && member.staff_permissions.length > 0) {
+      const perms = member.staff_permissions[0];
+      setPermissions({
+        can_manage_users: perms.can_manage_users || false,
+        can_invite_clients: perms.can_invite_clients || false,
+        can_create_newsletters: perms.can_create_newsletters || false,
+        can_approve_redemptions: perms.can_approve_redemptions || false,
+        can_view_performance: perms.can_view_performance || false,
+      });
+    } else {
+      setPermissions({
+        can_manage_users: false,
+        can_invite_clients: false,
+        can_create_newsletters: false,
+        can_approve_redemptions: false,
+        can_view_performance: false,
+      });
+    }
+
+    setShowPermissionsModal(true);
+  };
+
+  const handleSavePermissions = async () => {
+    if (!selectedStaff || !currentTenant) return;
+
+    const { data: existing } = await supabase
+      .from('staff_permissions')
+      .select('id')
+      .eq('staff_id', selectedStaff.id)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from('staff_permissions')
+        .update({
+          can_manage_users: permissions.can_manage_users,
+          can_invite_clients: permissions.can_invite_clients,
+          can_create_newsletters: permissions.can_create_newsletters,
+          can_approve_redemptions: permissions.can_approve_redemptions,
+          can_view_performance: permissions.can_view_performance,
+        })
+        .eq('id', existing.id);
+
+      if (error) {
+        alert('Error updating permissions: ' + error.message);
+        return;
+      }
+    } else {
+      const { error } = await supabase
+        .from('staff_permissions')
+        .insert({
+          staff_id: selectedStaff.id,
+          tenant_id: currentTenant.id,
+          module: 'general',
+          can_manage_users: permissions.can_manage_users,
+          can_invite_clients: permissions.can_invite_clients,
+          can_create_newsletters: permissions.can_create_newsletters,
+          can_approve_redemptions: permissions.can_approve_redemptions,
+          can_view_performance: permissions.can_view_performance,
+        });
+
+      if (error) {
+        alert('Error creating permissions: ' + error.message);
+        return;
+      }
+    }
+
+    setShowPermissionsModal(false);
+    setSelectedStaff(null);
+    loadStaff();
+  };
+
+  if (userRole !== 'general_manager' && !isTenantAdmin) {
     return (
       <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-12 text-center">
         <Shield className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-        <p className="text-slate-400">Access restricted to General Managers only</p>
+        <p className="text-slate-400">Access restricted to General Managers and Tenant Owners only</p>
       </div>
     );
   }
@@ -126,6 +230,13 @@ export default function StaffManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => openPermissionsModal(member)}
+                          className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-400"
+                          title="Manage permissions"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
                         <button className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white">
                           <Edit className="w-4 h-4" />
                         </button>
@@ -143,6 +254,116 @@ export default function StaffManagement() {
           </table>
         </div>
       </div>
+
+      {showPermissionsModal && selectedStaff && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 max-w-lg w-full mx-4">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-xl font-semibold text-white">Staff Permissions</h3>
+                <p className="text-sm text-slate-400 mt-1">{selectedStaff.full_name}</p>
+              </div>
+              <button
+                onClick={() => setShowPermissionsModal(false)}
+                className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="text-sm font-medium text-white">Manage Users</div>
+                    <div className="text-xs text-slate-400">Can add, edit, and remove clients and staff</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={permissions.can_manage_users}
+                    onChange={(e) => setPermissions({ ...permissions, can_manage_users: e.target.checked })}
+                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="text-sm font-medium text-white">Invite Clients</div>
+                    <div className="text-xs text-slate-400">Can send client invitations</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={permissions.can_invite_clients}
+                    onChange={(e) => setPermissions({ ...permissions, can_invite_clients: e.target.checked })}
+                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="text-sm font-medium text-white">Create Newsletters</div>
+                    <div className="text-xs text-slate-400">Can create and send newsletters</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={permissions.can_create_newsletters}
+                    onChange={(e) => setPermissions({ ...permissions, can_create_newsletters: e.target.checked })}
+                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="text-sm font-medium text-white">Approve Redemptions</div>
+                    <div className="text-xs text-slate-400">Can approve or reject redemption requests</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={permissions.can_approve_redemptions}
+                    onChange={(e) => setPermissions({ ...permissions, can_approve_redemptions: e.target.checked })}
+                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="text-sm font-medium text-white">View Performance</div>
+                    <div className="text-xs text-slate-400">Can view fund performance metrics</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={permissions.can_view_performance}
+                    onChange={(e) => setPermissions({ ...permissions, can_view_performance: e.target.checked })}
+                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0"
+                  />
+                </label>
+              </div>
+
+              <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3">
+                <p className="text-xs text-cyan-300">
+                  General Managers have full access by default. These permissions apply to other staff roles.
+                </p>
+              </div>
+
+              <div className="flex space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPermissionsModal(false)}
+                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSavePermissions}
+                  className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors"
+                >
+                  Save Permissions
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

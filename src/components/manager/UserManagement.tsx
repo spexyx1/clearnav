@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Mail, X, Search, Shield, User, Clock, Check, Ban } from 'lucide-react';
+import { UserPlus, Mail, X, Search, Shield, User, Clock, Check, Ban, Edit2, Trash2, DollarSign } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
@@ -13,13 +13,26 @@ interface Invitation {
   invited_by: string;
 }
 
+interface ClientProfile {
+  id?: string;
+  full_name: string;
+  email: string;
+  account_number: string;
+  total_invested: string;
+  current_value: string;
+  inception_date: string;
+}
+
 export default function UserManagement() {
-  const { staffAccount } = useAuth();
+  const { staffAccount, currentTenant, isTenantAdmin } = useAuth();
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showClientModal, setShowClientModal] = useState(false);
+  const [editingClient, setEditingClient] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [canManageUsers, setCanManageUsers] = useState(false);
 
   const [inviteForm, setInviteForm] = useState({
     email: '',
@@ -27,23 +40,60 @@ export default function UserManagement() {
     userType: 'client',
   });
 
+  const [clientForm, setClientForm] = useState<ClientProfile>({
+    full_name: '',
+    email: '',
+    account_number: '',
+    total_invested: '0',
+    current_value: '0',
+    inception_date: new Date().toISOString().split('T')[0],
+  });
+
   useEffect(() => {
     loadData();
-  }, []);
+    checkPermissions();
+  }, [staffAccount]);
+
+  const checkPermissions = async () => {
+    if (isTenantAdmin) {
+      setCanManageUsers(true);
+      return;
+    }
+
+    if (!staffAccount) return;
+
+    const { data: permissions } = await supabase
+      .from('staff_permissions')
+      .select('can_manage_users, can_invite_clients')
+      .eq('staff_id', staffAccount.id)
+      .maybeSingle();
+
+    setCanManageUsers(
+      staffAccount.role === 'general_manager' ||
+      staffAccount.role === 'admin' ||
+      permissions?.can_manage_users ||
+      permissions?.can_invite_clients
+    );
+  };
 
   const loadData = async () => {
+    if (!currentTenant) return;
+
     const [invitationsRes, staffRes, clientsRes] = await Promise.all([
       supabase
         .from('user_invitations')
         .select('*')
+        .eq('tenant_id', currentTenant.id)
         .order('created_at', { ascending: false }),
       supabase
         .from('staff_accounts')
         .select('*')
+        .eq('tenant_id', currentTenant.id)
         .order('created_at', { ascending: false }),
       supabase
         .from('client_profiles')
         .select('*')
+        .eq('tenant_id', currentTenant.id)
         .order('created_at', { ascending: false }),
     ]);
 
@@ -59,6 +109,7 @@ export default function UserManagement() {
 
   const handleSendInvitation = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentTenant) return;
 
     const token = await generateToken();
     const expiresAt = new Date();
@@ -72,12 +123,13 @@ export default function UserManagement() {
         token,
         expires_at: expiresAt.toISOString(),
         invited_by: staffAccount?.id,
-        tenant_id: 'default-tenant-id',
+        tenant_id: currentTenant.id,
         metadata: { user_type: inviteForm.userType }
       });
 
     if (error) {
       console.error('Error sending invitation:', error);
+      alert('Error sending invitation: ' + error.message);
       return;
     }
 
@@ -115,6 +167,161 @@ export default function UserManagement() {
       .eq('id', invitation.id);
 
     loadData();
+  };
+
+  const handleCreateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentTenant) return;
+
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: clientForm.email,
+      password: generateTemporaryPassword(),
+      options: {
+        data: {
+          full_name: clientForm.full_name,
+        },
+        emailRedirectTo: window.location.origin,
+      },
+    });
+
+    if (authError) {
+      alert('Error creating user account: ' + authError.message);
+      return;
+    }
+
+    if (!authData.user) {
+      alert('Failed to create user');
+      return;
+    }
+
+    const { error: profileError } = await supabase
+      .from('client_profiles')
+      .insert({
+        id: authData.user.id,
+        full_name: clientForm.full_name,
+        email: clientForm.email,
+        account_number: clientForm.account_number,
+        total_invested: clientForm.total_invested,
+        current_value: clientForm.current_value,
+        inception_date: clientForm.inception_date,
+        tenant_id: currentTenant.id,
+      });
+
+    if (profileError) {
+      console.error('Error creating client profile:', profileError);
+      alert('Error creating client profile: ' + profileError.message);
+      return;
+    }
+
+    const { error: tenantUserError } = await supabase
+      .from('tenant_users')
+      .insert({
+        user_id: authData.user.id,
+        tenant_id: currentTenant.id,
+        role: 'client',
+      });
+
+    if (tenantUserError) {
+      console.error('Error creating tenant user:', tenantUserError);
+    }
+
+    setShowClientModal(false);
+    setClientForm({
+      full_name: '',
+      email: '',
+      account_number: '',
+      total_invested: '0',
+      current_value: '0',
+      inception_date: new Date().toISOString().split('T')[0],
+    });
+    loadData();
+  };
+
+  const handleUpdateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClient) return;
+
+    const { error } = await supabase
+      .from('client_profiles')
+      .update({
+        full_name: clientForm.full_name,
+        email: clientForm.email,
+        account_number: clientForm.account_number,
+        total_invested: clientForm.total_invested,
+        current_value: clientForm.current_value,
+        inception_date: clientForm.inception_date,
+      })
+      .eq('id', editingClient.id);
+
+    if (error) {
+      alert('Error updating client: ' + error.message);
+      return;
+    }
+
+    setShowClientModal(false);
+    setEditingClient(null);
+    setClientForm({
+      full_name: '',
+      email: '',
+      account_number: '',
+      total_invested: '0',
+      current_value: '0',
+      inception_date: new Date().toISOString().split('T')[0],
+    });
+    loadData();
+  };
+
+  const handleDeleteClient = async (clientId: string) => {
+    if (!confirm('Are you sure you want to delete this client? This action cannot be undone.')) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from('client_profiles')
+      .delete()
+      .eq('id', clientId);
+
+    if (error) {
+      alert('Error deleting client: ' + error.message);
+      return;
+    }
+
+    loadData();
+  };
+
+  const handleDeleteStaff = async (staffId: string) => {
+    if (!confirm('Are you sure you want to remove this staff member? This action cannot be undone.')) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from('staff_accounts')
+      .delete()
+      .eq('id', staffId);
+
+    if (error) {
+      alert('Error removing staff member: ' + error.message);
+      return;
+    }
+
+    loadData();
+  };
+
+  const openEditClientModal = (client: any) => {
+    setEditingClient(client);
+    setClientForm({
+      full_name: client.full_name,
+      email: client.email,
+      account_number: client.account_number,
+      total_invested: client.total_invested,
+      current_value: client.current_value,
+      inception_date: client.inception_date?.split('T')[0] || new Date().toISOString().split('T')[0],
+    });
+    setShowClientModal(true);
+  };
+
+  const generateTemporaryPassword = () => {
+    return Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10).toUpperCase() + '!@#';
   };
 
   const filteredInvitations = invitations.filter(inv =>
@@ -161,15 +368,37 @@ export default function UserManagement() {
           <h2 className="text-2xl font-light text-white mb-1">
             User <span className="font-semibold">Management</span>
           </h2>
-          <p className="text-slate-400">Manage user invitations and access</p>
+          <p className="text-slate-400">Manage clients, staff, and invitations</p>
         </div>
-        <button
-          onClick={() => setShowInviteModal(true)}
-          className="flex items-center space-x-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>Invite User</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          {canManageUsers && (
+            <button
+              onClick={() => {
+                setEditingClient(null);
+                setClientForm({
+                  full_name: '',
+                  email: '',
+                  account_number: '',
+                  total_invested: '0',
+                  current_value: '0',
+                  inception_date: new Date().toISOString().split('T')[0],
+                });
+                setShowClientModal(true);
+              }}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+            >
+              <User className="w-4 h-4" />
+              <span>Add Client</span>
+            </button>
+          )}
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Invite User</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -292,12 +521,15 @@ export default function UserManagement() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Role/Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Joined</th>
+                {canManageUsers && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={canManageUsers ? 6 : 5} className="px-6 py-12 text-center text-slate-500">
                     No users found
                   </td>
                 </tr>
@@ -326,9 +558,10 @@ export default function UserManagement() {
                           {user.role.replace('_', ' ')}
                         </span>
                       ) : (
-                        <span className="text-sm text-slate-300">
-                          ${(user.current_value || 0).toLocaleString()}
-                        </span>
+                        <div className="flex items-center space-x-1 text-sm text-slate-300">
+                          <DollarSign className="w-3 h-3" />
+                          <span>{(user.current_value || 0).toLocaleString()}</span>
+                        </div>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -336,6 +569,39 @@ export default function UserManagement() {
                         {new Date(user.created_at).toLocaleDateString()}
                       </div>
                     </td>
+                    {canManageUsers && (
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-2">
+                          {user.user_type === 'client' && (
+                            <>
+                              <button
+                                onClick={() => openEditClientModal(user)}
+                                className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-blue-400"
+                                title="Edit client"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteClient(user.id)}
+                                className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400"
+                                title="Delete client"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                          {user.user_type === 'staff' && user.id !== staffAccount?.id && (
+                            <button
+                              onClick={() => handleDeleteStaff(user.id)}
+                              className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400"
+                              title="Remove staff"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -427,6 +693,154 @@ export default function UserManagement() {
                 >
                   <Mail className="w-4 h-4" />
                   <span>Send Invitation</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showClientModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-semibold text-white">
+                {editingClient ? 'Edit Client' : 'Add New Client'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowClientModal(false);
+                  setEditingClient(null);
+                }}
+                className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={editingClient ? handleUpdateClient : handleCreateClient} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={clientForm.full_name}
+                    onChange={(e) => setClientForm({ ...clientForm, full_name: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                    placeholder="John Doe"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={clientForm.email}
+                    onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })}
+                    disabled={!!editingClient}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    placeholder="john@example.com"
+                  />
+                  {editingClient && (
+                    <p className="text-xs text-slate-500 mt-1">Email cannot be changed</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Account Number *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={clientForm.account_number}
+                    onChange={(e) => setClientForm({ ...clientForm, account_number: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                    placeholder="ACC001"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Inception Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={clientForm.inception_date}
+                    onChange={(e) => setClientForm({ ...clientForm, inception_date: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Total Invested *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                    <input
+                      type="number"
+                      required
+                      step="0.01"
+                      value={clientForm.total_invested}
+                      onChange={(e) => setClientForm({ ...clientForm, total_invested: e.target.value })}
+                      className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                      placeholder="100000.00"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Current Value *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                    <input
+                      type="number"
+                      required
+                      step="0.01"
+                      value={clientForm.current_value}
+                      onChange={(e) => setClientForm({ ...clientForm, current_value: e.target.value })}
+                      className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                      placeholder="110000.00"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {!editingClient && (
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                  <p className="text-sm text-blue-300">
+                    A temporary password will be automatically generated. The client will receive an email to set up their account.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowClientModal(false);
+                    setEditingClient(null);
+                  }}
+                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors flex items-center justify-center space-x-2"
+                >
+                  <User className="w-4 h-4" />
+                  <span>{editingClient ? 'Update Client' : 'Create Client'}</span>
                 </button>
               </div>
             </form>
