@@ -12,6 +12,7 @@ export interface ResolvedTenant {
 
 export async function resolveTenantFromDomain(hostname: string): Promise<ResolvedTenant> {
   const parts = hostname.split('.');
+  const host = window.location.host;
 
   if (parts.length >= 3 && parts[0] === 'admin') {
     return {
@@ -53,12 +54,13 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
     const { data } = await supabase
       .from('tenant_domains')
       .select('*, platform_tenants(*)')
-      .eq('domain', hostname)
+      .eq('domain', host)
       .eq('is_verified', true)
       .maybeSingle();
 
     if (data && data.platform_tenants) {
       tenant = data.platform_tenants as Tenant;
+      subdomain = (tenant as Tenant).slug;
     }
   }
 
