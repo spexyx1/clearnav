@@ -2,30 +2,14 @@
 
 ## Available Test Accounts
 
-### 1. Client/Investor Account ✅
+### 1. Tenant Owner/Manager Account ✅
 **Email:** `test@greyalpha.co`
-**Password:** (your password from signup)
-**Access:** Client Portal
-**Tenant:** ClearNav (greyalpha)
-**Role:** Client/Investor
-
-**What you can do:**
-- View investment dashboard ($110K portfolio)
-- Check performance and returns
-- Download documents and statements
-- Request redemptions
-- Access tax documents
-- View secondary market exchange
-
----
-
-### 2. Tenant Owner/Manager Account ✅
-**Email:** `info@greyalpha.co`
-**Password:** (Set via Supabase dashboard or password reset flow)
-**Suggested Password:** `GreyAlpha2026!`
+**Password:** `TestPass123!`
 **Access:** Manager Portal (Full Access)
 **Tenant:** ClearNav (greyalpha)
-**Role:** General Manager / Owner
+**Role:** Owner / General Manager
+
+**Note:** This account has BOTH manager and client access. When logged in, you'll see the Manager Portal with all management features.
 
 **To reset password:**
 - Use Supabase Dashboard → Authentication → Users → Find user → Reset Password
@@ -121,8 +105,10 @@ VALUES (
 - **Slug:** greyalpha
 - **ID:** c19ffb25-9ca2-469e-a59d-0ed8e1e89917
 - **Status:** Active
-- **Owner:** info@greyalpha.co
-- **Clients:** 1 (test@greyalpha.co)
+- **Domain:** clearnav.cv
+- **Owner:** test@greyalpha.co
+- **Staff:** 1 (test@greyalpha.co)
+- **Clients:** 1 (test@greyalpha.co has both roles)
 
 ### Arkline (Active - No Users Yet)
 - **Slug:** arkline
@@ -135,15 +121,10 @@ VALUES (
 
 ## Testing Scenarios
 
-### As Client (`test@greyalpha.co`)
-1. Log in and see your investment dashboard
-2. Check your account value: $110,000
-3. View your investment: $100,000
-4. Browse available documents
-5. Submit a redemption request
-6. Check performance returns
+### As Tenant Owner/Manager (`test@greyalpha.co`)
+**Login at:** https://clearnav.cv
+**Password:** TestPass123!
 
-### As Tenant Owner (`info@greyalpha.co`)
 1. Log in to see the Manager Portal (28 tabs)
 2. Go to **Clients** tab → See test@greyalpha.co listed
 3. Go to **Capital Accounts** tab → Manage investor accounts
@@ -155,7 +136,8 @@ VALUES (
 9. Go to **Staff** tab → Add team members
 10. Go to **Fund Management** tab → Configure fund details
 11. Go to **Exchange** tab → Enable secondary market
-12. Test IBKR integration in Settings
+12. Go to **Communications** tab → Create and send newsletters
+13. Test IBKR integration in Settings
 
 ### As Platform Admin (`admin@clearnav.io` - after creation)
 1. Log in to see Platform Admin Portal
@@ -183,18 +165,16 @@ VALUES (
 
 ## Sample Data Available
 
-### For test@greyalpha.co (Client)
-- Account Number: TEST001
-- Total Invested: $100,000
-- Current Value: $110,000
-- Gain: $10,000 (10%)
-- Tenant: ClearNav
-
-### For info@greyalpha.co (Manager)
-- Full access to ClearNav tenant
-- Can see 1 client (test@greyalpha.co)
-- Can manage all fund operations
-- Owner role with general_manager permissions
+### For test@greyalpha.co (Owner/Manager/Client)
+- **Manager Access:** Full access to all 28 management tabs
+- **Client Data:**
+  - Account Number: TEST001
+  - Total Invested: $100,000
+  - Current Value: $110,000
+  - Gain: $10,000 (10%)
+- **Tenant:** ClearNav (greyalpha)
+- **Roles:** Owner, General Manager, Client
+- **Login:** https://clearnav.cv with password TestPass123!
 
 ---
 
@@ -227,15 +207,11 @@ VALUES (
 
 ## Quick Login Guide
 
-### To access Client Portal:
-- URL: `https://[tenant-slug].yourdomain.com` (e.g., greyalpha.yourdomain.com)
-- Login with: `test@greyalpha.co`
-- See: Investment portfolio and documents
-
 ### To access Manager Portal:
-- URL: Same as client portal (role-based routing)
-- Login with: `info@greyalpha.co`
-- See: Full fund management interface
+- URL: `https://clearnav.cv` (or localhost:5173?tenant=greyalpha)
+- Login with: `test@greyalpha.co`
+- Password: `TestPass123!`
+- See: Full fund management interface with 28 tabs
 
 ### To access Platform Admin Portal:
 - URL: `https://admin.yourdomain.com` OR detected via domain check
