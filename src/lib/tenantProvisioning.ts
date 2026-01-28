@@ -158,6 +158,34 @@ export async function provisionTenant(data: SignupData): Promise<ProvisioningRes
 
     console.log('Tenant created successfully:', tenant.id);
 
+    console.log('Creating tenant user (must be created before settings/subscriptions)');
+    const { error: tenantUserError } = await supabase.from('tenant_users').insert({
+      tenant_id: tenant.id,
+      user_id: authUser.user.id,
+      role: 'admin',
+      onboarding_status: 'in_progress',
+    });
+
+    if (tenantUserError) {
+      console.error('Tenant user creation error:', tenantUserError);
+      return { success: false, error: `Failed to create tenant user: ${tenantUserError.message}` };
+    }
+
+    console.log('Creating tenant settings');
+    const { error: settingsError } = await supabase.from('tenant_settings').insert({
+      tenant_id: tenant.id,
+      branding: {
+        company_name: data.companyName,
+      },
+      features: {},
+      notifications: {},
+      integrations: {},
+    });
+
+    if (settingsError) {
+      console.error('Tenant settings creation error:', settingsError);
+    }
+
     const { data: defaultPlan } = await supabase
       .from('subscription_plans')
       .select('*')
@@ -182,34 +210,6 @@ export async function provisionTenant(data: SignupData): Promise<ProvisioningRes
       if (subscriptionError) {
         console.error('Subscription creation error:', subscriptionError);
       }
-    }
-
-    console.log('Creating tenant settings');
-    const { error: settingsError } = await supabase.from('tenant_settings').insert({
-      tenant_id: tenant.id,
-      branding: {
-        company_name: data.companyName,
-      },
-      features: {},
-      notifications: {},
-      integrations: {},
-    });
-
-    if (settingsError) {
-      console.error('Tenant settings creation error:', settingsError);
-    }
-
-    console.log('Creating tenant user');
-    const { error: tenantUserError } = await supabase.from('tenant_users').insert({
-      tenant_id: tenant.id,
-      user_id: authUser.user.id,
-      role: 'admin',
-      onboarding_status: 'in_progress',
-    });
-
-    if (tenantUserError) {
-      console.error('Tenant user creation error:', tenantUserError);
-      return { success: false, error: `Failed to create tenant user: ${tenantUserError.message}` };
     }
 
     await supabase
