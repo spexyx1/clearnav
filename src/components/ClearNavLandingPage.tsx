@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCircle } from 'lucide-react';
+import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCircle, LineChart, CreditCard, Calculator, FileCheck, Bell, Lock } from 'lucide-react';
 import { useState } from 'react';
 
 interface ClearNavLandingPageProps {
@@ -19,34 +19,49 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
 
   const features = [
     {
-      icon: BarChart3,
-      title: 'Complete Portfolio Management',
-      description: 'Real-time portfolio tracking, performance analytics, and comprehensive reporting tools for hedge fund managers and their clients.',
+      icon: LineChart,
+      title: 'NAV Calculation Engine',
+      description: 'Automated net asset value calculations with multi-share class support, waterfall structures, carried interest tracking, and side pocket accounting.',
     },
     {
-      icon: Shield,
-      title: 'Enterprise-Grade Security',
-      description: 'Bank-level security with advanced compliance tools, KYC/AML workflows, and comprehensive audit trails.',
-    },
-    {
-      icon: Users,
-      title: 'Client Relationship Management',
-      description: 'Built-in CRM, onboarding workflows, and communication tools designed specifically for hedge fund operations.',
-    },
-    {
-      icon: Zap,
-      title: 'IBKR Integration',
-      description: 'Seamless Interactive Brokers integration for automated portfolio syncing and real-time position tracking.',
+      icon: CreditCard,
+      title: 'Capital Operations',
+      description: 'Complete workflows for capital calls, distributions, and redemptions with automated investor notifications and payment tracking.',
     },
     {
       icon: Globe,
-      title: 'Multi-Tenant Architecture',
-      description: 'Each hedge fund gets their own isolated instance with custom branding, domains, and complete data separation.',
+      title: 'IBKR Integration',
+      description: 'Real-time Interactive Brokers portfolio syncing for positions, cash balances, and trades with automated reconciliation.',
     },
     {
-      icon: CheckCircle,
-      title: 'White-Label Ready',
-      description: 'Fully customizable branding, landing pages, and email templates. Make it your own.',
+      icon: Users,
+      title: 'White-Label Portals',
+      description: 'Fully branded investor portals on custom domains with real-time dashboards, document access, and secure communication.',
+    },
+    {
+      icon: Lock,
+      title: 'Compliance Center',
+      description: 'Complete KYC/AML workflows with document verification, accreditation tracking, audit trails, and regulatory reporting.',
+    },
+    {
+      icon: FileCheck,
+      title: 'Document Management',
+      description: 'Secure storage and distribution for subscription agreements, PPMs, K-1s, quarterly reports with version control.',
+    },
+    {
+      icon: BarChart3,
+      title: 'Performance Reporting',
+      description: 'Automated generation of investor statements, tear sheets, and performance reports with attribution analysis.',
+    },
+    {
+      icon: Calculator,
+      title: 'Fee Automation',
+      description: 'Intelligent management and performance fee calculations with high water marks and customizable structures.',
+    },
+    {
+      icon: Bell,
+      title: 'Investor Relations',
+      description: 'Built-in CRM with contact management, email campaigns, automated notifications, and secure two-way messaging.',
     },
   ];
 
@@ -141,13 +156,13 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
         <div className="max-w-7xl mx-auto">
           <div className="text-center max-w-4xl mx-auto">
             <h1 className="text-6xl font-light text-white mb-6 leading-tight">
-              The Complete
+              Complete Fund Operations
               <span className="block mt-2 font-semibold bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">
-                Hedge Fund Platform
+                All-in-One Platform
               </span>
             </h1>
             <p className="text-xl text-slate-300 mb-12 leading-relaxed">
-              Launch your hedge fund platform in minutes. Complete portfolio management, CRM, compliance tools, and IBKR integration—all in one multi-tenant SaaS solution.
+              White-label infrastructure for hedge funds and fund administrators. NAV calculation, capital operations, compliance, investor portals, and IBKR integration—launch in under 5 minutes.
             </p>
             <div className="flex justify-center space-x-4">
               <button
@@ -167,18 +182,22 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
           </div>
 
           {/* Stats */}
-          <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+          <div className="mt-24 grid grid-cols-1 md:grid-cols-4 gap-6 max-w-5xl mx-auto">
             <div className="text-center p-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
-              <div className="text-4xl font-bold text-teal-400 mb-2">99.9%</div>
-              <div className="text-slate-400">Uptime SLA</div>
+              <div className="text-4xl font-bold text-teal-400 mb-2">&lt;5 min</div>
+              <div className="text-slate-400">Setup Time</div>
             </div>
             <div className="text-center p-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
-              <div className="text-4xl font-bold text-blue-400 mb-2">SOC 2</div>
-              <div className="text-slate-400">Certified Secure</div>
+              <div className="text-4xl font-bold text-blue-400 mb-2">20+</div>
+              <div className="text-slate-400">Automated Workflows</div>
             </div>
             <div className="text-center p-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
-              <div className="text-4xl font-bold text-teal-400 mb-2">24/7</div>
-              <div className="text-slate-400">Support Available</div>
+              <div className="text-4xl font-bold text-teal-400 mb-2">Bank-Grade</div>
+              <div className="text-slate-400">Security</div>
+            </div>
+            <div className="text-center p-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
+              <div className="text-4xl font-bold text-blue-400 mb-2">99.9%</div>
+              <div className="text-slate-400">Uptime</div>
             </div>
           </div>
         </div>
@@ -189,10 +208,10 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-light text-white mb-4">
-              Everything You Need to <span className="font-semibold">Run Your Hedge Fund</span>
+              Complete Back-Office <span className="font-semibold">In One System</span>
             </h2>
             <p className="text-xl text-slate-400">
-              Built by hedge fund operators, for hedge fund operators
+              Replace spreadsheets and disparate tools with enterprise-grade infrastructure built for fund operations
             </p>
           </div>
 
@@ -275,10 +294,10 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
       <div className="py-20 px-6 bg-gradient-to-r from-blue-900/20 to-teal-900/20">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl font-light text-white mb-6">
-            Ready to Launch Your <span className="font-semibold">Hedge Fund Platform?</span>
+            Ready to <span className="font-semibold">Transform Operations?</span>
           </h2>
           <p className="text-xl text-slate-300 mb-10">
-            Join leading hedge funds using ClearNav to power their operations. Start your 30-day free trial today.
+            Join forward-thinking fund managers who have eliminated spreadsheets and manual processes. Launch your white-label portal in minutes.
           </p>
           <div className="flex justify-center space-x-4">
             <button
@@ -334,49 +353,49 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
               <div className="border-b border-slate-800 pb-6">
                 <h3 className="text-lg font-semibold text-white mb-2">What is ClearNav?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  ClearNav is a complete SaaS platform built for hedge fund managers and investors. It provides portfolio management, CRM, compliance tools, IBKR integration, and a white-label investor portal—everything needed to run a modern hedge fund operation.
+                  ClearNav is an enterprise fund operations platform providing complete infrastructure for hedge funds and fund administrators. It includes NAV calculation, capital operations, compliance tools, IBKR integration, white-label investor portals, and automated reporting—everything needed to run fund operations.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">How quickly can we launch our platform?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">How quickly can we get started?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Most hedge funds go live within days. You get a fully branded, multi-tenant instance, custom domain setup, and complete investor portal with a single subscription. No lengthy implementation process—just configure your branding and start onboarding investors.
+                  Your white-label portal can be live in under 5 minutes. Complete the onboarding questionnaire, configure your branding, and start inviting investors immediately. No technical setup or IT involvement required.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">What's included in each pricing tier?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">How does NAV calculation work?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Starter includes CRM, compliance tools, and document management. Professional adds IBKR integration and custom domains. Enterprise includes API access, unlimited storage, and dedicated support. All tiers include investor portal access and full white-labeling capabilities.
+                  The NAV engine supports multiple share classes, waterfall distributions, carried interest calculations, and side pocket accounting. Calculations are automated based on your fund structure and update in real-time as portfolio values change through IBKR integration.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">Does ClearNav integrate with Interactive Brokers?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Does it integrate with Interactive Brokers?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Yes. Professional and Enterprise plans include seamless IBKR integration for real-time portfolio syncing, automated position tracking, and accurate performance calculations. Starter tier can integrate custom data sources.
+                  Yes. Our built-in IBKR integration syncs positions, cash balances, and trades in real-time. Portfolio data automatically updates NAV calculations and performance reporting without manual data entry.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">Is our data secure?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Is the platform secure and compliant?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Absolutely. We maintain SOC 2 certification, bank-level encryption, multi-factor authentication, comprehensive audit trails, and complete data isolation in our multi-tenant architecture. Each hedge fund's data is completely separated from others.
+                  Yes. Bank-grade encryption, multi-factor authentication, complete audit trails, and role-based access controls. Built-in KYC/AML workflows and document verification ensure compliance with regulatory requirements. Complete data isolation in multi-tenant architecture.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">Can we customize the platform for our fund?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Can we use our own domain?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Yes. Full white-labeling means complete brand customization, custom domains, tailored email templates, and branding throughout the investor portal. Enterprise plans include custom integrations and API access for additional flexibility.
+                  Yes. The platform supports full white-label deployment with custom domains, your logo, color scheme, and company name. Each tenant operates as a completely isolated instance with its own subdomain or custom domain.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">What's the difference between a subdomain and custom domain?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">What capital operations are supported?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  All plans include a clearnav.cv subdomain (e.g., yourfund.clearnav.cv). Professional and Enterprise plans support custom domains (e.g., investors.yourfund.com) for complete brand consistency.
+                  Complete workflows for capital calls, distributions, and redemptions with automated investor notifications, payment tracking, and capital account management. The system handles multi-share class structures and complex waterfall calculations automatically.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white mb-2">What support do you provide?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Is this suitable for fund administrators?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Starter includes email support. Professional includes priority support. Enterprise includes dedicated account management and 24/7 support. All plans include comprehensive documentation and our onboarding team helps you get set up quickly.
+                  Absolutely. The multi-tenant architecture is designed for fund administrators serving multiple clients. Each client fund operates as an isolated instance with separate data, branding, and custom domains. Volume pricing available for managing multiple funds.
                 </p>
               </div>
             </div>
