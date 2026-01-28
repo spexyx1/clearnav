@@ -36,11 +36,17 @@ export default function NewsletterManager() {
   });
 
   useEffect(() => {
+    console.log('📧 NewsletterManager: currentTenant changed:', currentTenant);
     loadNewsletters();
   }, [currentTenant]);
 
   const loadNewsletters = async () => {
-    if (!currentTenant) return;
+    console.log('📧 loadNewsletters called, currentTenant:', currentTenant);
+    if (!currentTenant) {
+      console.log('⚠️ No currentTenant available, skipping load');
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     const { data, error } = await supabase
@@ -174,6 +180,17 @@ export default function NewsletterManager() {
       default: return 'text-slate-400 bg-slate-800';
     }
   };
+
+  if (!currentTenant) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="text-slate-400 mb-2">No tenant context available</div>
+          <div className="text-sm text-slate-500">Please ensure you're accessing from a valid tenant subdomain</div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

@@ -38,6 +38,16 @@ export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
   const { branding } = useTenantBranding();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+
+  console.log('🏢 ManagerPortal render:', {
+    currentTenant: currentTenant?.slug,
+    currentTenantId: currentTenant?.id,
+    userRole,
+    isTenantAdmin,
+    staffAccount: staffAccount?.email,
+    userEmail: user?.email,
+    userId: user?.id
+  });
   const [stats, setStats] = useState({
     totalContacts: 0,
     activeOnboarding: 0,
