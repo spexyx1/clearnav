@@ -52,36 +52,58 @@ export default function NewsletterManager() {
 
   useEffect(() => {
     console.log('NewsletterManager useEffect:', { authLoading, currentTenant: currentTenant?.id, user: user?.id, staffAccount: staffAccount?.id, isTenantAdmin });
-    if (!authLoading) {
-      if (currentTenant && user) {
-        console.log('Loading newsletters for tenant:', currentTenant.id);
-        checkPermissions();
-        loadNewsletters();
-        loadClients();
-      } else {
-        console.log('Missing tenant or user, setting loading to false');
-        setLoading(false);
+
+    const initializeComponent = async () => {
+      if (!authLoading) {
+        if (currentTenant && user) {
+          console.log('Loading newsletters for tenant:', currentTenant.id);
+          setLoading(true);
+          try {
+            await Promise.all([
+              checkPermissions(),
+              loadNewsletters(),
+              loadClients()
+            ]);
+            console.log('All data loaded successfully');
+          } catch (error) {
+            console.error('Error initializing newsletter manager:', error);
+          } finally {
+            console.log('Setting loading to false after initialization');
+            setLoading(false);
+          }
+        } else {
+          console.log('Missing tenant or user, setting loading to false');
+          setLoading(false);
+        }
       }
-    }
-  }, [currentTenant, authLoading, user]);
+    };
+
+    initializeComponent();
+  }, [currentTenant, authLoading, user, isTenantAdmin, staffAccount]);
 
   const checkPermissions = async () => {
     try {
+      console.log('checkPermissions called:', { isTenantAdmin, staffAccount: staffAccount?.role });
+
       if (isTenantAdmin) {
+        console.log('User is tenant admin, granting create permission');
         setCanCreate(true);
         return;
       }
 
       if (!staffAccount) {
+        console.log('No staff account, denying create permission');
         setCanCreate(false);
         return;
       }
 
       if (staffAccount.role === 'general_manager' || staffAccount.role === 'admin') {
+        console.log('User is general_manager/admin, granting create permission');
         setCanCreate(true);
         return;
       }
 
+      console.log('Checking staff_permissions table for staff_id:', staffAccount.id);
       const { data: permissions, error } = await supabase
         .from('staff_permissions')
         .select('can_create_newsletters')
@@ -90,11 +112,14 @@ export default function NewsletterManager() {
 
       if (error) {
         console.error('Error checking permissions:', error);
+        setCanCreate(false);
+        return;
       }
 
+      console.log('Permissions result:', permissions);
       setCanCreate(permissions?.can_create_newsletters || false);
     } catch (error) {
-      console.error('Error in checkPermissions:', error);
+      console.error('Unexpected error in checkPermissions:', error);
       setCanCreate(false);
     }
   };
@@ -122,13 +147,11 @@ export default function NewsletterManager() {
   const loadNewsletters = async () => {
     console.log('loadNewsletters called, tenant:', currentTenant?.id);
     if (!currentTenant) {
-      console.log('No tenant, setting loading false');
-      setLoading(false);
+      console.log('No tenant, cannot load newsletters');
       return;
     }
 
     try {
-      setLoading(true);
       console.log('Querying newsletters for tenant:', currentTenant.id);
       const { data, error } = await supabase
         .from('newsletters')
@@ -147,9 +170,6 @@ export default function NewsletterManager() {
       }
     } catch (error) {
       console.error('Unexpected error loading newsletters:', error);
-    } finally {
-      console.log('Setting loading to false');
-      setLoading(false);
     }
   };
 
