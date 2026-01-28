@@ -11,10 +11,16 @@ export interface ResolvedTenant {
 }
 
 export async function resolveTenantFromDomain(hostname: string): Promise<ResolvedTenant> {
+  console.log('🌐 resolveTenantFromDomain called with hostname:', hostname);
+  console.log('📍 Full URL:', window.location.href);
+
   const parts = hostname.split('.');
   const host = window.location.host;
+  console.log('🔍 Hostname parts:', parts);
+  console.log('🔍 Host:', host);
 
   if (parts.length >= 3 && parts[0] === 'admin') {
+    console.log('🔒 Admin domain detected');
     return {
       tenant: null,
       isPlatformAdmin: true,
@@ -27,42 +33,52 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
 
   const params = new URLSearchParams(window.location.search);
   const tenantParam = params.get('tenant');
+  console.log('🔍 Tenant param from URL:', tenantParam);
 
   if (tenantParam && (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.'))) {
+    console.log('✅ Using tenant param for localhost:', tenantParam);
     subdomain = tenantParam;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('platform_tenants')
       .select('*')
       .eq('slug', tenantParam)
       .eq('status', 'active')
       .maybeSingle();
 
+    console.log('📊 Tenant query result:', { data, error });
     tenant = data;
   } else if (parts.length >= 3 && parts[0] !== 'www') {
+    console.log('✅ Using subdomain from hostname:', parts[0]);
     subdomain = parts[0];
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('platform_tenants')
       .select('*')
       .eq('slug', subdomain)
       .eq('status', 'active')
       .maybeSingle();
 
+    console.log('📊 Tenant query result:', { data, error });
     tenant = data;
   }
 
   if (!tenant) {
-    const { data } = await supabase
+    console.log('⚠️ No tenant found via param/subdomain, trying custom domain');
+    const { data, error } = await supabase
       .from('tenant_domains')
       .select('*, platform_tenants(*)')
       .eq('domain', host)
       .eq('is_verified', true)
       .maybeSingle();
 
+    console.log('📊 Custom domain query result:', { data, error });
+
     if (data && data.platform_tenants) {
       tenant = data.platform_tenants as Tenant;
       subdomain = (tenant as Tenant).slug;
     }
   }
+
+  console.log('🏁 Final resolved tenant:', { tenant: tenant?.slug, subdomain, isPlatformAdmin: false });
 
   return {
     tenant,
