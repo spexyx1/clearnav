@@ -102,34 +102,34 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
 
   const landingPage = settings?.landing_page || {
     hero: {
-      title: 'Next-Generation Investment Intelligence',
-      subtitle: 'Quantitative Research & Trading',
-      description: 'Combining advanced quantitative research with proprietary technology to deliver superior risk-adjusted performance in global markets.',
+      title: 'Enterprise Fund Operations Platform',
+      subtitle: 'Complete Fund Administration & Investor Management',
+      description: 'White-label technology infrastructure powering hedge funds and private investment firms with institutional-grade tools for capital management, compliance, reporting, and investor relations.',
       cta_text: 'Get Started',
       background_image: '',
     },
     features: [
       {
-        title: 'Systematic Alpha',
-        description: 'Proprietary algorithms identify and exploit market inefficiencies across asset classes with precision execution.',
+        title: 'Automated Operations',
+        description: 'Streamline NAV calculations, capital calls, distributions, and redemptions with intelligent workflows that eliminate manual processes.',
         icon: 'TrendingUp',
       },
       {
-        title: 'Advanced Technology',
-        description: 'In-house developed infrastructure enables real-time analysis and execution at institutional scale.',
+        title: 'White-Label Platform',
+        description: 'Launch your branded investor portal in minutes. Full customization of colors, logos, and domain with enterprise multi-tenancy.',
         icon: 'Zap',
       },
       {
-        title: 'Risk Management',
-        description: 'Multi-layered risk controls and portfolio optimization ensure capital preservation and consistent returns.',
+        title: 'Built-in Compliance',
+        description: 'KYC/AML verification, document management, audit trails, and regulatory reporting integrated into every workflow.',
         icon: 'Shield',
       },
     ],
     stats: [
-      { label: 'AUM', value: '$4M' },
-      { label: 'Target Return', value: '12-24%' },
-      { label: 'In Operation', value: '3 Years' },
-      { label: 'Experience', value: 'Decades' },
+      { label: 'Setup Time', value: '<5 min' },
+      { label: 'Automated Workflows', value: '20+' },
+      { label: 'Security', value: 'Bank-Grade' },
+      { label: 'Uptime', value: '99.9%' },
     ],
     contact: {
       email: 'invest@greyalpha.co',
@@ -242,16 +242,19 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 gap-16 items-center">
             <div>
-              <div className="text-xs font-medium tracking-widest mb-4" style={{ color: branding.colors.primary }}>ABOUT {branding.company_name.toUpperCase()}</div>
+              <div className="text-xs font-medium tracking-widest mb-4" style={{ color: branding.colors.primary }}>ABOUT THE PLATFORM</div>
               <h2 className="text-5xl font-light text-white mb-6">
-                Institutional-Grade<br />
-                <span className="font-semibold">Investment Management</span>
+                Complete Back-Office<br />
+                <span className="font-semibold">In One System</span>
               </h2>
               <p className="text-lg text-slate-400 mb-6 leading-relaxed">
-                {branding.company_name} delivers sophisticated portfolio management and investment solutions with advanced technology and comprehensive reporting.
+                Replace spreadsheets, disparate tools, and manual processes with a unified platform built specifically for fund operations. From investor onboarding to quarterly reporting, every workflow is automated and compliant.
+              </p>
+              <p className="text-lg text-slate-400 mb-6 leading-relaxed">
+                Multi-tenant architecture enables white-label deployment for fund administrators serving multiple clients, or dedicated instances for individual fund managers requiring full control.
               </p>
               <p className="text-lg text-slate-400 leading-relaxed">
-                Our platform combines real-time analytics, compliance tools, and seamless brokerage integration to provide a complete investment management solution.
+                Real-time portfolio syncing through Interactive Brokers integration ensures NAV calculations are always accurate, while automated capital call and distribution workflows keep investors informed.
               </p>
             </div>
             <div className="space-y-6">
@@ -269,33 +272,33 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
       <section id="platform" className="py-32 px-6 border-t border-slate-800/50 bg-slate-900/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <div className="text-xs font-medium tracking-widest mb-4" style={{ color: branding.colors.primary }}>COMPREHENSIVE PLATFORM</div>
+            <div className="text-xs font-medium tracking-widest mb-4" style={{ color: branding.colors.primary }}>COMPREHENSIVE FEATURES</div>
             <h2 className="text-5xl font-light text-white mb-6">
-              Everything You Need to <span className="font-semibold">Succeed</span>
+              Every Tool Fund Managers <span className="font-semibold">Actually Need</span>
             </h2>
             <p className="text-lg text-slate-400 max-w-3xl mx-auto">
-              Access powerful tools for portfolio management, client communication, compliance, and detailed reporting—all in one integrated platform.
+              Enterprise-grade infrastructure covering capital management, investor relations, compliance, performance reporting, and operations—replacing entire stacks of disparate software with one unified platform.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
               <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
-                <BarChart3 className="w-6 h-6" style={{ color: branding.colors.primary }} />
+                <LineChart className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Portfolio Analytics</h3>
+              <h3 className="text-xl font-semibold text-white mb-3">NAV Calculation Engine</h3>
               <p className="text-slate-400 leading-relaxed">
-                Real-time performance tracking, attribution analysis, and comprehensive reporting with customizable dashboards.
+                Automated net asset value calculations with multi-share class support, waterfall structures, carried interest tracking, and side pocket accounting.
               </p>
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
               <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
-                <Lock className="w-6 h-6" style={{ color: branding.colors.primary }} />
+                <CreditCard className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Compliance Suite</h3>
+              <h3 className="text-xl font-semibold text-white mb-3">Capital Operations</h3>
               <p className="text-slate-400 leading-relaxed">
-                KYC/AML workflows, document verification, regulatory reporting, and comprehensive audit trails for full compliance.
+                Complete workflows for capital calls, distributions, and redemptions with automated investor notifications, payment tracking, and capital account management.
               </p>
             </div>
 
@@ -305,7 +308,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">IBKR Integration</h3>
               <p className="text-slate-400 leading-relaxed">
-                Seamless Interactive Brokers connectivity for automated portfolio syncing, real-time position tracking, and trade reconciliation.
+                Real-time Interactive Brokers portfolio syncing for positions, cash balances, and trades with automated reconciliation and scheduled updates.
               </p>
             </div>
 
@@ -313,19 +316,19 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
                 <Users className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Client Portal</h3>
+              <h3 className="text-xl font-semibold text-white mb-3">Investor Portal</h3>
               <p className="text-slate-400 leading-relaxed">
-                Branded investor portals with real-time access to statements, documents, and performance metrics with secure login.
+                White-label branded portals on custom domains with real-time performance dashboards, document access, capital activity, and secure communication.
               </p>
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
               <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
-                <Bell className="w-6 h-6" style={{ color: branding.colors.primary }} />
+                <Lock className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Communication Hub</h3>
+              <h3 className="text-xl font-semibold text-white mb-3">Compliance Center</h3>
               <p className="text-slate-400 leading-relaxed">
-                Automated email notifications, investor updates, and secure messaging with full communication history tracking.
+                Complete KYC/AML workflows with document verification, accreditation tracking, audit trails, and regulatory reporting across all investor activities.
               </p>
             </div>
 
@@ -333,29 +336,19 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
                 <FileCheck className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Document Management</h3>
+              <h3 className="text-xl font-semibold text-white mb-3">Document Vault</h3>
               <p className="text-slate-400 leading-relaxed">
-                Centralized storage for subscription docs, K-1s, quarterly reports with version control and secure sharing.
+                Secure storage and distribution for subscription agreements, PPMs, K-1s, quarterly letters, and investor statements with version control and e-signatures.
               </p>
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
               <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
-                <CreditCard className="w-6 h-6" style={{ color: branding.colors.primary }} />
+                <BarChart3 className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Capital Management</h3>
+              <h3 className="text-xl font-semibold text-white mb-3">Performance Reporting</h3>
               <p className="text-slate-400 leading-relaxed">
-                Track capital calls, distributions, redemptions, and side pockets with automated calculations and investor notifications.
-              </p>
-            </div>
-
-            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
-                <LineChart className="w-6 h-6" style={{ color: branding.colors.primary }} />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-3">NAV Calculation</h3>
-              <p className="text-slate-400 leading-relaxed">
-                Automated net asset value calculations with support for multiple share classes, waterfalls, and carried interest.
+                Automated generation of investor statements, tear sheets, and performance reports with attribution analysis and risk metrics across time periods.
               </p>
             </div>
 
@@ -363,9 +356,19 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
                 <Calculator className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Fee Management</h3>
+              <h3 className="text-xl font-semibold text-white mb-3">Fee Automation</h3>
               <p className="text-slate-400 leading-relaxed">
-                Automated management and performance fee calculations with high water marks and customizable fee structures.
+                Intelligent calculation of management fees, performance fees with high water marks, hurdle rates, and customizable fee structures per share class.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Bell className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Investor Relations</h3>
+              <p className="text-slate-400 leading-relaxed">
+                CRM with contact management, email campaigns, automated notifications for capital events, and secure two-way messaging between managers and investors.
               </p>
             </div>
           </div>
@@ -376,10 +379,10 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
         <div className="max-w-4xl mx-auto text-center">
           <div className="text-xs font-medium tracking-widest mb-4" style={{ color: branding.colors.primary }}>GET IN TOUCH</div>
           <h2 className="text-5xl font-light text-white mb-6">
-            Start Your <span className="font-semibold">Investment Journey</span>
+            Ready to <span className="font-semibold">Transform Operations</span>
           </h2>
           <p className="text-lg text-slate-400 mb-12 max-w-2xl mx-auto">
-            Connect with our team to learn more about investment opportunities and how we can help you achieve your financial goals.
+            Join forward-thinking fund managers who have eliminated spreadsheets and manual processes. Schedule a demo to see how our platform can streamline your fund operations.
           </p>
 
           <div className="flex justify-center space-x-8 mb-16">
@@ -454,51 +457,51 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
             <div className="p-6 space-y-6">
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">How do I access my investor account?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">How quickly can we get started?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  You'll receive an email invitation with secure login credentials. Click the link in the email to set your password and access your personalized investor portal where you can view performance, documents, and statements 24/7.
+                  Your white-label portal can be live in under 5 minutes. Complete the onboarding questionnaire, configure your branding, and start inviting investors immediately. No technical setup or IT involvement required.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">What documents will I receive?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Can we use our own domain?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Investors receive monthly statements, quarterly performance reports, annual audited financials, and tax documents (K-1s). All documents are securely stored in your portal and you'll receive email notifications when new documents are available.
+                  Yes. The platform supports full white-label deployment with custom domains, your logo, color scheme, and company name. Each tenant operates as a completely isolated instance with its own subdomain or custom domain.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">How often is performance updated?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Does it integrate with Interactive Brokers?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Portfolio performance is updated in real-time through our Interactive Brokers integration. NAV calculations and official performance reports are typically updated monthly, with detailed attribution analysis and risk metrics.
+                  Yes. Our built-in IBKR integration syncs positions, cash balances, and trades in real-time. Portfolio data automatically updates NAV calculations and performance reporting without manual data entry.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">What are the minimum investment requirements?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">How does NAV calculation work?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Minimum investment amounts vary by fund structure and investor type. Contact us directly to discuss specific requirements and investment opportunities that match your capital allocation goals.
+                  The NAV engine supports multiple share classes, waterfall distributions, carried interest calculations, and side pocket accounting. Calculations are automated based on your fund structure and update in real-time as portfolio values change.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">How do redemptions work?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Can investors access their information 24/7?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Redemption terms are outlined in the fund documents. You can submit redemption requests through your investor portal. The system tracks notice periods, processing dates, and redemption queues automatically.
+                  Absolutely. Each investor receives secure portal access to view real-time performance, capital account activity, statements, tax documents, and fund communications. All document delivery is automated with email notifications.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">Is my data secure?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Is the platform secure and compliant?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Yes. We employ bank-level security with encryption at rest and in transit, multi-factor authentication, regular security audits, and comprehensive access controls. All data is stored in secure, SOC 2 compliant infrastructure.
+                  Yes. Bank-grade encryption, multi-factor authentication, complete audit trails, and role-based access controls. Built-in KYC/AML workflows and document verification ensure compliance with regulatory requirements.
                 </p>
               </div>
               <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">Can I make additional investments?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">What happens to our existing data?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  Additional investments are typically accepted during designated subscription periods. You can submit subscription requests through your portal, and our team will coordinate the capital call process and required documentation.
+                  We provide migration assistance for importing your existing investor data, capital accounts, and historical performance. The platform integrates with your current workflows rather than forcing you to change processes.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white mb-2">How do I contact support?</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">How is pricing structured?</h3>
                 <p className="text-slate-400 leading-relaxed">
-                  You can reach our team via email at {landingPage.contact.email}, through the secure messaging system in your investor portal, or by submitting an inquiry through the contact form on this website. We aim to respond to all inquiries within one business day.
+                  Contact us for pricing details. We offer flexible plans based on AUM, number of investors, and feature requirements. Multi-tenant fund administrators receive volume pricing for managing multiple client funds.
                 </p>
               </div>
             </div>
