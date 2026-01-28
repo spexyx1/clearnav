@@ -276,7 +276,7 @@ export default function CRMDashboard({ onNavigate }: CRMDashboardProps) {
           onClick={() => onNavigate('contacts')}
           className="p-6 bg-gradient-to-br from-cyan-600 to-blue-600 rounded-lg text-left hover:shadow-lg hover:shadow-cyan-500/20 transition-all"
         >
-          <Contact className="w-8 h-8 text-white mb-3" />
+          <Users className="w-8 h-8 text-white mb-3" />
           <div className="text-white font-semibold text-lg">Manage Contacts</div>
           <div className="text-cyan-100 text-sm mt-1">View and manage all CRM contacts</div>
         </button>
