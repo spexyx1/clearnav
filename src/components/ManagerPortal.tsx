@@ -35,7 +35,7 @@ import NewsletterManager from './manager/NewsletterManager';
 type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users';
 
 export default function ManagerPortal() {
-  const { staffAccount, userRole, signOut, currentTenant } = useAuth();
+  const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
   const { branding } = useTenantBranding();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [stats, setStats] = useState({
@@ -148,7 +148,7 @@ export default function ManagerPortal() {
               <div className="h-8 w-px bg-slate-700"></div>
               <div className="text-right">
                 <div className="text-sm text-slate-400 capitalize">{userRole?.replace('_', ' ')}</div>
-                <div className="text-white font-medium">{staffAccount?.full_name}</div>
+                <div className="text-white font-medium">{staffAccount?.full_name || user?.email?.split('@')[0] || 'User'}</div>
               </div>
               <button
                 onClick={signOut}

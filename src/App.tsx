@@ -14,7 +14,7 @@ const ManagerPortal = lazy(() => import('./components/ManagerPortal'));
 const PlatformAdminPortal = lazy(() => import('./components/platform/PlatformAdminPortal'));
 
 function AppContent() {
-  const { user, loading, isStaff, isPlatformAdmin, currentTenant } = useAuth();
+  const { user, loading, isStaff, isTenantAdmin, isPlatformAdmin, currentTenant } = useAuth();
   const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug'>('landing');
 
   useEffect(() => {
@@ -73,7 +73,7 @@ function AppContent() {
       );
     }
 
-    if (isStaff) {
+    if (isStaff || isTenantAdmin) {
       return (
         <Suspense fallback={
           <div className="min-h-screen bg-slate-950 flex items-center justify-center">

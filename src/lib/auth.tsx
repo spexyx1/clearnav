@@ -25,6 +25,7 @@ interface AuthContextType {
   loading: boolean;
   userRole: UserRole | null;
   isStaff: boolean;
+  isTenantAdmin: boolean;
   staffAccount: StaffAccount | null;
   isPlatformAdmin: boolean;
   platformAdminUser: PlatformAdminUser | null;
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isStaff, setIsStaff] = useState(false);
+  const [isTenantAdmin, setIsTenantAdmin] = useState(false);
   const [staffAccount, setStaffAccount] = useState<StaffAccount | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [platformAdminUser, setPlatformAdminUser] = useState<PlatformAdminUser | null>(null);
@@ -68,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPlatformAdminUser(adminData);
         setUserRole('platform_admin');
         setIsStaff(false);
+        setIsTenantAdmin(false);
         setStaffAccount(null);
         return;
       }
@@ -86,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (staffData) {
       console.log('✅ Staff account found:', staffData);
       setIsStaff(true);
+      setIsTenantAdmin(false);
       setUserRole(staffData.role);
       setStaffAccount(staffData);
       setIsPlatformAdmin(false);
@@ -107,7 +111,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
     } else {
-      console.log('❌ No staff account found, checking client');
+      console.log('❌ No staff account found, checking tenant_users for admin/owner');
+
+      if (resolved.tenant) {
+        const { data: tenantUserData } = await supabase
+          .from('tenant_users')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('tenant_id', resolved.tenant.id)
+          .maybeSingle();
+
+        setTenantUser(tenantUserData);
+
+        if (tenantUserData && (tenantUserData.role === 'admin' || tenantUserData.role === 'owner')) {
+          console.log('✅ Tenant admin/owner found:', tenantUserData);
+          setIsTenantAdmin(true);
+          setIsStaff(false);
+          setUserRole('admin');
+          setStaffAccount(null);
+          setIsPlatformAdmin(false);
+          setPlatformAdminUser(null);
+          return;
+        }
+      }
+
+      console.log('❌ No tenant admin found, checking client');
       const { data: clientData } = await supabase
         .from('client_profiles')
         .select('id')
@@ -117,12 +145,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (clientData) {
         console.log('✅ Client found');
         setIsStaff(false);
+        setIsTenantAdmin(false);
         setUserRole('client');
         setStaffAccount(null);
         setIsPlatformAdmin(false);
         setPlatformAdminUser(null);
       } else {
-        console.log('❌ No client or staff account found');
+        console.log('❌ No client, staff, or tenant admin account found');
+        setIsTenantAdmin(false);
       }
     }
   };
@@ -158,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setUserRole(null);
           setIsStaff(false);
+          setIsTenantAdmin(false);
           setStaffAccount(null);
           setIsPlatformAdmin(false);
           setPlatformAdminUser(null);
@@ -178,6 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUserRole(null);
     setIsStaff(false);
+    setIsTenantAdmin(false);
     setStaffAccount(null);
     setIsPlatformAdmin(false);
     setPlatformAdminUser(null);
@@ -199,6 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       userRole,
       isStaff,
+      isTenantAdmin,
       staffAccount,
       isPlatformAdmin,
       platformAdminUser,
