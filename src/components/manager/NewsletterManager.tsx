@@ -51,70 +51,106 @@ export default function NewsletterManager() {
   });
 
   useEffect(() => {
-    if (!authLoading && currentTenant && user) {
-      checkPermissions();
-      loadNewsletters();
-      loadClients();
+    console.log('NewsletterManager useEffect:', { authLoading, currentTenant: currentTenant?.id, user: user?.id, staffAccount: staffAccount?.id, isTenantAdmin });
+    if (!authLoading) {
+      if (currentTenant && user) {
+        console.log('Loading newsletters for tenant:', currentTenant.id);
+        checkPermissions();
+        loadNewsletters();
+        loadClients();
+      } else {
+        console.log('Missing tenant or user, setting loading to false');
+        setLoading(false);
+      }
     }
-  }, [currentTenant, authLoading, user, staffAccount]);
+  }, [currentTenant, authLoading, user]);
 
   const checkPermissions = async () => {
-    if (isTenantAdmin) {
-      setCanCreate(true);
-      return;
-    }
+    try {
+      if (isTenantAdmin) {
+        setCanCreate(true);
+        return;
+      }
 
-    if (!staffAccount) {
+      if (!staffAccount) {
+        setCanCreate(false);
+        return;
+      }
+
+      if (staffAccount.role === 'general_manager' || staffAccount.role === 'admin') {
+        setCanCreate(true);
+        return;
+      }
+
+      const { data: permissions, error } = await supabase
+        .from('staff_permissions')
+        .select('can_create_newsletters')
+        .eq('staff_id', staffAccount.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking permissions:', error);
+      }
+
+      setCanCreate(permissions?.can_create_newsletters || false);
+    } catch (error) {
+      console.error('Error in checkPermissions:', error);
       setCanCreate(false);
-      return;
     }
-
-    if (staffAccount.role === 'general_manager' || staffAccount.role === 'admin') {
-      setCanCreate(true);
-      return;
-    }
-
-    const { data: permissions } = await supabase
-      .from('staff_permissions')
-      .select('can_create_newsletters')
-      .eq('staff_id', staffAccount.id)
-      .maybeSingle();
-
-    setCanCreate(permissions?.can_create_newsletters || false);
   };
 
   const loadClients = async () => {
     if (!currentTenant) return;
 
-    const { data } = await supabase
-      .from('client_profiles')
-      .select('id, full_name, email')
-      .eq('tenant_id', currentTenant.id)
-      .order('full_name');
+    try {
+      const { data, error } = await supabase
+        .from('client_profiles')
+        .select('id, full_name, email')
+        .eq('tenant_id', currentTenant.id)
+        .order('full_name');
 
-    setClients(data || []);
+      if (error) {
+        console.error('Error loading clients:', error);
+      } else {
+        setClients(data || []);
+      }
+    } catch (error) {
+      console.error('Unexpected error loading clients:', error);
+    }
   };
 
   const loadNewsletters = async () => {
+    console.log('loadNewsletters called, tenant:', currentTenant?.id);
     if (!currentTenant) {
+      console.log('No tenant, setting loading false');
       setLoading(false);
       return;
     }
 
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('newsletters')
-      .select('*')
-      .eq('tenant_id', currentTenant.id)
-      .order('created_at', { ascending: false });
+    try {
+      setLoading(true);
+      console.log('Querying newsletters for tenant:', currentTenant.id);
+      const { data, error } = await supabase
+        .from('newsletters')
+        .select('*')
+        .eq('tenant_id', currentTenant.id)
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error loading newsletters:', error);
-      alert('Failed to load newsletters: ' + error.message);
-    } else {
-      setNewsletters(data || []);
+      console.log('Newsletter query result:', { data, error, count: data?.length });
+
+      if (error) {
+        console.error('Error loading newsletters:', error);
+        alert('Failed to load newsletters: ' + error.message);
+      } else {
+        console.log('Setting newsletters:', data?.length || 0, 'items');
+        setNewsletters(data || []);
+      }
+    } catch (error) {
+      console.error('Unexpected error loading newsletters:', error);
+    } finally {
+      console.log('Setting loading to false');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleCreateNewsletter = async () => {
