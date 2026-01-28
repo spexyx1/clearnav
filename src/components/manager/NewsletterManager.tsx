@@ -21,7 +21,7 @@ interface Newsletter {
 }
 
 export default function NewsletterManager() {
-  const { currentTenant } = useAuth();
+  const { currentTenant, loading: authLoading } = useAuth();
   const [newsletters, setNewsletters] = useState<Newsletter[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingNewsletter, setEditingNewsletter] = useState<Newsletter | null>(null);
@@ -36,14 +36,13 @@ export default function NewsletterManager() {
   });
 
   useEffect(() => {
-    console.log('📧 NewsletterManager: currentTenant changed:', currentTenant);
-    loadNewsletters();
-  }, [currentTenant]);
+    if (!authLoading) {
+      loadNewsletters();
+    }
+  }, [currentTenant, authLoading]);
 
   const loadNewsletters = async () => {
-    console.log('📧 loadNewsletters called, currentTenant:', currentTenant);
     if (!currentTenant) {
-      console.log('⚠️ No currentTenant available, skipping load');
       setLoading(false);
       return;
     }
@@ -181,6 +180,14 @@ export default function NewsletterManager() {
     }
   };
 
+  if (authLoading || loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-slate-400">Loading newsletters...</div>
+      </div>
+    );
+  }
+
   if (!currentTenant) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -188,14 +195,6 @@ export default function NewsletterManager() {
           <div className="text-slate-400 mb-2">No tenant context available</div>
           <div className="text-sm text-slate-500">Please ensure you're accessing from a valid tenant subdomain</div>
         </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-slate-400">Loading newsletters...</div>
       </div>
     );
   }
