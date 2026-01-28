@@ -24,7 +24,20 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
   let tenant: Tenant | null = null;
   let subdomain: string | null = null;
 
-  if (parts.length >= 3 && parts[0] !== 'www') {
+  const params = new URLSearchParams(window.location.search);
+  const tenantParam = params.get('tenant');
+
+  if (tenantParam && (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.'))) {
+    subdomain = tenantParam;
+    const { data } = await supabase
+      .from('platform_tenants')
+      .select('*')
+      .eq('slug', tenantParam)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    tenant = data;
+  } else if (parts.length >= 3 && parts[0] !== 'www') {
     subdomain = parts[0];
     const { data } = await supabase
       .from('platform_tenants')
@@ -58,6 +71,13 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
 
 export function getTenantSlugFromUrl(): string | null {
   const hostname = window.location.hostname;
+  const params = new URLSearchParams(window.location.search);
+  const tenantParam = params.get('tenant');
+
+  if (tenantParam && (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.'))) {
+    return tenantParam;
+  }
+
   const parts = hostname.split('.');
 
   if (parts.length >= 3 && parts[0] !== 'www' && parts[0] !== 'admin') {
@@ -69,9 +89,11 @@ export function getTenantSlugFromUrl(): string | null {
 
 export function isPlatformAdminDomain(): boolean {
   const hostname = window.location.hostname;
+  const params = new URLSearchParams(window.location.search);
+  const tenantParam = params.get('tenant');
 
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
-    return !getTenantSlugFromUrl();
+    return !tenantParam;
   }
 
   return hostname.split('.')[0] === 'admin';
