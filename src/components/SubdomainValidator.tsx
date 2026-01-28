@@ -64,9 +64,7 @@ export default function SubdomainValidator({
     checkAvailability();
   }, [value, onValidationChange]);
 
-  const hostname = window.location.hostname;
-  const parts = hostname.split('.');
-  const baseDomain = parts.length >= 2 ? parts.slice(-2).join('.') : 'clearnav.cv';
+  const baseDomain = 'clearnav.cv';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
