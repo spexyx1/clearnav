@@ -74,6 +74,24 @@ function AppContent() {
     }
 
     if (isStaff || isTenantAdmin) {
+      // Check if tenant is resolved - required for localhost
+      if (!currentTenant && window.location.hostname === 'localhost') {
+        const tenantParam = new URLSearchParams(window.location.search).get('tenant');
+        if (!tenantParam) {
+          // Redirect to add tenant parameter
+          const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?tenant=greyalpha`;
+          window.location.href = newUrl;
+          return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-slate-400">Redirecting to tenant portal...</p>
+              </div>
+            </div>
+          );
+        }
+      }
+
       return (
         <Suspense fallback={
           <div className="min-h-screen bg-slate-950 flex items-center justify-center">

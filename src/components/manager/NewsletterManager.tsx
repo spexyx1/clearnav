@@ -458,16 +458,25 @@ export default function NewsletterManager() {
       <div className="bg-slate-900/50 border border-blue-900/50 rounded-lg p-4 mb-4">
         <div className="text-xs font-mono text-slate-400 space-y-1">
           <div>🔍 <strong>Debug Info:</strong></div>
-          <div>User ID: {user?.id || 'none'}</div>
-          <div>User Email: {user?.email || 'none'}</div>
-          <div>Tenant ID: {currentTenant?.id || 'none'}</div>
-          <div>Tenant Slug: {currentTenant?.slug || 'none'}</div>
+          <div>URL: {window.location.href}</div>
+          <div>Hostname: {window.location.hostname}</div>
+          <div>Tenant Param: {new URLSearchParams(window.location.search).get('tenant') || 'none'}</div>
+          <div className="h-px bg-slate-700 my-2"></div>
+          <div>User ID: {user?.id || '❌ NULL'}</div>
+          <div>User Email: {user?.email || '❌ NULL'}</div>
+          <div>Tenant ID: {currentTenant?.id || '❌ NULL - ADD ?tenant=greyalpha TO URL'}</div>
+          <div>Tenant Slug: {currentTenant?.slug || '❌ NULL'}</div>
           <div>Staff Account: {staffAccount?.id ? `${staffAccount.role} (${staffAccount.email})` : 'none'}</div>
           <div>Is Tenant Admin: {isTenantAdmin ? 'YES' : 'NO'}</div>
-          <div>Can Create Newsletters: {canCreate ? 'YES' : 'NO'}</div>
+          <div>Can Create Newsletters: {canCreate ? 'YES ✅' : 'NO ❌'}</div>
           <div>Newsletters Loaded: {newsletters.length}</div>
           <div>Auth Loading: {authLoading ? 'YES' : 'NO'}</div>
           <div>Component Loading: {loading ? 'YES' : 'NO'}</div>
+          {!currentTenant && (
+            <div className="mt-2 p-2 bg-red-900/30 border border-red-700/50 rounded text-red-300">
+              <strong>⚠️ ISSUE FOUND:</strong> Tenant is NULL. On localhost, you must add <strong>?tenant=greyalpha</strong> to your URL.
+            </div>
+          )}
         </div>
       </div>
 
