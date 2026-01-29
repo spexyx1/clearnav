@@ -68,11 +68,9 @@ export default function NewsletterManager() {
         if (currentTenant && user) {
           console.log('✅ All prerequisites met, loading newsletters for tenant:', currentTenant.id);
           setLoading(true);
-          // BYPASS ALL PERMISSION CHECKS - Always allow creation for testing
-          console.log('🔓 BYPASSING PERMISSION CHECKS - Setting canCreate to TRUE');
-          setCanCreate(true);
           try {
             await Promise.all([
+              checkPermissions(),
               loadNewsletters(),
               loadClients()
             ]);
@@ -101,43 +99,31 @@ export default function NewsletterManager() {
 
   const checkPermissions = async () => {
     try {
-      console.log('checkPermissions called:', { isTenantAdmin, staffAccount: staffAccount?.role });
-
-      if (isTenantAdmin) {
-        console.log('User is tenant admin, granting create permission');
-        setCanCreate(true);
-        return;
-      }
+      console.log('🔐 Checking newsletter permissions:', {
+        isTenantAdmin,
+        staffAccount: staffAccount?.role,
+        permissions: staffAccount?.permissions
+      });
 
       if (!staffAccount) {
-        console.log('No staff account, denying create permission');
+        console.log('❌ No staff account, denying create permission');
         setCanCreate(false);
         return;
       }
 
-      if (staffAccount.role === 'general_manager' || staffAccount.role === 'admin') {
-        console.log('User is general_manager/admin, granting create permission');
+      // Owner and admin roles always have permission
+      if (staffAccount.role === 'owner' || staffAccount.role === 'admin') {
+        console.log('✅ User is owner/admin, granting newsletter permission');
         setCanCreate(true);
         return;
       }
 
-      console.log('Checking staff_permissions table for staff_id:', staffAccount.id);
-      const { data: permissions, error } = await supabase
-        .from('staff_permissions')
-        .select('can_create_newsletters')
-        .eq('staff_id', staffAccount.id)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error checking permissions:', error);
-        setCanCreate(false);
-        return;
-      }
-
-      console.log('Permissions result:', permissions);
-      setCanCreate(permissions?.can_create_newsletters || false);
+      // Check explicit permission in JSONB field
+      const hasPermission = staffAccount.permissions?.can_manage_newsletters === true;
+      console.log('📋 Checking explicit permission:', hasPermission);
+      setCanCreate(hasPermission);
     } catch (error) {
-      console.error('Unexpected error in checkPermissions:', error);
+      console.error('❌ Unexpected error in checkPermissions:', error);
       setCanCreate(false);
     }
   };
@@ -432,14 +418,28 @@ export default function NewsletterManager() {
     }
   };
 
-  // REMOVED LOADING CHECKS - Always show UI for debugging
-  // if (authLoading || loading) {
-  //   return loading spinner
-  // }
+  if (authLoading || loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="flex items-center space-x-2 text-slate-400">
+          <Loader className="w-5 h-5 animate-spin" />
+          <span>Loading newsletters...</span>
+        </div>
+      </div>
+    );
+  }
 
-  // if (!currentTenant) {
-  //   return error message
-  // }
+  if (!currentTenant) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+          <div className="text-slate-400 mb-2">No tenant context available</div>
+          <div className="text-sm text-slate-500">Please ensure you're accessing from a valid tenant subdomain</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -472,19 +472,21 @@ export default function NewsletterManager() {
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Newsletters</h1>
           <p className="text-slate-400">
-            Create and send newsletters to your clients
+            {canCreate ? 'Create and send newsletters to your clients' : 'View newsletters sent to clients'}
           </p>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowCreateModal(true);
-          }}
-          className="flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Create Newsletter</span>
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => {
+              resetForm();
+              setShowCreateModal(true);
+            }}
+            className="flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Create Newsletter</span>
+          </button>
+        )}
       </div>
 
       {newsletters.length === 0 ? (
@@ -492,18 +494,20 @@ export default function NewsletterManager() {
           <Mail className="w-16 h-16 text-slate-600 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-slate-300 mb-2">No newsletters yet</h3>
           <p className="text-slate-400 mb-6">
-            Create your first newsletter to communicate with your clients
+            {canCreate ? 'Create your first newsletter to communicate with your clients' : 'No newsletters have been created yet'}
           </p>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowCreateModal(true);
-            }}
-            className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Create Newsletter</span>
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => {
+                resetForm();
+                setShowCreateModal(true);
+              }}
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Create Newsletter</span>
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -525,7 +529,7 @@ export default function NewsletterManager() {
                   >
                     <Eye className="w-4 h-4" />
                   </button>
-                  {newsletter.status === 'draft' && (
+                  {canCreate && newsletter.status === 'draft' && (
                     <>
                       <button
                         onClick={() => openEditModal(newsletter)}

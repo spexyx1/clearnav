@@ -4,11 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
 interface StaffPermissions {
-  can_manage_users: boolean;
-  can_invite_clients: boolean;
-  can_create_newsletters: boolean;
-  can_approve_redemptions: boolean;
-  can_view_performance: boolean;
+  can_manage_newsletters: boolean;
 }
 
 export default function StaffManagement() {
@@ -18,11 +14,7 @@ export default function StaffManagement() {
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [permissions, setPermissions] = useState<StaffPermissions>({
-    can_manage_users: false,
-    can_invite_clients: false,
-    can_create_newsletters: false,
-    can_approve_redemptions: false,
-    can_view_performance: false,
+    can_manage_newsletters: false,
   });
 
   useEffect(() => {
@@ -36,16 +28,7 @@ export default function StaffManagement() {
 
     const { data } = await supabase
       .from('staff_accounts')
-      .select(`
-        *,
-        staff_permissions (
-          can_manage_users,
-          can_invite_clients,
-          can_create_newsletters,
-          can_approve_redemptions,
-          can_view_performance
-        )
-      `)
+      .select('*')
       .eq('tenant_id', currentTenant.id)
       .order('created_at', { ascending: false });
     setStaff(data || []);
@@ -55,24 +38,11 @@ export default function StaffManagement() {
   const openPermissionsModal = async (member: any) => {
     setSelectedStaff(member);
 
-    if (member.staff_permissions && member.staff_permissions.length > 0) {
-      const perms = member.staff_permissions[0];
-      setPermissions({
-        can_manage_users: perms.can_manage_users || false,
-        can_invite_clients: perms.can_invite_clients || false,
-        can_create_newsletters: perms.can_create_newsletters || false,
-        can_approve_redemptions: perms.can_approve_redemptions || false,
-        can_view_performance: perms.can_view_performance || false,
-      });
-    } else {
-      setPermissions({
-        can_manage_users: false,
-        can_invite_clients: false,
-        can_create_newsletters: false,
-        can_approve_redemptions: false,
-        can_view_performance: false,
-      });
-    }
+    // Load permissions from JSONB field
+    const perms = member.permissions || {};
+    setPermissions({
+      can_manage_newsletters: perms.can_manage_newsletters || false,
+    });
 
     setShowPermissionsModal(true);
   };
@@ -80,46 +50,24 @@ export default function StaffManagement() {
   const handleSavePermissions = async () => {
     if (!selectedStaff || !currentTenant) return;
 
-    const { data: existing } = await supabase
-      .from('staff_permissions')
-      .select('id')
-      .eq('staff_id', selectedStaff.id)
-      .maybeSingle();
+    // Don't save for owner/admin (they always have permission)
+    if (selectedStaff.role === 'owner' || selectedStaff.role === 'admin') {
+      setShowPermissionsModal(false);
+      setSelectedStaff(null);
+      return;
+    }
 
-    if (existing) {
-      const { error } = await supabase
-        .from('staff_permissions')
-        .update({
-          can_manage_users: permissions.can_manage_users,
-          can_invite_clients: permissions.can_invite_clients,
-          can_create_newsletters: permissions.can_create_newsletters,
-          can_approve_redemptions: permissions.can_approve_redemptions,
-          can_view_performance: permissions.can_view_performance,
-        })
-        .eq('id', existing.id);
+    // Update the permissions JSONB field
+    const { error } = await supabase
+      .from('staff_accounts')
+      .update({
+        permissions: permissions,
+      })
+      .eq('id', selectedStaff.id);
 
-      if (error) {
-        alert('Error updating permissions: ' + error.message);
-        return;
-      }
-    } else {
-      const { error } = await supabase
-        .from('staff_permissions')
-        .insert({
-          staff_id: selectedStaff.id,
-          tenant_id: currentTenant.id,
-          module: 'general',
-          can_manage_users: permissions.can_manage_users,
-          can_invite_clients: permissions.can_invite_clients,
-          can_create_newsletters: permissions.can_create_newsletters,
-          can_approve_redemptions: permissions.can_approve_redemptions,
-          can_view_performance: permissions.can_view_performance,
-        });
-
-      if (error) {
-        alert('Error creating permissions: ' + error.message);
-        return;
-      }
+    if (error) {
+      alert('Error updating permissions: ' + error.message);
+      return;
     }
 
     setShowPermissionsModal(false);
@@ -272,93 +220,71 @@ export default function StaffManagement() {
             </div>
 
             <div className="space-y-4">
-              <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <div className="text-sm font-medium text-white">Manage Users</div>
-                    <div className="text-xs text-slate-400">Can add, edit, and remove clients and staff</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={permissions.can_manage_users}
-                    onChange={(e) => setPermissions({ ...permissions, can_manage_users: e.target.checked })}
-                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <div className="text-sm font-medium text-white">Invite Clients</div>
-                    <div className="text-xs text-slate-400">Can send client invitations</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={permissions.can_invite_clients}
-                    onChange={(e) => setPermissions({ ...permissions, can_invite_clients: e.target.checked })}
-                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <div className="text-sm font-medium text-white">Create Newsletters</div>
-                    <div className="text-xs text-slate-400">Can create and send newsletters</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={permissions.can_create_newsletters}
-                    onChange={(e) => setPermissions({ ...permissions, can_create_newsletters: e.target.checked })}
-                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <div className="text-sm font-medium text-white">Approve Redemptions</div>
-                    <div className="text-xs text-slate-400">Can approve or reject redemption requests</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={permissions.can_approve_redemptions}
-                    onChange={(e) => setPermissions({ ...permissions, can_approve_redemptions: e.target.checked })}
-                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <div className="text-sm font-medium text-white">View Performance</div>
-                    <div className="text-xs text-slate-400">Can view fund performance metrics</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={permissions.can_view_performance}
-                    onChange={(e) => setPermissions({ ...permissions, can_view_performance: e.target.checked })}
-                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0"
-                  />
-                </label>
+              {/* Show role badge */}
+              <div className="bg-slate-800/50 rounded-lg p-3 mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-400">Current Role:</span>
+                  <span className="text-sm font-medium text-white capitalize">{selectedStaff.role.replace('_', ' ')}</span>
+                </div>
               </div>
 
-              <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3">
-                <p className="text-xs text-cyan-300">
-                  General Managers have full access by default. These permissions apply to other staff roles.
-                </p>
-              </div>
+              {selectedStaff.role === 'owner' || selectedStaff.role === 'admin' ? (
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                  <p className="text-sm text-green-300">
+                    <strong>Owner</strong> and <strong>Admin</strong> roles have full newsletter management permissions by default.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div>
+                        <div className="text-sm font-medium text-white">Manage Newsletters</div>
+                        <div className="text-xs text-slate-400">Can create, edit, and send newsletters to clients</div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={permissions.can_manage_newsletters}
+                        onChange={(e) => setPermissions({ ...permissions, can_manage_newsletters: e.target.checked })}
+                        className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-2 focus:ring-cyan-500 focus:ring-offset-0"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3">
+                    <p className="text-xs text-cyan-300">
+                      Owner and Admin roles have full access by default. These permissions apply to other staff roles.
+                    </p>
+                  </div>
+                </>
+              )}
 
               <div className="flex space-x-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPermissionsModal(false)}
-                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSavePermissions}
-                  className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors"
-                >
-                  Save Permissions
-                </button>
+                {selectedStaff.role === 'owner' || selectedStaff.role === 'admin' ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowPermissionsModal(false)}
+                    className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors"
+                  >
+                    Close
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowPermissionsModal(false)}
+                      className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSavePermissions}
+                      className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors"
+                    >
+                      Save Permissions
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
