@@ -13,6 +13,7 @@ interface PlatformContextType {
   platformAdminUser: PlatformAdminUser | null;
   tenantUser: TenantUser | null;
   isLoading: boolean;
+  tenantError: 'not_found' | 'inactive' | 'invalid_subdomain' | null;
   refetch: () => Promise<void>;
 }
 
@@ -24,25 +25,25 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const [platformAdminUser, setPlatformAdminUser] = useState<PlatformAdminUser | null>(null);
   const [tenantUser, setTenantUser] = useState<TenantUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [tenantError, setTenantError] = useState<'not_found' | 'inactive' | 'invalid_subdomain' | null>(null);
 
   const fetchPlatformData = async () => {
     try {
       setIsLoading(true);
 
+      const resolved: ResolvedTenant = await resolveTenantFromDomain(window.location.hostname);
+      setCurrentTenant(resolved.tenant);
+      setIsPlatformAdmin(resolved.isPlatformAdmin);
+      setTenantError(resolved.error || null);
+
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        setCurrentTenant(null);
-        setIsPlatformAdmin(false);
         setPlatformAdminUser(null);
         setTenantUser(null);
         setIsLoading(false);
         return;
       }
-
-      const resolved: ResolvedTenant = await resolveTenantFromDomain(window.location.hostname);
-      setCurrentTenant(resolved.tenant);
-      setIsPlatformAdmin(resolved.isPlatformAdmin);
 
       if (resolved.isPlatformAdmin || isPlatformAdminDomain()) {
         const { data: adminData } = await supabase
@@ -92,6 +93,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
         platformAdminUser,
         tenantUser,
         isLoading,
+        tenantError,
         refetch: fetchPlatformData,
       }}
     >

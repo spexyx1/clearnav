@@ -1,7 +1,7 @@
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
-import { PlatformProvider } from './lib/platformContext';
-import { isPlatformAdminDomain } from './lib/tenantResolver';
+import { PlatformProvider, usePlatform } from './lib/platformContext';
+import { isPlatformAdminDomain, getTenantSlugFromUrl } from './lib/tenantResolver';
 import LandingPage from './components/LandingPage';
 import ClearNavLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
@@ -9,12 +9,14 @@ import ClientPortal from './components/ClientPortal';
 import AcceptInvitation from './components/AcceptInvitation';
 import ClientSignup from './components/ClientSignup';
 import DebugLogin from './components/DebugLogin';
+import InvalidTenant from './components/InvalidTenant';
 
 const ManagerPortal = lazy(() => import('./components/ManagerPortal'));
 const PlatformAdminPortal = lazy(() => import('./components/platform/PlatformAdminPortal'));
 
 function AppContent() {
   const { user, loading, isStaff, isTenantAdmin, isPlatformAdmin, currentTenant } = useAuth();
+  const { tenantError } = usePlatform();
   const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug'>('landing');
 
   useEffect(() => {
@@ -46,6 +48,11 @@ function AppContent() {
         <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
       </div>
     );
+  }
+
+  if (tenantError && !isPlatformAdminDomain()) {
+    const subdomain = getTenantSlugFromUrl();
+    return <InvalidTenant error={tenantError} subdomain={subdomain} />;
   }
 
   if (view === 'debug') {
