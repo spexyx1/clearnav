@@ -411,50 +411,48 @@ export default function NewsletterManager() {
     );
   }
 
-  if (!canCreate) {
-    return (
-      <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-12 text-center">
-        <AlertCircle className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-slate-300 mb-2">Access Restricted</h3>
-        <p className="text-slate-400">You don't have permission to manage newsletters. Please contact your administrator.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Newsletters</h1>
-          <p className="text-slate-400">Create and send newsletters to your clients</p>
+          <p className="text-slate-400">
+            {canCreate ? 'Create and send newsletters to your clients' : 'View newsletters sent to clients'}
+          </p>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowCreateModal(true);
-          }}
-          className="flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Create Newsletter</span>
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => {
+              resetForm();
+              setShowCreateModal(true);
+            }}
+            className="flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Create Newsletter</span>
+          </button>
+        )}
       </div>
 
       {newsletters.length === 0 ? (
         <div className="text-center py-12">
           <Mail className="w-16 h-16 text-slate-600 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-slate-300 mb-2">No newsletters yet</h3>
-          <p className="text-slate-400 mb-6">Create your first newsletter to communicate with your clients</p>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowCreateModal(true);
-            }}
-            className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Create Newsletter</span>
-          </button>
+          <p className="text-slate-400 mb-6">
+            {canCreate ? 'Create your first newsletter to communicate with your clients' : 'No newsletters have been created yet'}
+          </p>
+          {canCreate && (
+            <button
+              onClick={() => {
+                resetForm();
+                setShowCreateModal(true);
+              }}
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Create Newsletter</span>
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -476,7 +474,7 @@ export default function NewsletterManager() {
                   >
                     <Eye className="w-4 h-4" />
                   </button>
-                  {newsletter.status === 'draft' && (
+                  {canCreate && newsletter.status === 'draft' && (
                     <>
                       <button
                         onClick={() => openEditModal(newsletter)}
@@ -532,7 +530,7 @@ export default function NewsletterManager() {
                 )}
               </div>
 
-              {newsletter.status === 'draft' && (
+              {canCreate && newsletter.status === 'draft' && (
                 <button
                   onClick={() => handleSendNewsletter(newsletter.id)}
                   disabled={sending}

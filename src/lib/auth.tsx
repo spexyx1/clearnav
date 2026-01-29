@@ -89,7 +89,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (staffData) {
       console.log('✅ Staff account found:', staffData);
       setIsStaff(true);
-      setIsTenantAdmin(false);
       setUserRole(staffData.role);
       setStaffAccount(staffData);
       setIsPlatformAdmin(false);
@@ -103,12 +102,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('user_id', userId)
           .eq('tenant_id', resolved.tenant.id)
           .maybeSingle();
+
         setTenantUser(tenantUserData);
+
+        if (tenantUserData && (tenantUserData.role === 'admin' || tenantUserData.role === 'owner')) {
+          console.log('✅ User is BOTH staff AND tenant admin/owner');
+          setIsTenantAdmin(true);
+        } else {
+          setIsTenantAdmin(false);
+        }
       } else {
         console.log('⚠️ Tenant mismatch:', {
           resolvedTenant: resolved.tenant?.id,
           staffTenant: staffData.tenant_id
         });
+        setIsTenantAdmin(false);
       }
     } else {
       console.log('❌ No staff account found, checking tenant_users for admin/owner');
