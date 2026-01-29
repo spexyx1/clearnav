@@ -51,12 +51,22 @@ export default function NewsletterManager() {
   });
 
   useEffect(() => {
-    console.log('NewsletterManager useEffect:', { authLoading, currentTenant: currentTenant?.id, user: user?.id, staffAccount: staffAccount?.id, isTenantAdmin });
+    console.log('📰 NewsletterManager useEffect triggered:', {
+      authLoading,
+      currentTenant: currentTenant?.id,
+      currentTenantSlug: currentTenant?.slug,
+      user: user?.id,
+      userEmail: user?.email,
+      staffAccount: staffAccount?.id,
+      staffRole: staffAccount?.role,
+      isTenantAdmin,
+      timestamp: new Date().toISOString()
+    });
 
     const initializeComponent = async () => {
       if (!authLoading) {
         if (currentTenant && user) {
-          console.log('Loading newsletters for tenant:', currentTenant.id);
+          console.log('✅ All prerequisites met, loading newsletters for tenant:', currentTenant.id);
           setLoading(true);
           try {
             await Promise.all([
@@ -64,17 +74,23 @@ export default function NewsletterManager() {
               loadNewsletters(),
               loadClients()
             ]);
-            console.log('All data loaded successfully');
+            console.log('✅ All newsletter data loaded successfully');
           } catch (error) {
-            console.error('Error initializing newsletter manager:', error);
+            console.error('❌ Error initializing newsletter manager:', error);
+            alert('Error loading newsletter manager: ' + (error as Error).message);
           } finally {
-            console.log('Setting loading to false after initialization');
+            console.log('✅ Setting loading to false after initialization');
             setLoading(false);
           }
         } else {
-          console.log('Missing tenant or user, setting loading to false');
+          console.warn('⚠️ Missing prerequisites:', {
+            hasTenant: !!currentTenant,
+            hasUser: !!user
+          });
           setLoading(false);
         }
+      } else {
+        console.log('⏳ Auth still loading, waiting...');
       }
     };
 
@@ -145,36 +161,49 @@ export default function NewsletterManager() {
   };
 
   const loadNewsletters = async () => {
-    console.log('loadNewsletters called, tenant:', currentTenant?.id);
+    console.log('📥 loadNewsletters called, tenant:', currentTenant?.id);
     if (!currentTenant) {
-      console.log('No tenant, cannot load newsletters');
+      console.log('❌ No tenant, cannot load newsletters');
       return;
     }
 
     try {
-      console.log('Querying newsletters for tenant:', currentTenant.id);
+      console.log('🔍 Querying newsletters table for tenant:', currentTenant.id);
       const { data, error } = await supabase
         .from('newsletters')
         .select('*')
         .eq('tenant_id', currentTenant.id)
         .order('created_at', { ascending: false });
 
-      console.log('Newsletter query result:', { data, error, count: data?.length });
+      console.log('📊 Newsletter query result:', {
+        success: !error,
+        error: error,
+        errorDetails: error ? { code: error.code, message: error.message, details: error.details, hint: error.hint } : null,
+        dataCount: data?.length,
+        data: data
+      });
 
       if (error) {
-        console.error('Error loading newsletters:', error);
-        alert('Failed to load newsletters: ' + error.message);
+        console.error('❌ Error loading newsletters:', error);
+        alert(`Failed to load newsletters: ${error.message}\nCode: ${error.code}\nDetails: ${error.details || 'none'}\nHint: ${error.hint || 'none'}`);
       } else {
-        console.log('Setting newsletters:', data?.length || 0, 'items');
+        console.log('✅ Successfully loaded', data?.length || 0, 'newsletters');
         setNewsletters(data || []);
       }
     } catch (error) {
-      console.error('Unexpected error loading newsletters:', error);
+      console.error('❌ Unexpected error loading newsletters:', error);
+      alert('Unexpected error: ' + (error as Error).message);
     }
   };
 
   const handleCreateNewsletter = async () => {
-    if (!currentTenant || !user) return;
+    console.log('📝 handleCreateNewsletter called');
+
+    if (!currentTenant || !user) {
+      console.error('❌ Missing currentTenant or user:', { currentTenant: currentTenant?.id, user: user?.id });
+      alert('Cannot create newsletter: missing tenant or user context');
+      return;
+    }
 
     if (!formData.title || !formData.subject || !formData.content) {
       alert('Please fill in all required fields (Title, Subject, Content)');
@@ -186,28 +215,41 @@ export default function NewsletterManager() {
       return;
     }
 
-    const { error } = await supabase
+    const newsletterData = {
+      tenant_id: currentTenant.id,
+      title: formData.title,
+      subject: formData.subject,
+      content: formData.content,
+      summary: formData.summary || null,
+      target_audience: formData.target_audience,
+      target_client_ids: formData.target_audience === 'custom_list' ? selectedClients : null,
+      status: 'draft' as const,
+      created_by: user.id,
+      total_recipients: 0,
+      delivered_count: 0,
+      opened_count: 0,
+      clicked_count: 0,
+    };
+
+    console.log('🚀 Attempting to insert newsletter:', newsletterData);
+
+    const { data, error } = await supabase
       .from('newsletters')
-      .insert({
-        tenant_id: currentTenant.id,
-        title: formData.title,
-        subject: formData.subject,
-        content: formData.content,
-        summary: formData.summary || null,
-        target_audience: formData.target_audience,
-        target_client_ids: formData.target_audience === 'custom_list' ? selectedClients : null,
-        status: 'draft',
-        created_by: user.id,
-        total_recipients: 0,
-        delivered_count: 0,
-        opened_count: 0,
-        clicked_count: 0,
-      });
+      .insert(newsletterData)
+      .select();
+
+    console.log('📊 Insert result:', {
+      success: !error,
+      error: error,
+      errorDetails: error ? { code: error.code, message: error.message, details: error.details, hint: error.hint } : null,
+      insertedData: data
+    });
 
     if (error) {
-      console.error('Error creating newsletter:', error);
-      alert('Failed to create newsletter: ' + error.message);
+      console.error('❌ Error creating newsletter:', error);
+      alert(`Failed to create newsletter:\n${error.message}\n\nCode: ${error.code}\nDetails: ${error.details || 'none'}\nHint: ${error.hint || 'none'}`);
     } else {
+      console.log('✅ Newsletter created successfully:', data);
       setShowCreateModal(false);
       resetForm();
       setSelectedClients([]);
@@ -413,6 +455,22 @@ export default function NewsletterManager() {
 
   return (
     <div className="space-y-6">
+      <div className="bg-slate-900/50 border border-blue-900/50 rounded-lg p-4 mb-4">
+        <div className="text-xs font-mono text-slate-400 space-y-1">
+          <div>🔍 <strong>Debug Info:</strong></div>
+          <div>User ID: {user?.id || 'none'}</div>
+          <div>User Email: {user?.email || 'none'}</div>
+          <div>Tenant ID: {currentTenant?.id || 'none'}</div>
+          <div>Tenant Slug: {currentTenant?.slug || 'none'}</div>
+          <div>Staff Account: {staffAccount?.id ? `${staffAccount.role} (${staffAccount.email})` : 'none'}</div>
+          <div>Is Tenant Admin: {isTenantAdmin ? 'YES' : 'NO'}</div>
+          <div>Can Create Newsletters: {canCreate ? 'YES' : 'NO'}</div>
+          <div>Newsletters Loaded: {newsletters.length}</div>
+          <div>Auth Loading: {authLoading ? 'YES' : 'NO'}</div>
+          <div>Component Loading: {loading ? 'YES' : 'NO'}</div>
+        </div>
+      </div>
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Newsletters</h1>
