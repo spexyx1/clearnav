@@ -418,28 +418,7 @@ export default function NewsletterManager() {
     }
   };
 
-  if (authLoading || loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="flex items-center space-x-2 text-slate-400">
-          <Loader className="w-5 h-5 animate-spin" />
-          <span>Loading newsletters...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (!currentTenant) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <div className="text-slate-400 mb-2">No tenant context available</div>
-          <div className="text-sm text-slate-500">Please ensure you're accessing from a valid tenant subdomain</div>
-        </div>
-      </div>
-    );
-  }
+  // Skip loading checks to always show debug panel
 
   return (
     <div className="space-y-6">
