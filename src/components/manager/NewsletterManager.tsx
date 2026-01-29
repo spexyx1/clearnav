@@ -61,18 +61,19 @@ export default function NewsletterManager() {
   const [clients, setClients] = useState<Client[]>([]);
 
   useEffect(() => {
-    if (currentTenant) {
-      loadNewsletters();
-      loadTargetOptions();
-    }
-  }, [currentTenant, filter]);
+    loadNewsletters();
+  }, [filter]);
+
+  useEffect(() => {
+    loadTargetOptions();
+  }, []);
 
   const loadNewsletters = async () => {
     setLoading(true);
+
     let query = supabase
       .from('newsletters')
       .select('*')
-      .eq('tenant_id', currentTenant!.id)
       .order('created_at', { ascending: false });
 
     if (filter !== 'all') {
@@ -90,15 +91,23 @@ export default function NewsletterManager() {
   };
 
   const loadTargetOptions = async () => {
-    const [fundsRes, classesRes, clientsRes] = await Promise.all([
-      supabase.from('hedge_funds').select('id, name').eq('tenant_id', currentTenant!.id),
-      supabase.from('share_classes').select('id, name, fund_id').eq('tenant_id', currentTenant!.id),
-      supabase.from('client_profiles').select('id, full_name, email').eq('tenant_id', currentTenant!.id),
-    ]);
+    try {
+      const [fundsRes, classesRes, clientsRes] = await Promise.all([
+        supabase.from('hedge_funds').select('id, name'),
+        supabase.from('share_classes').select('id, name, fund_id'),
+        supabase.from('client_profiles').select('id, full_name, email'),
+      ]);
 
-    if (fundsRes.data) setFunds(fundsRes.data);
-    if (classesRes.data) setShareClasses(classesRes.data);
-    if (clientsRes.data) setClients(clientsRes.data);
+      if (fundsRes.error) console.error('Error loading funds:', fundsRes.error);
+      if (classesRes.error) console.error('Error loading share classes:', classesRes.error);
+      if (clientsRes.error) console.error('Error loading clients:', clientsRes.error);
+
+      if (fundsRes.data) setFunds(fundsRes.data);
+      if (classesRes.data) setShareClasses(classesRes.data);
+      if (clientsRes.data) setClients(clientsRes.data);
+    } catch (err) {
+      console.error('Error loading target options:', err);
+    }
   };
 
   const handleCreate = () => {
