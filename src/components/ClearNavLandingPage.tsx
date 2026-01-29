@@ -164,19 +164,13 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
             <p className="text-xl text-slate-300 mb-12 leading-relaxed">
               White-label infrastructure for hedge funds and fund administrators. NAV calculation, capital operations, compliance, investor portals, and IBKR integration—launch in under 5 minutes.
             </p>
-            <div className="flex justify-center space-x-4">
+            <div className="flex justify-center">
               <button
                 onClick={navigateToSignup}
                 className="group flex items-center space-x-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all text-lg font-medium shadow-lg shadow-blue-500/25"
               >
                 <span>Start Free Trial</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </button>
-              <button
-                onClick={navigateToContact}
-                className="px-8 py-4 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-all text-lg font-medium border border-slate-700"
-              >
-                Request Demo
               </button>
             </div>
           </div>
