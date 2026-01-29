@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Users, Contact, UserCheck, FileText, MessageSquare, CheckSquare, BarChart3, Settings, Shield, Briefcase, UserCog, TrendingUp, Building2, Layers, Wallet, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, FileCheck, Package, Coins, ShoppingCart, Globe } from 'lucide-react';
+import { LogOut, Users, Contact, UserCheck, FileText, MessageSquare, CheckSquare, BarChart3, Settings, Shield, Briefcase, UserCog, TrendingUp, Building2, Layers, Wallet, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, FileCheck, Package, Coins, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { useTenantBranding } from '../lib/hooks';
@@ -30,9 +30,8 @@ import TaxDocumentManager from './manager/TaxDocumentManager';
 import CarriedInterestTracker from './manager/CarriedInterestTracker';
 import SidePocketManager from './manager/SidePocketManager';
 import ExchangeManagement from './manager/ExchangeManagement';
-import TenantSubdomainInfo from './manager/TenantSubdomainInfo';
 
-type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'tenant_settings';
+type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users';
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
@@ -103,10 +102,9 @@ export default function ManagerPortal() {
     ...(userRole === 'general_manager' || userRole === 'compliance_manager' || userRole === 'legal_counsel' ? [
       { id: 'compliance' as TabType, label: 'Compliance', icon: Shield }
     ] : []),
-    ...(userRole === 'general_manager' || isTenantAdmin ? [
+    ...(userRole === 'general_manager' ? [
       { id: 'users' as TabType, label: 'Users', icon: UserCog },
-      { id: 'staff' as TabType, label: 'Staff', icon: Settings },
-      { id: 'tenant_settings' as TabType, label: 'Tenant Info', icon: Globe }
+      { id: 'staff' as TabType, label: 'Staff', icon: Settings }
     ] : []),
   ];
 
@@ -221,7 +219,6 @@ export default function ManagerPortal() {
           {activeTab === 'compliance' && <ComplianceCenter />}
           {activeTab === 'users' && <UserManagement />}
           {activeTab === 'staff' && <StaffManagement />}
-          {activeTab === 'tenant_settings' && <TenantSubdomainInfo />}
         </div>
       </div>
     </div>
