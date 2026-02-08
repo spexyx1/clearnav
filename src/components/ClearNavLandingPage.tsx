@@ -63,46 +63,6 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
       title: 'Investor Relations',
       description: 'Built-in CRM with contact management, email campaigns, automated notifications, and secure two-way messaging.',
     },
-    {
-      icon: Bot,
-      title: 'AI Sales Agent',
-      description: 'Multi-channel AI-powered BDR agent handling voice calls, emails, SMS, and chat with customizable personality, conversation flows, sentiment analysis, and automated lead qualification.',
-    },
-    {
-      icon: Layers,
-      title: 'Accounting Platform Sync',
-      description: 'Native integrations with Xero, QuickBooks Online, FreshBooks, Wave, and Sage for automated financial data synchronization, reconciliation, and multi-directional syncing.',
-    },
-    {
-      icon: Brain,
-      title: 'Predictive Lead Scoring',
-      description: 'AI-powered lead intelligence with automated data enrichment, firmographic analysis, behavioral tracking, and predictive scoring to prioritize high-value prospects.',
-    },
-    {
-      icon: Rocket,
-      title: 'Automated Trial Provisioning',
-      description: 'Self-service trial account creation with AI-driven engagement tracking, conversion optimization, automated intervention triggers, and usage analytics for trial success.',
-    },
-    {
-      icon: Send,
-      title: 'Email Sequence Automation',
-      description: 'Multi-step AI-personalized email campaigns with dynamic content, A/B testing, engagement tracking, open rate analytics, and automated follow-up sequences based on behavior.',
-    },
-    {
-      icon: Calendar,
-      title: 'Meeting Scheduler',
-      description: 'Integrated calendar booking system for demo scheduling, automated meeting reminders, time zone handling, and post-meeting follow-up workflows with AI-generated summaries.',
-    },
-    {
-      icon: Target,
-      title: 'Competitive Intelligence',
-      description: 'Win/loss analysis tracking, competitor feature comparison, market positioning insights, and automated competitive alerts to refine sales strategies and messaging.',
-    },
-    {
-      icon: MessageSquare,
-      title: 'Multi-Channel CRM',
-      description: 'Unified contact management across voice, email, SMS, and chat channels with complete conversation history, activity tracking, and intelligent lead routing workflows.',
-    },
   ];
 
   const pricing = [
@@ -232,6 +192,45 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
             <div className="text-center p-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
               <div className="text-4xl font-bold text-blue-400 mb-2">99.9%</div>
               <div className="text-slate-400">Uptime</div>
+            </div>
+          </div>
+
+          {/* Featured Capabilities */}
+          <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+            <div className="p-8 bg-gradient-to-br from-blue-900/30 to-blue-800/20 rounded-2xl border-2 border-blue-500/30 hover:border-blue-400/50 transition-all group">
+              <div className="flex items-start space-x-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform shadow-lg shadow-blue-500/25">
+                  <Users className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-white mb-3">White-Label Portals</h3>
+                  <p className="text-slate-300 leading-relaxed">
+                    Launch fully branded investor portals on custom domains in minutes. Real-time dashboards, secure document access, and seamless communication—all under your brand identity.
+                  </p>
+                  <div className="mt-4 flex items-center space-x-2 text-blue-400 font-medium">
+                    <span>Deploy instantly</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-8 bg-gradient-to-br from-teal-900/30 to-teal-800/20 rounded-2xl border-2 border-teal-500/30 hover:border-teal-400/50 transition-all group">
+              <div className="flex items-start space-x-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-teal-600 to-teal-500 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform shadow-lg shadow-teal-500/25">
+                  <Globe className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-white mb-3">IBKR Integration</h3>
+                  <p className="text-slate-300 leading-relaxed">
+                    Real-time synchronization with Interactive Brokers for positions, cash balances, and trades. Automated reconciliation and NAV updates eliminate manual data entry forever.
+                  </p>
+                  <div className="mt-4 flex items-center space-x-2 text-teal-400 font-medium">
+                    <span>Connect seamlessly</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
