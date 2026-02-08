@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Zap, Shield, ChevronRight, Mail, Building2, FileText, BarChart3, Lock, Globe, Users, Bell, FileCheck, CreditCard, LineChart, Calculator, BookOpen, HelpCircle } from 'lucide-react';
+import { TrendingUp, Zap, Shield, ChevronRight, Mail, Building2, FileText, BarChart3, Lock, Globe, Users, Bell, FileCheck, CreditCard, LineChart, Calculator, BookOpen, HelpCircle, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare, ShieldCheck, Award, Clock } from 'lucide-react';
 import InquiryForm from './InquiryForm';
 import { usePlatform } from '../lib/platformContext';
 import { supabase } from '../lib/supabase';
@@ -205,7 +205,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             <div className="flex space-x-4">
               <button
                 onClick={() => setShowInquiryForm(true)}
-                className="px-8 py-4 bg-white text-slate-900 rounded font-medium hover:bg-slate-100 transition-all duration-200 flex items-center space-x-2 group"
+                className="px-8 py-4 bg-white text-slate-900 rounded font-medium hover:bg-slate-100 transition-all duration-200 flex items-center space-x-2 group shadow-lg shadow-white/10"
               >
                 <span>{landingPage.hero.cta_text}</span>
                 <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -216,6 +216,60 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               >
                 Access Portal
               </button>
+            </div>
+            <div className="mt-6 flex items-center space-x-6">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-slate-500" />
+                <span className="text-sm text-slate-500">14-Day Free Trial</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 text-slate-500" />
+                <span className="text-sm text-slate-500">No Credit Card Required</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Trust & Social Proof Section */}
+        <div className="max-w-7xl mx-auto mt-24">
+          <div className="bg-gradient-to-br from-slate-900/80 to-slate-800/50 border border-slate-700/50 rounded-2xl p-12 backdrop-blur-sm">
+            <div className="grid grid-cols-4 gap-8 mb-12">
+              <div className="text-center">
+                <div className="text-4xl font-bold text-white mb-2">$500M+</div>
+                <div className="text-sm text-slate-400">Assets Under Management</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-white mb-2">100+</div>
+                <div className="text-sm text-slate-400">Active Funds</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-white mb-2">99.9%</div>
+                <div className="text-sm text-slate-400">Platform Uptime</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-white mb-2">&lt;5 min</div>
+                <div className="text-sm text-slate-400">Setup Time</div>
+              </div>
+            </div>
+            <div className="border-t border-slate-700/50 pt-8">
+              <div className="flex items-center justify-center space-x-8">
+                <div className="flex items-center space-x-2">
+                  <ShieldCheck className="w-5 h-5" style={{ color: branding.colors.primary }} />
+                  <span className="text-sm text-slate-300">Bank-Grade Encryption</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Award className="w-5 h-5" style={{ color: branding.colors.primary }} />
+                  <span className="text-sm text-slate-300">SOC 2 Type II Ready</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Lock className="w-5 h-5" style={{ color: branding.colors.primary }} />
+                  <span className="text-sm text-slate-300">GDPR Compliant</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Shield className="w-5 h-5" style={{ color: branding.colors.primary }} />
+                  <span className="text-sm text-slate-300">ISO 27001 Controls</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -288,7 +342,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">NAV Calculation Engine</h3>
               <p className="text-slate-400 leading-relaxed">
-                Automated net asset value calculations with multi-share class support, waterfall structures, carried interest tracking, and side pocket accounting.
+                Automated net asset value calculations with Interactive Brokers real-time sync, multi-share class support, waterfall structures, carried interest tracking, and side pocket accounting.
               </p>
             </div>
 
@@ -298,7 +352,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Capital Operations</h3>
               <p className="text-slate-400 leading-relaxed">
-                Complete workflows for capital calls, distributions, and redemptions with automated investor notifications, payment tracking, and capital account management.
+                Complete workflows for capital calls, distributions, and redemptions with automated investor notifications, payment tracking, real-time capital account balances, and transaction history.
               </p>
             </div>
 
@@ -328,7 +382,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Compliance Center</h3>
               <p className="text-slate-400 leading-relaxed">
-                Complete KYC/AML workflows with document verification, accreditation tracking, audit trails, and regulatory reporting across all investor activities.
+                Complete KYC/AML workflows with document verification, accreditation tracking, comprehensive audit trails, approval workflows, and automated regulatory reporting for all investor activities.
               </p>
             </div>
 
@@ -338,7 +392,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Document Vault</h3>
               <p className="text-slate-400 leading-relaxed">
-                Secure storage and distribution for subscription agreements, PPMs, K-1s, quarterly letters, and investor statements with version control and e-signatures.
+                Secure encrypted storage and automated distribution for subscription agreements, PPMs, K-1s, quarterly letters, investor statements with version control, e-signatures, and watermarking.
               </p>
             </div>
 
@@ -368,7 +422,87 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Investor Relations</h3>
               <p className="text-slate-400 leading-relaxed">
-                CRM with contact management, email campaigns, automated notifications for capital events, and secure two-way messaging between managers and investors.
+                CRM with contact management, newsletter system with engagement analytics, automated notifications for capital events, and secure two-way messaging between managers and investors.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Bot className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">AI Sales Agent</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Multi-channel AI-powered BDR agent handling voice calls, emails, SMS, and chat with customizable personality, conversation flows, sentiment analysis, and automated lead qualification.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Layers className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Accounting Platform Sync</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Native integrations with Xero, QuickBooks Online, FreshBooks, Wave, and Sage for automated financial data synchronization, reconciliation, and multi-directional syncing.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Brain className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Predictive Lead Scoring</h3>
+              <p className="text-slate-400 leading-relaxed">
+                AI-powered lead intelligence with automated data enrichment, firmographic analysis, behavioral tracking, and predictive scoring to prioritize high-value prospects.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Rocket className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Automated Trial Provisioning</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Self-service trial account creation with AI-driven engagement tracking, conversion optimization, automated intervention triggers, and usage analytics for trial success.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Send className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Email Sequence Automation</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Multi-step AI-personalized email campaigns with dynamic content, A/B testing, engagement tracking, open rate analytics, and automated follow-up sequences based on behavior.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Calendar className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Meeting Scheduler</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Integrated calendar booking system for demo scheduling, automated meeting reminders, time zone handling, and post-meeting follow-up workflows with AI-generated summaries.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Target className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Competitive Intelligence</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Win/loss analysis tracking, competitor feature comparison, market positioning insights, and automated competitive alerts to refine sales strategies and messaging.
+              </p>
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <MessageSquare className="w-6 h-6" style={{ color: branding.colors.primary }} />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Multi-Channel CRM</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Unified contact management across voice, email, SMS, and chat channels with complete conversation history, activity tracking, and intelligent lead routing workflows.
               </p>
             </div>
           </div>
