@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCircle, LineChart, CreditCard, Calculator, FileCheck, Bell, Lock } from 'lucide-react';
+import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCircle, LineChart, CreditCard, Calculator, FileCheck, Bell, Lock, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
 
 interface ClearNavLandingPageProps {
@@ -62,6 +62,46 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
       icon: Bell,
       title: 'Investor Relations',
       description: 'Built-in CRM with contact management, email campaigns, automated notifications, and secure two-way messaging.',
+    },
+    {
+      icon: Bot,
+      title: 'AI Sales Agent',
+      description: 'Multi-channel AI-powered BDR agent handling voice calls, emails, SMS, and chat with customizable personality, conversation flows, sentiment analysis, and automated lead qualification.',
+    },
+    {
+      icon: Layers,
+      title: 'Accounting Platform Sync',
+      description: 'Native integrations with Xero, QuickBooks Online, FreshBooks, Wave, and Sage for automated financial data synchronization, reconciliation, and multi-directional syncing.',
+    },
+    {
+      icon: Brain,
+      title: 'Predictive Lead Scoring',
+      description: 'AI-powered lead intelligence with automated data enrichment, firmographic analysis, behavioral tracking, and predictive scoring to prioritize high-value prospects.',
+    },
+    {
+      icon: Rocket,
+      title: 'Automated Trial Provisioning',
+      description: 'Self-service trial account creation with AI-driven engagement tracking, conversion optimization, automated intervention triggers, and usage analytics for trial success.',
+    },
+    {
+      icon: Send,
+      title: 'Email Sequence Automation',
+      description: 'Multi-step AI-personalized email campaigns with dynamic content, A/B testing, engagement tracking, open rate analytics, and automated follow-up sequences based on behavior.',
+    },
+    {
+      icon: Calendar,
+      title: 'Meeting Scheduler',
+      description: 'Integrated calendar booking system for demo scheduling, automated meeting reminders, time zone handling, and post-meeting follow-up workflows with AI-generated summaries.',
+    },
+    {
+      icon: Target,
+      title: 'Competitive Intelligence',
+      description: 'Win/loss analysis tracking, competitor feature comparison, market positioning insights, and automated competitive alerts to refine sales strategies and messaging.',
+    },
+    {
+      icon: MessageSquare,
+      title: 'Multi-Channel CRM',
+      description: 'Unified contact management across voice, email, SMS, and chat channels with complete conversation history, activity tracking, and intelligent lead routing workflows.',
     },
   ];
 
