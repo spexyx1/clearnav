@@ -129,10 +129,9 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
               </a>
               <button
                 onClick={() => setShowFAQ(true)}
-                className="text-slate-300 hover:text-white transition-colors flex items-center space-x-1"
+                className="text-slate-300 hover:text-white transition-colors"
               >
-                <HelpCircle className="w-4 h-4" />
-                <span>FAQ</span>
+                FAQ
               </button>
               <button
                 onClick={onLoginClick}
