@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCircle, LineChart, CreditCard, Calculator, FileCheck, Bell, Lock, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare } from 'lucide-react';
+import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCircle, LineChart, CreditCard, Calculator, FileCheck, Bell, Lock, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare, Database, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 
 interface ClearNavLandingPageProps {
@@ -18,6 +18,36 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
   };
 
   const features = [
+    {
+      icon: LineChart,
+      title: 'NAV Calculation',
+      description: 'Automated calculations with multi-share class support, waterfall structures, and carried interest tracking.',
+    },
+    {
+      icon: CreditCard,
+      title: 'Capital Operations',
+      description: 'Complete workflows for capital calls, distributions, and redemptions with automated notifications.',
+    },
+    {
+      icon: Users,
+      title: 'White-Label Portals',
+      description: 'Fully branded investor portals on custom domains with real-time dashboards and secure access.',
+    },
+    {
+      icon: Lock,
+      title: 'Compliance Center',
+      description: 'Complete KYC/AML workflows with document verification, audit trails, and regulatory reporting.',
+    },
+    {
+      icon: BarChart3,
+      title: 'Performance Reporting',
+      description: 'Automated investor statements, tear sheets, and performance reports with attribution analysis.',
+    },
+    {
+      icon: FileCheck,
+      title: 'Document Management',
+      description: 'Secure storage for subscription agreements, PPMs, K-1s, and quarterly reports with version control.',
+    },
     {
       icon: Globe,
       title: 'Broker Integration',
@@ -145,66 +175,38 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
             </div>
           </div>
 
-          {/* Core Capabilities */}
-          <div className="mt-24 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <LineChart className="w-6 h-6 text-white" />
+          {/* Security & Infrastructure */}
+          <div className="mt-24 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
+            <div className="p-5 bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-emerald-500/20 hover:border-emerald-500/40 transition-all group backdrop-blur-sm">
+              <div className="flex items-center justify-center w-10 h-10 bg-emerald-500/10 rounded-lg mb-3 group-hover:bg-emerald-500/20 transition-colors">
+                <Shield className="w-5 h-5 text-emerald-400" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">NAV Calculation</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Automated calculations with multi-share class support, waterfall structures, and carried interest tracking.
-              </p>
+              <h3 className="text-base font-bold text-white mb-1">AES-256 Encryption</h3>
+              <p className="text-slate-400 text-xs">Bank-grade encryption at rest and in transit</p>
             </div>
 
-            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <CreditCard className="w-6 h-6 text-white" />
+            <div className="p-5 bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-emerald-500/20 hover:border-emerald-500/40 transition-all group backdrop-blur-sm">
+              <div className="flex items-center justify-center w-10 h-10 bg-emerald-500/10 rounded-lg mb-3 group-hover:bg-emerald-500/20 transition-colors">
+                <Layers className="w-5 h-5 text-emerald-400" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Capital Operations</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Complete workflows for capital calls, distributions, and redemptions with automated notifications.
-              </p>
+              <h3 className="text-base font-bold text-white mb-1">Tenant Isolation</h3>
+              <p className="text-slate-400 text-xs">Complete data separation per fund</p>
             </div>
 
-            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Users className="w-6 h-6 text-white" />
+            <div className="p-5 bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-emerald-500/20 hover:border-emerald-500/40 transition-all group backdrop-blur-sm">
+              <div className="flex items-center justify-center w-10 h-10 bg-emerald-500/10 rounded-lg mb-3 group-hover:bg-emerald-500/20 transition-colors">
+                <Database className="w-5 h-5 text-emerald-400" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">White-Label Portals</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Fully branded investor portals on custom domains with real-time dashboards and secure access.
-              </p>
+              <h3 className="text-base font-bold text-white mb-1">Database Security</h3>
+              <p className="text-slate-400 text-xs">Row-level security with audit logging</p>
             </div>
 
-            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Lock className="w-6 h-6 text-white" />
+            <div className="p-5 bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-emerald-500/20 hover:border-emerald-500/40 transition-all group backdrop-blur-sm">
+              <div className="flex items-center justify-center w-10 h-10 bg-emerald-500/10 rounded-lg mb-3 group-hover:bg-emerald-500/20 transition-colors">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Compliance Center</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Complete KYC/AML workflows with document verification, audit trails, and regulatory reporting.
-              </p>
-            </div>
-
-            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <BarChart3 className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Performance Reporting</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Automated investor statements, tear sheets, and performance reports with attribution analysis.
-              </p>
-            </div>
-
-            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <FileCheck className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Document Management</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Secure storage for subscription agreements, PPMs, K-1s, and quarterly reports with version control.
-              </p>
+              <h3 className="text-base font-bold text-white mb-1">SOC 2 Compliant</h3>
+              <p className="text-slate-400 text-xs">Enterprise security standards</p>
             </div>
           </div>
         </div>
