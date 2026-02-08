@@ -19,39 +19,9 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
 
   const features = [
     {
-      icon: LineChart,
-      title: 'NAV Calculation Engine',
-      description: 'Automated net asset value calculations with multi-share class support, waterfall structures, carried interest tracking, and side pocket accounting.',
-    },
-    {
-      icon: CreditCard,
-      title: 'Capital Operations',
-      description: 'Complete workflows for capital calls, distributions, and redemptions with automated investor notifications and payment tracking.',
-    },
-    {
       icon: Globe,
-      title: 'IBKR Integration',
-      description: 'Real-time Interactive Brokers portfolio syncing for positions, cash balances, and trades with automated reconciliation.',
-    },
-    {
-      icon: Users,
-      title: 'White-Label Portals',
-      description: 'Fully branded investor portals on custom domains with real-time dashboards, document access, and secure communication.',
-    },
-    {
-      icon: Lock,
-      title: 'Compliance Center',
-      description: 'Complete KYC/AML workflows with document verification, accreditation tracking, audit trails, and regulatory reporting.',
-    },
-    {
-      icon: FileCheck,
-      title: 'Document Management',
-      description: 'Secure storage and distribution for subscription agreements, PPMs, K-1s, quarterly reports with version control.',
-    },
-    {
-      icon: BarChart3,
-      title: 'Performance Reporting',
-      description: 'Automated generation of investor statements, tear sheets, and performance reports with attribution analysis.',
+      title: 'Broker Integration',
+      description: 'Real-time portfolio synchronization with Interactive Brokers for positions, cash balances, and trades with automated reconciliation.',
     },
     {
       icon: Calculator,
@@ -175,62 +145,66 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="mt-24 grid grid-cols-1 md:grid-cols-4 gap-6 max-w-5xl mx-auto">
-            <div className="text-center p-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
-              <div className="text-4xl font-bold text-teal-400 mb-2">&lt;5 min</div>
-              <div className="text-slate-400">Setup Time</div>
-            </div>
-            <div className="text-center p-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
-              <div className="text-4xl font-bold text-blue-400 mb-2">20+</div>
-              <div className="text-slate-400">Automated Workflows</div>
-            </div>
-            <div className="text-center p-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
-              <div className="text-4xl font-bold text-teal-400 mb-2">Bank-Grade</div>
-              <div className="text-slate-400">Security</div>
-            </div>
-            <div className="text-center p-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
-              <div className="text-4xl font-bold text-blue-400 mb-2">99.9%</div>
-              <div className="text-slate-400">Uptime</div>
-            </div>
-          </div>
-
-          {/* Featured Capabilities */}
-          <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
-            <div className="p-8 bg-gradient-to-br from-blue-900/30 to-blue-800/20 rounded-2xl border-2 border-blue-500/30 hover:border-blue-400/50 transition-all group">
-              <div className="flex items-start space-x-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform shadow-lg shadow-blue-500/25">
-                  <Users className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-white mb-3">White-Label Portals</h3>
-                  <p className="text-slate-300 leading-relaxed">
-                    Launch fully branded investor portals on custom domains in minutes. Real-time dashboards, secure document access, and seamless communication—all under your brand identity.
-                  </p>
-                  <div className="mt-4 flex items-center space-x-2 text-blue-400 font-medium">
-                    <span>Deploy instantly</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
+          {/* Core Capabilities */}
+          <div className="mt-24 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <LineChart className="w-6 h-6 text-white" />
               </div>
+              <h3 className="text-xl font-bold text-white mb-2">NAV Calculation</h3>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                Automated calculations with multi-share class support, waterfall structures, and carried interest tracking.
+              </p>
             </div>
 
-            <div className="p-8 bg-gradient-to-br from-teal-900/30 to-teal-800/20 rounded-2xl border-2 border-teal-500/30 hover:border-teal-400/50 transition-all group">
-              <div className="flex items-start space-x-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-teal-600 to-teal-500 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform shadow-lg shadow-teal-500/25">
-                  <Globe className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-white mb-3">IBKR Integration</h3>
-                  <p className="text-slate-300 leading-relaxed">
-                    Real-time synchronization with Interactive Brokers for positions, cash balances, and trades. Automated reconciliation and NAV updates eliminate manual data entry forever.
-                  </p>
-                  <div className="mt-4 flex items-center space-x-2 text-teal-400 font-medium">
-                    <span>Connect seamlessly</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
+            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <CreditCard className="w-6 h-6 text-white" />
               </div>
+              <h3 className="text-xl font-bold text-white mb-2">Capital Operations</h3>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                Complete workflows for capital calls, distributions, and redemptions with automated notifications.
+              </p>
+            </div>
+
+            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">White-Label Portals</h3>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                Fully branded investor portals on custom domains with real-time dashboards and secure access.
+              </p>
+            </div>
+
+            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <Lock className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Compliance Center</h3>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                Complete KYC/AML workflows with document verification, audit trails, and regulatory reporting.
+              </p>
+            </div>
+
+            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <BarChart3 className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Performance Reporting</h3>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                Automated investor statements, tear sheets, and performance reports with attribution analysis.
+              </p>
+            </div>
+
+            <div className="p-6 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-blue-500/50 transition-all group">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <FileCheck className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Document Management</h3>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                Secure storage for subscription agreements, PPMs, K-1s, and quarterly reports with version control.
+              </p>
             </div>
           </div>
         </div>
