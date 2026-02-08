@@ -345,8 +345,8 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
 
       {showFAQ && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center z-50 p-6">
-          <div className="bg-slate-900 rounded-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto border border-slate-800">
-            <div className="sticky top-0 bg-slate-900 border-b border-slate-800 p-6 flex items-center justify-between">
+          <div className="bg-slate-900 rounded-xl max-w-5xl w-full max-h-[85vh] overflow-y-auto border border-slate-800">
+            <div className="sticky top-0 bg-slate-900 border-b border-slate-800 p-6 flex items-center justify-between z-10">
               <div className="flex items-center space-x-3">
                 <HelpCircle className="w-6 h-6 text-teal-400" />
                 <h2 className="text-2xl font-semibold text-white">Frequently Asked Questions</h2>
@@ -357,55 +357,208 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
                 </svg>
               </button>
             </div>
-            <div className="p-6 space-y-6">
-              <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">What is ClearNav?</h3>
-                <p className="text-slate-400 leading-relaxed">
-                  ClearNav is an enterprise fund operations platform providing complete infrastructure for hedge funds and fund administrators. It includes NAV calculation, capital operations, compliance tools, IBKR integration, white-label investor portals, and automated reporting—everything needed to run fund operations.
-                </p>
-              </div>
-              <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">How quickly can we get started?</h3>
-                <p className="text-slate-400 leading-relaxed">
-                  Your white-label portal can be live in under 5 minutes. Complete the onboarding questionnaire, configure your branding, and start inviting investors immediately. No technical setup or IT involvement required.
-                </p>
-              </div>
-              <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">How does NAV calculation work?</h3>
-                <p className="text-slate-400 leading-relaxed">
-                  The NAV engine supports multiple share classes, waterfall distributions, carried interest calculations, and side pocket accounting. Calculations are automated based on your fund structure and update in real-time as portfolio values change through IBKR integration.
-                </p>
-              </div>
-              <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">Does it integrate with Interactive Brokers?</h3>
-                <p className="text-slate-400 leading-relaxed">
-                  Yes. Our built-in IBKR integration syncs positions, cash balances, and trades in real-time. Portfolio data automatically updates NAV calculations and performance reporting without manual data entry.
-                </p>
-              </div>
-              <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">Is the platform secure and compliant?</h3>
-                <p className="text-slate-400 leading-relaxed">
-                  Yes. Bank-grade encryption, multi-factor authentication, complete audit trails, and role-based access controls. Built-in KYC/AML workflows and document verification ensure compliance with regulatory requirements. Complete data isolation in multi-tenant architecture.
-                </p>
-              </div>
-              <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">Can we use our own domain?</h3>
-                <p className="text-slate-400 leading-relaxed">
-                  Yes. The platform supports full white-label deployment with custom domains, your logo, color scheme, and company name. Each tenant operates as a completely isolated instance with its own subdomain or custom domain.
-                </p>
-              </div>
-              <div className="border-b border-slate-800 pb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">What capital operations are supported?</h3>
-                <p className="text-slate-400 leading-relaxed">
-                  Complete workflows for capital calls, distributions, and redemptions with automated investor notifications, payment tracking, and capital account management. The system handles multi-share class structures and complex waterfall calculations automatically.
-                </p>
-              </div>
+            <div className="p-8 space-y-10">
+
+              {/* Platform Overview */}
               <div>
-                <h3 className="text-lg font-semibold text-white mb-2">Is this suitable for fund administrators?</h3>
-                <p className="text-slate-400 leading-relaxed">
-                  Absolutely. The multi-tenant architecture is designed for fund administrators serving multiple clients. Each client fund operates as an isolated instance with separate data, branding, and custom domains. Volume pricing available for managing multiple funds.
-                </p>
+                <div className="flex items-center space-x-2 mb-6">
+                  <Rocket className="w-5 h-5 text-teal-400" />
+                  <h3 className="text-xl font-bold text-white">Platform Overview</h3>
+                </div>
+                <div className="space-y-6">
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">What is ClearNav?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      ClearNav is an enterprise fund operations platform providing complete infrastructure for hedge funds and fund administrators. It includes NAV calculation, capital operations, compliance tools, IBKR integration, white-label investor portals, and automated reporting—everything needed to run fund operations without spreadsheets or manual processes.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">How quickly can we get started?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Your white-label portal can be live in under 5 minutes. Complete the onboarding questionnaire, configure your branding, and start inviting investors immediately. No technical setup or IT involvement required. Our self-service signup process guides you through fund setup, share class configuration, and initial investor onboarding.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">Is this suitable for fund administrators?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Absolutely. The multi-tenant architecture is designed for fund administrators serving multiple clients. Each client fund operates as an isolated instance with separate data, branding, and custom domains. Manage dozens or hundreds of funds from a single platform admin portal with centralized billing and consolidated reporting. Volume pricing available for managing multiple funds.
+                    </p>
+                  </div>
+                </div>
               </div>
+
+              {/* Features & Capabilities */}
+              <div>
+                <div className="flex items-center space-x-2 mb-6">
+                  <Zap className="w-5 h-5 text-teal-400" />
+                  <h3 className="text-xl font-bold text-white">Features & Capabilities</h3>
+                </div>
+                <div className="space-y-6">
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">How does NAV calculation work?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      The NAV engine supports multiple share classes, waterfall distributions, carried interest calculations, and side pocket accounting. Calculations are automated based on your fund structure and update in real-time as portfolio values change through IBKR integration. The system handles complex fee structures including management fees, performance fees with high water marks, hurdle rates, and clawback provisions.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">Does it integrate with Interactive Brokers?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Yes. Our built-in IBKR integration syncs positions, cash balances, and trades in real-time. Portfolio data automatically updates NAV calculations and performance reporting without manual data entry. The system performs automated reconciliation between IBKR data and internal records, flagging discrepancies for review. Scheduled syncs run automatically at customizable intervals.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">What capital operations are supported?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Complete workflows for capital calls, distributions, and redemptions with automated investor notifications, payment tracking, and capital account management. The system handles multi-share class structures and complex waterfall calculations automatically. Create capital calls with customizable payment terms, track investor commitments versus funded capital, process distribution requests with approval workflows, and manage redemption queues with gating provisions.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">Can we use our own domain?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Yes. The platform supports full white-label deployment with custom domains, your logo, color scheme, and company name. Each tenant operates as a completely isolated instance with its own subdomain or custom domain. You can configure custom email sender domains for investor communications, ensuring all emails appear to come directly from your fund.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">What accounting integrations are available?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      ClearNav integrates with major accounting platforms including QuickBooks Online, Xero, and NetSuite. Automatically sync capital transactions, fee calculations, and investor distributions to your accounting system. The integration supports bi-directional data flow with configurable mapping for chart of accounts, classes, and departments. Journal entries are automatically generated and can be reviewed before posting.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">How does the AI BDR agent work?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Our AI-powered Business Development Representative agent automates lead engagement and qualification. The system monitors inbound inquiries, engages prospects through intelligent conversations, qualifies leads based on your criteria, and schedules meetings with your team. The AI agent learns from interactions and can be trained on your fund's specific messaging, investment strategy, and qualification criteria. All conversations are logged with sentiment analysis and lead scoring.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">What CRM capabilities are included?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Built-in CRM with contact management, deal pipeline tracking, email campaigns, automated workflows, and task management. Track investor relationships from initial inquiry through onboarding and ongoing communications. Enhanced lead intelligence provides enrichment data, social profiles, company information, and engagement scoring. Email integration allows you to sync conversations and track all touchpoints with prospects and investors.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Security & Compliance */}
+              <div>
+                <div className="flex items-center space-x-2 mb-6">
+                  <ShieldCheck className="w-5 h-5 text-teal-400" />
+                  <h3 className="text-xl font-bold text-white">Security & Compliance</h3>
+                </div>
+                <div className="space-y-6">
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">Is the platform secure and compliant?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Yes. ClearNav implements bank-grade AES-256 encryption for data at rest and in transit, multi-factor authentication, complete audit trails, and granular role-based access controls. Built-in KYC/AML workflows and document verification ensure compliance with regulatory requirements. Complete data isolation in multi-tenant architecture with row-level security ensures each fund's data is completely separated.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">What security certifications does ClearNav have?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      ClearNav is SOC 2 Type II compliant, demonstrating adherence to strict security, availability, and confidentiality standards. Our infrastructure undergoes regular third-party security audits and penetration testing. We maintain compliance with GDPR, CCPA, and other data protection regulations. Annual security assessments and continuous monitoring ensure ongoing compliance.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">How is sensitive data protected?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      All sensitive investor data including SSNs, bank account details, and personal information is encrypted at the application level using AES-256 encryption before storage. Encryption keys are managed through a secure vault with automatic rotation. Access to sensitive data requires explicit permissions and is logged in immutable audit trails. Multi-factor authentication is enforced for all user accounts, and session security includes device fingerprinting and anomaly detection.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">What audit and monitoring capabilities exist?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Comprehensive security audit system logs all user actions, data access, configuration changes, and system events. The audit trail is immutable and tamper-proof with cryptographic verification. Real-time security monitoring detects suspicious activities including failed login attempts, unusual data access patterns, and policy violations. Automated alerts notify administrators of critical security events. Full audit reports can be generated for compliance reviews and regulatory examinations.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">How does tenant isolation work?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Each fund operates as a completely isolated tenant with separate databases, authentication realms, and access controls. Row-level security policies enforce data separation at the database level, making it impossible for one tenant to access another tenant's data. Staff accounts are scoped to specific tenants, and platform administrators can only access tenant data through explicit audit-logged actions. Cross-tenant data leakage is prevented through multiple layers of isolation.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">What compliance workflows are supported?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Built-in KYC/AML workflows with automated document collection, identity verification, accredited investor qualification, and risk assessment. Configurable approval processes with multi-level review and electronic signatures. Automated compliance monitoring flags suspicious activities and generates regulatory reports. Document retention policies ensure proper archival of required records. Integration with third-party verification services for enhanced due diligence.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pricing & Billing */}
+              <div>
+                <div className="flex items-center space-x-2 mb-6">
+                  <CreditCard className="w-5 h-5 text-teal-400" />
+                  <h3 className="text-xl font-bold text-white">Pricing & Billing</h3>
+                </div>
+                <div className="space-y-6">
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">How does pricing work?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Simple flat monthly fees with no per-user charges. Starter plan at $299/month supports up to 25 clients, Professional at $599/month for up to 100 clients, and Enterprise at $1,299/month for unlimited clients. All plans include the complete feature set with differences only in client limits, storage, and support level. No setup fees, no hidden costs, and you can upgrade or downgrade anytime.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">Is there a free trial?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Yes. All new accounts receive a 14-day free trial with full access to all platform features. No credit card required to start the trial. You can test the complete system including NAV calculations, investor portal, IBKR integration, and all administrative functions before committing to a paid plan.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">What's included in each plan?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Starter includes CRM, onboarding tools, compliance workflows, tax document management, and email support. Professional adds IBKR integration, custom domain, increased storage, and priority support. Enterprise includes API access, unlimited storage, dedicated support, custom integrations, and white-glove onboarding assistance. All plans include unlimited staff users and the full feature set—only client limits and support levels differ.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">Are there volume discounts for fund administrators?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Yes. Fund administrators and multi-fund organizations can receive volume pricing when managing multiple client funds. Contact our sales team for custom pricing based on the number of funds under administration. Volume discounts typically start at 5+ funds with increasing discounts at higher volumes.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">What payment methods are accepted?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      We accept all major credit cards, ACH transfers, and wire transfers for annual subscriptions. Invoicing is available for Enterprise customers. Annual prepayment receives a 15% discount. All billing is handled securely through encrypted payment processing with PCI DSS compliance.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Support & Migration */}
+              <div>
+                <div className="flex items-center space-x-2 mb-6">
+                  <Users className="w-5 h-5 text-teal-400" />
+                  <h3 className="text-xl font-bold text-white">Support & Migration</h3>
+                </div>
+                <div className="space-y-6">
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">What support is available?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Email support for Starter plan, priority email and chat support for Professional, and dedicated support with phone access for Enterprise. All plans include comprehensive documentation, video tutorials, and access to our knowledge base. Enterprise customers receive a dedicated account manager and white-glove onboarding assistance.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">Can you help migrate from our current system?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Yes. We provide migration assistance to help transfer your existing data from spreadsheets, legacy systems, or other fund administration platforms. Our team can help map your current data structure, import historical transactions, and validate the migration. Enterprise customers receive hands-on migration support including data extraction, transformation, and validation.
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-800 pb-6">
+                    <h4 className="text-lg font-semibold text-white mb-2">Is training provided?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Yes. All new customers receive onboarding training covering platform navigation, key workflows, and best practices. Professional and Enterprise plans include additional training sessions for your team. We offer both live training sessions and self-paced video courses covering all aspects of the platform. Custom training programs available for larger organizations.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-white mb-2">What if we need custom features?</h4>
+                    <p className="text-slate-400 leading-relaxed">
+                      Enterprise customers can request custom features and integrations. We offer professional services for custom development including specialized reporting, unique workflow requirements, and integration with proprietary systems. Our API allows you to build your own integrations and extend the platform to meet specific needs. Contact our team to discuss your requirements and receive a custom quote.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
