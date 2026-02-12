@@ -161,7 +161,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
               </span>
             </h1>
             <p className="text-xl text-slate-300 mb-12 leading-relaxed">
-              White-label infrastructure for administrators. NAV calculation, capital operations, compliance, investor portals, and IBKR integration—launch in under 5 minutes.
+              White-label infrastructure for funds and administrators. NAV calculation, capital operations, compliance, investor portals, and IBKR integration—launch in under 5 minutes.
             </p>
             <div className="flex justify-center">
               <button
