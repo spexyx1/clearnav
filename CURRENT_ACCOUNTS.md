@@ -63,7 +63,7 @@
 - Secondary market configuration
 - Subscription management
 
-**Total Features:** 28+ management tabs covering every aspect of hedge fund operations
+**Total Features:** 28+ management tabs covering every aspect of investment fund operations
 
 ---
 

@@ -69,7 +69,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
     {
       name: 'Starter',
       price: '$299',
-      description: 'Perfect for emerging hedge funds',
+      description: 'Perfect for emerging investment funds',
       features: [
         'Up to 25 clients',
         'CRM & onboarding tools',
@@ -82,7 +82,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
     {
       name: 'Professional',
       price: '$599',
-      description: 'For growing hedge funds',
+      description: 'For growing investment funds',
       features: [
         'Up to 100 clients',
         'Everything in Starter',
@@ -161,7 +161,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
               </span>
             </h1>
             <p className="text-xl text-slate-300 mb-12 leading-relaxed">
-              White-label infrastructure for hedge funds and fund administrators. NAV calculation, capital operations, compliance, investor portals, and IBKR integration—launch in under 5 minutes.
+              White-label infrastructure for investment funds and fund administrators. NAV calculation, capital operations, compliance, investor portals, and IBKR integration—launch in under 5 minutes.
             </p>
             <div className="flex justify-center">
               <button
@@ -369,7 +369,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
                   <div className="border-b border-slate-800 pb-6">
                     <h4 className="text-lg font-semibold text-white mb-2">What is ClearNav?</h4>
                     <p className="text-slate-400 leading-relaxed">
-                      ClearNav is an enterprise fund operations platform providing complete infrastructure for hedge funds and fund administrators. It includes NAV calculation, capital operations, compliance tools, IBKR integration, white-label investor portals, and automated reporting—everything needed to run fund operations without spreadsheets or manual processes.
+                      ClearNav is an enterprise fund operations platform providing complete infrastructure for investment funds and fund administrators. It includes NAV calculation, capital operations, compliance tools, IBKR integration, white-label investor portals, and automated reporting—everything needed to run fund operations without spreadsheets or manual processes.
                     </p>
                   </div>
                   <div className="border-b border-slate-800 pb-6">

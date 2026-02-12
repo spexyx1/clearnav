@@ -13,7 +13,7 @@
   - `tenant_id` (uuid, foreign key) - Multi-tenant isolation
   - `fund_code` (text, unique) - Short identifier (e.g., "FUND-001")
   - `fund_name` (text) - Full fund name
-  - `fund_type` (text) - hedge, pe, vc, real_estate, etc.
+  - `fund_type` (text) - pe, vc, real_estate, family_office, alternative, etc.
   - `base_currency` (text) - Base currency for NAV (USD, EUR, etc.)
   - `inception_date` (date) - Fund start date
   - `fiscal_year_end` (text) - MM-DD format (e.g., "12-31")
@@ -187,7 +187,7 @@ CREATE TABLE IF NOT EXISTS funds (
   tenant_id uuid REFERENCES platform_tenants(id) ON DELETE CASCADE,
   fund_code text NOT NULL,
   fund_name text NOT NULL,
-  fund_type text DEFAULT 'hedge',
+  fund_type text DEFAULT 'other',
   base_currency text DEFAULT 'USD',
   inception_date date DEFAULT CURRENT_DATE,
   fiscal_year_end text DEFAULT '12-31',

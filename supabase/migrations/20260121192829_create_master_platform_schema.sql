@@ -1,15 +1,15 @@
 /*
   # Master Platform Database Schema
   
-  Creates the core multi-tenant platform infrastructure for managing hedge fund tenants.
+  Creates the core multi-tenant platform infrastructure for managing investment fund tenants.
   
   ## New Tables
   
   ### `platform_tenants`
-  Stores each tenant (hedge fund) on the platform
+  Stores each tenant (investment fund) on the platform
   - `id` (uuid, primary key)
   - `slug` (text, unique) - URL-friendly identifier for subdomain
-  - `name` (text) - Display name of the hedge fund
+  - `name` (text) - Display name of the investment fund
   - `status` (text) - active, suspended, trial, cancelled
   - `database_type` (text) - managed or byod (bring your own database)
   - `database_connection` (jsonb) - encrypted connection details for BYOD

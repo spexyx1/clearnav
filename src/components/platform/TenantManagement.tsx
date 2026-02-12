@@ -117,7 +117,7 @@ export default function TenantManagement() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Tenant Management</h2>
-          <p className="text-slate-600 mt-1">Manage all hedge fund tenants on the platform</p>
+          <p className="text-slate-600 mt-1">Manage all fund tenants on the platform</p>
         </div>
         <button
           onClick={() => setIsCreateModalOpen(true)}

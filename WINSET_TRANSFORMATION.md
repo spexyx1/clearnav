@@ -2,14 +2,14 @@
 
 ## Overview
 
-The Grey Alpha hedge fund management system has been successfully transformed into **Winset**, a complete multi-tenant SaaS platform. Each hedge fund now operates as an isolated tenant with customizable branding, landing pages, and feature sets.
+The Grey Alpha investment fund management system has been successfully transformed into **Winset**, a complete multi-tenant SaaS platform. Each investment fund now operates as an isolated tenant with customizable branding, landing pages, and feature sets.
 
 ## What Changed
 
 ### 1. Database Architecture
 
 **Multi-Tenant Data Isolation:**
-- Added `tenant_id` columns to all hedge fund tables
+- Added `tenant_id` columns to all investment fund tables
 - Updated RLS policies to enforce complete data isolation between tenants
 - Added foreign key constraints linking all data to `platform_tenants`
 - Created indexes on `tenant_id` for optimal query performance
@@ -76,7 +76,7 @@ Every tenant can customize:
 **WinsetLandingPage** (`src/components/WinsetLandingPage.tsx`)
 - Root domain marketing site
 - Professional blue/teal color scheme
-- Highlights platform capabilities for hedge fund operators
+- Highlights platform capabilities for fund operators
 - Pricing display with three tiers
 - Call-to-action for demos and platform login
 
@@ -247,7 +247,7 @@ CREATE POLICY "Staff can view client profiles in their tenant"
 - Visit your subdomain: `yourfund.winset.com`
 - Or use custom domain: `portal.yourfund.com`
 - Login with your credentials
-- Manage your hedge fund operations
+- Manage your investment fund operations
 
 **Available Portals:**
 - **Landing Page** - Public-facing marketing site
@@ -310,7 +310,7 @@ CREATE POLICY "Staff can view client profiles in their tenant"
 ### Files Modified
 
 **Database Migrations:**
-- `add_tenant_id_to_hedge_fund_tables.sql` - Multi-tenant schema
+- `add_tenant_id_to_fund_tables.sql` - Multi-tenant schema
 - `add_branding_and_subscription_updates.sql` - Branding system
 
 **Components:**
@@ -411,7 +411,7 @@ For questions or issues with the Winset platform:
 
 ## Summary
 
-The transformation is complete! Grey Alpha is now the first tenant on the Winset platform, with all its original features and branding preserved. The system is ready to onboard new hedge fund tenants, each with their own isolated instance, custom branding, and tailored feature sets.
+The transformation is complete! Grey Alpha is now the first tenant on the Winset platform, with all its original features and branding preserved. The system is ready to onboard new investment fund tenants, each with their own isolated instance, custom branding, and tailored feature sets.
 
 **Key Achievements:**
 ✅ Complete multi-tenant architecture
@@ -424,4 +424,4 @@ The transformation is complete! Grey Alpha is now the first tenant on the Winset
 ✅ Custom domain support (ready)
 ✅ Build successfully completed
 
-Welcome to **Winset** - The Complete Hedge Fund Platform!
+Welcome to **Winset** - The Complete Investment Fund Platform!

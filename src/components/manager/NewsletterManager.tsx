@@ -93,7 +93,7 @@ export default function NewsletterManager() {
   const loadTargetOptions = async () => {
     try {
       const [fundsRes, classesRes, clientsRes] = await Promise.all([
-        supabase.from('hedge_funds').select('id, name'),
+        supabase.from('funds').select('id, fund_name'),
         supabase.from('share_classes').select('id, name, fund_id'),
         supabase.from('client_profiles').select('id, full_name, email'),
       ]);

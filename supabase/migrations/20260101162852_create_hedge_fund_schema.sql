@@ -1,5 +1,5 @@
 /*
-  # Grey Alpha Hedge Fund Database Schema
+  # Grey Alpha Investment Fund Database Schema
 
   1. New Tables
     - `client_profiles`

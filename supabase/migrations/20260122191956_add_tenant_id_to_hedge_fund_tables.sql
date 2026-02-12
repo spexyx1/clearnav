@@ -1,9 +1,9 @@
 /*
-  # Add Multi-Tenant Support to Hedge Fund Tables
+  # Add Multi-Tenant Support to Investment Fund Tables
 
   ## Overview
   This migration transforms the single-tenant Grey Alpha system into a multi-tenant platform
-  by adding tenant_id columns to all hedge fund tables and updating RLS policies for tenant isolation.
+  by adding tenant_id columns to all investment fund tables and updating RLS policies for tenant isolation.
 
   ## Changes Made
 

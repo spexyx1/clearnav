@@ -1,13 +1,13 @@
 # ClearNav Platform
 
-A multi-tenant hedge fund management platform built with React, Vite, TypeScript, and Supabase.
+A multi-tenant investment fund management platform built with React, Vite, TypeScript, and Supabase.
 
 ## Features
 
 - Multi-tenant architecture with subdomain routing
 - Client portal with portfolio tracking and analytics
 - Manager portal with CRM, compliance, and reporting tools
-- Platform admin portal for managing multiple hedge funds
+- Platform admin portal for managing multiple investment funds
 - Secure authentication and authorization
 - Real-time data synchronization
 - Interactive Brokers (IBKR) integration
@@ -103,7 +103,7 @@ clearnav-platform/
 
 ## Multi-Tenant Architecture
 
-The platform supports multiple hedge funds (tenants) with subdomain routing:
+The platform supports multiple investment funds (tenants) with subdomain routing:
 
 - `clearnav.cv` - Main platform landing page
 - `admin.clearnav.cv` - Platform administrator portal

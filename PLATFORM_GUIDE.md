@@ -2,7 +2,7 @@
 
 ## Overview
 
-Your hedge fund management system has been transformed into a comprehensive **multi-tenant SaaS platform**. This allows you to host multiple hedge fund clients, each with their own isolated instance, branding, and data.
+Your investment fund management system has been transformed into a comprehensive **multi-tenant SaaS platform**. This allows you to host multiple fund clients, each with their own isolated instance, branding, and data.
 
 ## Platform Architecture
 
@@ -71,7 +71,7 @@ Access at `admin.yourdomain.com`
 ### Core Platform Tables
 
 **platform_tenants**
-- Stores each hedge fund tenant
+- Stores each investment fund tenant
 - Tracks status, database type, trial periods
 - Contains tenant metadata and settings
 
@@ -324,4 +324,4 @@ For issues or questions about the platform implementation, review:
 
 ## License
 
-This multi-tenant platform system is part of your hedge fund management application.
+This multi-tenant platform system is part of your investment fund management application.

@@ -25,7 +25,7 @@ export default function FundManagement() {
   const [formData, setFormData] = useState({
     fund_code: '',
     fund_name: '',
-    fund_type: 'hedge',
+    fund_type: 'other',
     base_currency: 'USD',
     inception_date: new Date().toISOString().split('T')[0],
     accounting_standard: 'GAAP',
@@ -65,7 +65,7 @@ export default function FundManagement() {
       setFormData({
         fund_code: '',
         fund_name: '',
-        fund_type: 'hedge',
+        fund_type: 'other',
         base_currency: 'USD',
         inception_date: new Date().toISOString().split('T')[0],
         accounting_standard: 'GAAP',
@@ -214,11 +214,12 @@ export default function FundManagement() {
                     onChange={(e) => setFormData({ ...formData, fund_type: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
                   >
-                    <option value="hedge">Hedge Fund</option>
                     <option value="pe">Private Equity</option>
                     <option value="vc">Venture Capital</option>
                     <option value="real_estate">Real Estate</option>
                     <option value="credit">Credit Fund</option>
+                    <option value="family_office">Family Office</option>
+                    <option value="alternative">Alternative Investments</option>
                     <option value="other">Other</option>
                   </select>
                 </div>

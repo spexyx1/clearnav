@@ -62,7 +62,7 @@ git push -u origin main
 
 ### Recommended Domains:
 - **clearnav.cv** - Your public-facing platform site
-- **arklinetrust.com** - Your first hedge fund tenant (or any custom domain)
+- **arklinetrust.com** - Your first investment fund tenant (or any custom domain)
 - Additional tenants can use subdomains like `tenant.clearnav.cv`
 
 ### Where to Buy:
@@ -158,7 +158,7 @@ git push
 - Domain: **$10-40/year** (one-time annual cost)
 - Supabase: **FREE** (up to 500MB database, 50MB file storage)
 
-**Total: ~$20/year to run a professional hedge fund platform!**
+**Total: ~$20/year to run a professional investment fund platform!**
 
 ## Need Help?
 

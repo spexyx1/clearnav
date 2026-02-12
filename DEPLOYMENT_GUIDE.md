@@ -4,16 +4,16 @@ This guide will help you deploy your ClearNav platform to production with custom
 
 ## Recommended Domain Setup
 
-For your hedge fund platform, here's the recommended domain architecture:
+For your investment fund platform, here's the recommended domain architecture:
 
 ### Primary Domains:
 - **clearnav.cv** - Your public-facing platform site where potential clients learn about your SaaS offering
-- **arklinetrust.com** - Your first hedge fund tenant (custom domain example)
+- **arklinetrust.com** - Your first investment fund tenant (custom domain example)
 - **admin.clearnav.cv** - Platform administrator portal (subdomain)
 
 ### Tenant Domains:
 - **Custom Domains**: Each tenant can have their own domain (e.g., arklinetrust.com)
-- **Subdomains**: Or use subdomains like tenant.clearnav.cv for additional hedge funds
+- **Subdomains**: Or use subdomains like tenant.clearnav.cv for additional investment funds
 
 **Where to buy:** Namecheap, Cloudflare, or Google Domains (best prices and features)
 

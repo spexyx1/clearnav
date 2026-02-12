@@ -104,7 +104,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
     hero: {
       title: 'Enterprise Fund Operations Platform',
       subtitle: 'Complete Fund Administration & Investor Management',
-      description: 'White-label technology infrastructure powering hedge funds and private investment firms with institutional-grade tools for capital management, compliance, reporting, and investor relations.',
+      description: 'White-label technology infrastructure powering private investment firms, family offices, and fund managers with institutional-grade tools for capital management, compliance, reporting, and investor relations.',
       cta_text: 'Get Started',
       background_image: '',
     },

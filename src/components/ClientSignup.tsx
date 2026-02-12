@@ -118,7 +118,7 @@ export default function ClientSignup({ onBack }: ClientSignupProps) {
             </h1>
 
             <p className="text-lg text-slate-600 mb-8">
-              Your hedge fund portal has been created successfully
+              Your investment fund portal has been created successfully
             </p>
 
             <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 mb-8">
@@ -201,7 +201,7 @@ export default function ClientSignup({ onBack }: ClientSignupProps) {
             </h1>
           </div>
           <p className="text-xl text-slate-600">
-            Create your hedge fund portal in under 2 minutes
+            Create your investment fund portal in under 2 minutes
           </p>
           <p className="text-slate-500 mt-2">
             30-day free trial • No credit card required • Cancel anytime
