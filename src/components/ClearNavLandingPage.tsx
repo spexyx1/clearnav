@@ -69,7 +69,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
     {
       name: 'Starter',
       price: '$299',
-      description: 'Perfect for emerging investment funds',
+      description: 'Perfect for emerging managers',
       features: [
         'Up to 25 clients',
         'CRM & onboarding tools',
@@ -82,7 +82,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
     {
       name: 'Professional',
       price: '$599',
-      description: 'For growing investment funds',
+      description: 'For growing operations',
       features: [
         'Up to 100 clients',
         'Everything in Starter',
@@ -155,13 +155,13 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
         <div className="max-w-7xl mx-auto">
           <div className="text-center max-w-4xl mx-auto">
             <h1 className="text-6xl font-light text-white mb-6 leading-tight">
-              Complete Fund Operations
+              Complete Operations
               <span className="block mt-2 font-semibold bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">
                 All-in-One Platform
               </span>
             </h1>
             <p className="text-xl text-slate-300 mb-12 leading-relaxed">
-              White-label infrastructure for investment funds and fund administrators. NAV calculation, capital operations, compliance, investor portals, and IBKR integration—launch in under 5 minutes.
+              White-label infrastructure for administrators. NAV calculation, capital operations, compliance, investor portals, and IBKR integration—launch in under 5 minutes.
             </p>
             <div className="flex justify-center">
               <button
@@ -219,7 +219,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
               Complete Back-Office <span className="font-semibold">In One System</span>
             </h2>
             <p className="text-xl text-slate-400">
-              Replace spreadsheets and disparate tools with enterprise-grade infrastructure built for fund operations
+              Replace spreadsheets and disparate tools with enterprise-grade infrastructure built for operations
             </p>
           </div>
 
@@ -305,7 +305,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
             Ready to <span className="font-semibold">Transform Operations?</span>
           </h2>
           <p className="text-xl text-slate-300 mb-10">
-            Join forward-thinking fund managers who have eliminated spreadsheets and manual processes. Launch your white-label portal in minutes.
+            Join forward-thinking managers who have eliminated spreadsheets and manual processes. Launch your white-label portal in minutes.
           </p>
           <div className="flex justify-center space-x-4">
             <button
@@ -369,19 +369,19 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
                   <div className="border-b border-slate-800 pb-6">
                     <h4 className="text-lg font-semibold text-white mb-2">What is ClearNav?</h4>
                     <p className="text-slate-400 leading-relaxed">
-                      ClearNav is an enterprise fund operations platform providing complete infrastructure for investment funds and fund administrators. It includes NAV calculation, capital operations, compliance tools, IBKR integration, white-label investor portals, and automated reporting—everything needed to run fund operations without spreadsheets or manual processes.
+                      ClearNav is an enterprise operations platform providing complete infrastructure for administrators. It includes NAV calculation, capital operations, compliance tools, IBKR integration, white-label investor portals, and automated reporting—everything needed to run operations without spreadsheets or manual processes.
                     </p>
                   </div>
                   <div className="border-b border-slate-800 pb-6">
                     <h4 className="text-lg font-semibold text-white mb-2">How quickly can we get started?</h4>
                     <p className="text-slate-400 leading-relaxed">
-                      Your white-label portal can be live in under 5 minutes. Complete the onboarding questionnaire, configure your branding, and start inviting investors immediately. No technical setup or IT involvement required. Our self-service signup process guides you through fund setup, share class configuration, and initial investor onboarding.
+                      Your white-label portal can be live in under 5 minutes. Complete the onboarding questionnaire, configure your branding, and start inviting investors immediately. No technical setup or IT involvement required. Our self-service signup process guides you through setup, share class configuration, and initial investor onboarding.
                     </p>
                   </div>
                   <div className="border-b border-slate-800 pb-6">
-                    <h4 className="text-lg font-semibold text-white mb-2">Is this suitable for fund administrators?</h4>
+                    <h4 className="text-lg font-semibold text-white mb-2">Is this suitable for administrators?</h4>
                     <p className="text-slate-400 leading-relaxed">
-                      Absolutely. The multi-tenant architecture is designed for fund administrators serving multiple clients. Each client fund operates as an isolated instance with separate data, branding, and custom domains. Manage dozens or hundreds of funds from a single platform admin portal with centralized billing and consolidated reporting. Volume pricing available for managing multiple funds.
+                      Absolutely. The multi-tenant architecture is designed for administrators serving multiple clients. Each client operates as an isolated instance with separate data, branding, and custom domains. Manage dozens or hundreds of clients from a single platform admin portal with centralized billing and consolidated reporting. Volume pricing available for managing multiple clients.
                     </p>
                   </div>
                 </div>
@@ -511,9 +511,9 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
                     </p>
                   </div>
                   <div className="border-b border-slate-800 pb-6">
-                    <h4 className="text-lg font-semibold text-white mb-2">Are there volume discounts for fund administrators?</h4>
+                    <h4 className="text-lg font-semibold text-white mb-2">Are there volume discounts for administrators?</h4>
                     <p className="text-slate-400 leading-relaxed">
-                      Yes. Fund administrators and multi-fund organizations can receive volume pricing when managing multiple client funds. Contact our sales team for custom pricing based on the number of funds under administration. Volume discounts typically start at 5+ funds with increasing discounts at higher volumes.
+                      Yes. Administrators and multi-client organizations can receive volume pricing when managing multiple clients. Contact our sales team for custom pricing based on the number of clients under administration. Volume discounts typically start at 5+ clients with increasing discounts at higher volumes.
                     </p>
                   </div>
                   <div className="border-b border-slate-800 pb-6">

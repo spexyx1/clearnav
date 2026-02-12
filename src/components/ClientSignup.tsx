@@ -201,7 +201,7 @@ export default function ClientSignup({ onBack }: ClientSignupProps) {
             </h1>
           </div>
           <p className="text-xl text-slate-600">
-            Create your investment fund portal in under 2 minutes
+            Create your portal in under 2 minutes
           </p>
           <p className="text-slate-500 mt-2">
             30-day free trial • No credit card required • Cancel anytime
