@@ -102,9 +102,9 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
 
   const landingPage = settings?.landing_page || {
     hero: {
-      title: 'Enterprise Operations Platform',
-      subtitle: 'Complete Administration & Investor Management',
-      description: 'White-label technology infrastructure powering private firms, family offices, and capital managers with institutional-grade tools for capital management, compliance, reporting, and investor relations.',
+      title: 'Enterprise Fund Operations Platform',
+      subtitle: 'Complete Fund Administration & Investor Management',
+      description: 'White-label technology infrastructure powering private investments, family offices, and fund managers with institutional-grade tools for capital management, compliance, reporting, and investor relations.',
       cta_text: 'Get Started',
       background_image: '',
     },
@@ -302,10 +302,10 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
                 <span className="font-semibold">In One System</span>
               </h2>
               <p className="text-lg text-slate-400 mb-6 leading-relaxed">
-                Replace spreadsheets, disparate tools, and manual processes with a unified platform built specifically for operations. From investor onboarding to quarterly reporting, every workflow is automated and compliant.
+                Replace spreadsheets, disparate tools, and manual processes with a unified platform built specifically for fund operations. From investor onboarding to quarterly reporting, every workflow is automated and compliant.
               </p>
               <p className="text-lg text-slate-400 mb-6 leading-relaxed">
-                Multi-tenant architecture enables white-label deployment for administrators serving multiple clients, or dedicated instances for individual managers requiring full control.
+                Multi-tenant architecture enables white-label deployment for administrators serving multiple clients, or dedicated instances for individual fund managers requiring full control.
               </p>
               <p className="text-lg text-slate-400 leading-relaxed">
                 Real-time portfolio syncing through Interactive Brokers integration ensures NAV calculations are always accurate, while automated capital call and distribution workflows keep investors informed.
@@ -328,7 +328,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
           <div className="text-center mb-16">
             <div className="text-xs font-medium tracking-widest mb-4" style={{ color: branding.colors.primary }}>COMPREHENSIVE FEATURES</div>
             <h2 className="text-5xl font-light text-white mb-6">
-              Every Tool Managers <span className="font-semibold">Actually Need</span>
+              Every Tool Fund Managers <span className="font-semibold">Actually Need</span>
             </h2>
             <p className="text-lg text-slate-400 max-w-3xl mx-auto">
               Enterprise-grade infrastructure covering capital management, investor relations, compliance, performance reporting, and operations—replacing entire stacks of disparate software with one unified platform.
@@ -516,7 +516,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             Ready to <span className="font-semibold">Transform Operations</span>
           </h2>
           <p className="text-lg text-slate-400 mb-12 max-w-2xl mx-auto">
-            Join forward-thinking managers who have eliminated spreadsheets and manual processes. Schedule a demo to see how our platform can streamline your operations.
+            Join forward-thinking fund managers who have eliminated spreadsheets and manual processes. Schedule a demo to see how our platform can streamline your fund operations.
           </p>
 
           <div className="flex justify-center space-x-8 mb-16">
