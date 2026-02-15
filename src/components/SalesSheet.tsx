@@ -19,14 +19,14 @@ export default function SalesSheet({ onBack }: SalesSheetProps) {
           <h1 className="text-5xl md:text-6xl font-bold mb-4 tracking-tight">ClearNav</h1>
           <div className="text-2xl md:text-3xl font-light mb-6">Complete Fund Operations Platform - All-in-One Infrastructure</div>
           <div className="text-lg md:text-xl">
-            clearnav.io | sales@clearnav.io | (555) 123-4567
+            clearnav.cv | sales@clearnav.cv
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-12">
         <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border-4 border-sky-500 rounded-xl p-10 mb-12 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-sky-900 mb-10">Replace Your $150K Fund Administrator with a $600/Month Platform</h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-sky-900 mb-10">Replace Your $20K+ Fund Administrator with a $600/Month Platform</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white border-2 border-sky-500 rounded-lg p-8">
               <div className="text-5xl font-bold text-sky-500 mb-3">95%</div>
@@ -289,7 +289,7 @@ export default function SalesSheet({ onBack }: SalesSheetProps) {
           </div>
           <div className="pt-8 border-t border-slate-700">
             <p className="text-lg mb-4">
-              <strong>Website:</strong> clearnav.io | <strong>Email:</strong> sales@clearnav.io | <strong>Phone:</strong> (555) 123-4567
+              <strong>Website:</strong> clearnav.cv | <strong>Email:</strong> sales@clearnav.cv
             </p>
             <p className="text-sm opacity-80">
               © 2026 ClearNav Platform. All rights reserved. SOC 2 Type II Certified.<br />
