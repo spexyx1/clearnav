@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Users, Contact, UserCheck, FileText, MessageSquare, CheckSquare, BarChart3, Settings, Shield, Briefcase, UserCog, TrendingUp, Building2, Layers, Wallet, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, FileCheck, Package, Coins, ShoppingCart, Mail } from 'lucide-react';
+import { LogOut, Users, Contact, UserCheck, FileText, MessageSquare, CheckSquare, BarChart3, Settings, Shield, Briefcase, UserCog, TrendingUp, Building2, Layers, Wallet, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, FileCheck, Package, Coins, ShoppingCart, Mail, Inbox, Globe } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { useTenantBranding } from '../lib/hooks';
@@ -31,8 +31,10 @@ import CarriedInterestTracker from './manager/CarriedInterestTracker';
 import SidePocketManager from './manager/SidePocketManager';
 import ExchangeManagement from './manager/ExchangeManagement';
 import NewsletterManager from './manager/NewsletterManager';
+import EmailClient from './manager/EmailClient';
+import CommunityHub from './community/CommunityHub';
 
-type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users';
+type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users';
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
@@ -99,6 +101,8 @@ export default function ManagerPortal() {
     { id: 'clients' as TabType, label: 'Clients', icon: Users },
     { id: 'communications' as TabType, label: 'Communications', icon: MessageSquare },
     { id: 'newsletters' as TabType, label: 'Newsletters', icon: Mail },
+    { id: 'email' as TabType, label: 'Email', icon: Inbox },
+    { id: 'community' as TabType, label: 'Community', icon: Globe },
     { id: 'tasks' as TabType, label: 'Tasks', icon: CheckSquare },
     { id: 'analytics' as TabType, label: 'Analytics', icon: Briefcase },
     ...(userRole === 'general_manager' || userRole === 'compliance_manager' || userRole === 'legal_counsel' ? [
@@ -217,6 +221,8 @@ export default function ManagerPortal() {
           {activeTab === 'clients' && <ClientManager />}
           {activeTab === 'communications' && <Communications />}
           {activeTab === 'newsletters' && <NewsletterManager />}
+          {activeTab === 'email' && <EmailClient />}
+          {activeTab === 'community' && <CommunityHub />}
           {activeTab === 'tasks' && <TaskManager />}
           {activeTab === 'analytics' && <Analytics />}
           {activeTab === 'compliance' && <ComplianceCenter />}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, LayoutDashboard, TrendingUp, FileText, ArrowDownCircle, Receipt, Activity, Settings, ShoppingCart } from 'lucide-react';
+import { LogOut, LayoutDashboard, TrendingUp, FileText, ArrowDownCircle, Receipt, Activity, Settings, ShoppingCart, Globe } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { usePlatform } from '../lib/platformContext';
@@ -11,8 +11,9 @@ import TaxDocuments from './portal/TaxDocuments';
 import RiskMetrics from './portal/RiskMetrics';
 import IBKRSettings from './portal/IBKRSettings';
 import Exchange from './portal/Exchange';
+import CommunityHub from './community/CommunityHub';
 
-type TabType = 'dashboard' | 'returns' | 'risk' | 'documents' | 'redemptions' | 'tax' | 'exchange' | 'settings';
+type TabType = 'dashboard' | 'returns' | 'risk' | 'documents' | 'redemptions' | 'tax' | 'exchange' | 'community' | 'settings';
 
 interface TenantBranding {
   logo_url: string;
@@ -87,6 +88,7 @@ export default function ClientPortal() {
     { id: 'redemptions' as TabType, label: 'Redemptions', icon: ArrowDownCircle },
     { id: 'tax' as TabType, label: 'Tax Documents', icon: Receipt },
     { id: 'exchange' as TabType, label: 'Exchange', icon: ShoppingCart },
+    { id: 'community' as TabType, label: 'Community', icon: Globe },
     { id: 'settings' as TabType, label: 'IBKR Settings', icon: Settings },
   ];
 
@@ -158,6 +160,7 @@ export default function ClientPortal() {
           {activeTab === 'redemptions' && <Redemptions profile={profile} />}
           {activeTab === 'tax' && <TaxDocuments />}
           {activeTab === 'exchange' && <Exchange profile={profile} />}
+          {activeTab === 'community' && <CommunityHub />}
           {activeTab === 'settings' && <IBKRSettings />}
         </div>
       </div>
