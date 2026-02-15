@@ -568,8 +568,22 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               </>
             )}
           </div>
-          <div className="text-sm text-slate-500">
-            © {new Date().getFullYear()} {branding.company_name}. All rights reserved.
+          <div className="flex items-center space-x-6">
+            <a
+              href="/sales-sheet"
+              onClick={(e) => {
+                e.preventDefault();
+                window.history.pushState({}, '', '/sales-sheet');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="text-sm text-slate-400 hover:text-white transition-colors"
+              style={{ color: branding.colors.primary }}
+            >
+              View Sales Sheet
+            </a>
+            <div className="text-sm text-slate-500">
+              © {new Date().getFullYear()} {branding.company_name}. All rights reserved.
+            </div>
           </div>
         </div>
       </footer>

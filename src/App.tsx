@@ -9,13 +9,14 @@ import ClientPortal from './components/ClientPortal';
 import AcceptInvitation from './components/AcceptInvitation';
 import ClientSignup from './components/ClientSignup';
 import DebugLogin from './components/DebugLogin';
+import SalesSheet from './components/SalesSheet';
 
 const ManagerPortal = lazy(() => import('./components/ManagerPortal'));
 const PlatformAdminPortal = lazy(() => import('./components/platform/PlatformAdminPortal'));
 
 function AppContent() {
   const { user, loading, isStaff, isTenantAdmin, isPlatformAdmin, currentTenant } = useAuth();
-  const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug'>('landing');
+  const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug' | 'sales-sheet'>('landing');
 
   useEffect(() => {
     const checkRoute = () => {
@@ -27,6 +28,8 @@ function AppContent() {
         setView('signup');
       } else if (window.location.pathname === '/debug') {
         setView('debug');
+      } else if (window.location.pathname === '/sales-sheet') {
+        setView('sales-sheet');
       }
     };
 
@@ -50,6 +53,10 @@ function AppContent() {
 
   if (view === 'debug') {
     return <DebugLogin />;
+  }
+
+  if (view === 'sales-sheet') {
+    return <SalesSheet onBack={() => setView('landing')} />;
   }
 
   if (view === 'accept-invite') {

@@ -336,8 +336,21 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
                 Clear<span className="font-semibold">Nav</span>
               </span>
             </div>
-            <div className="text-slate-400">
-              © 2026 ClearNav. All rights reserved.
+            <div className="flex items-center space-x-6">
+              <a
+                href="/sales-sheet"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.history.pushState({}, '', '/sales-sheet');
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
+                className="text-sm text-slate-400 hover:text-teal-400 transition-colors"
+              >
+                View Sales Sheet
+              </a>
+              <div className="text-slate-400">
+                © 2026 ClearNav. All rights reserved.
+              </div>
             </div>
           </div>
         </div>
