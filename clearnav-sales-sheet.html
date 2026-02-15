@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClearNav Platform - Complete Fund Operations Solution</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #1a202c;
+            background: #ffffff;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #0ea5e9 0%, #14b8a6 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+            margin: -40px -20px 40px -20px;
+        }
+
+        .header h1 {
+            font-size: 3em;
+            font-weight: 700;
+            margin-bottom: 10px;
+            letter-spacing: -1px;
+        }
+
+        .header .tagline {
+            font-size: 1.5em;
+            font-weight: 300;
+            margin-bottom: 20px;
+            opacity: 0.95;
+        }
+
+        .header .contact {
+            font-size: 1.1em;
+            margin-top: 20px;
+        }
+
+        .hero-banner {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 3px solid #0ea5e9;
+            border-radius: 12px;
+            padding: 40px;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .hero-banner h2 {
+            font-size: 2.5em;
+            color: #0369a1;
+            margin-bottom: 30px;
+            font-weight: 700;
+        }
+
+        .value-props {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .value-prop {
+            background: white;
+            border: 2px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .value-prop .number {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #0ea5e9;
+            margin-bottom: 10px;
+        }
+
+        .value-prop .label {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #1a202c;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section h2 {
+            font-size: 2.2em;
+            color: #0369a1;
+            margin-bottom: 25px;
+            border-bottom: 3px solid #0ea5e9;
+            padding-bottom: 10px;
+        }
+
+        .section h3 {
+            font-size: 1.8em;
+            color: #0369a1;
+            margin-bottom: 20px;
+            margin-top: 30px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .feature-card {
+            background: #f8fafc;
+            border-left: 4px solid #0ea5e9;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .feature-card .icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .feature-card h4 {
+            font-size: 1.3em;
+            color: #0369a1;
+            margin-bottom: 10px;
+        }
+
+        .feature-card p {
+            color: #4b5563;
+            line-height: 1.6;
+        }
+
+        .security-badges {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .security-badge {
+            background: linear-gradient(135deg, #0f766e 0%, #0369a1 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .comparison-table th {
+            background: linear-gradient(135deg, #0ea5e9 0%, #14b8a6 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-size: 1.1em;
+        }
+
+        .comparison-table td {
+            padding: 15px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .comparison-table tr:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        .comparison-table .clearnav-col {
+            background: #ecfdf5;
+            font-weight: 600;
+            color: #065f46;
+        }
+
+        .comparison-table .competitor-col {
+            color: #991b1b;
+        }
+
+        .roi-box {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border: 3px solid #10b981;
+            border-radius: 12px;
+            padding: 40px;
+            margin-top: 30px;
+        }
+
+        .roi-box h3 {
+            color: #065f46;
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 30px;
+        }
+
+        .roi-breakdown {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .roi-column h4 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .roi-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .roi-total {
+            background: #10b981;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 1.8em;
+            font-weight: 700;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .pricing-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .pricing-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .pricing-card.popular {
+            border-color: #0ea5e9;
+            border-width: 3px;
+            transform: scale(1.05);
+        }
+
+        .pricing-card .badge {
+            background: #0ea5e9;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .pricing-card h4 {
+            font-size: 1.8em;
+            color: #0369a1;
+            margin-bottom: 15px;
+        }
+
+        .pricing-card .price {
+            font-size: 3em;
+            font-weight: 700;
+            color: #0ea5e9;
+            margin-bottom: 10px;
+        }
+
+        .pricing-card .period {
+            color: #6b7280;
+            margin-bottom: 20px;
+        }
+
+        .pricing-card ul {
+            list-style: none;
+            text-align: left;
+            margin-top: 20px;
+        }
+
+        .pricing-card li {
+            padding: 10px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .pricing-card li:before {
+            content: "✓ ";
+            color: #10b981;
+            font-weight: 700;
+            margin-right: 8px;
+        }
+
+        .cta-section {
+            background: linear-gradient(135deg, #0ea5e9 0%, #14b8a6 100%);
+            color: white;
+            padding: 60px 40px;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 50px;
+        }
+
+        .cta-section h2 {
+            color: white;
+            border: none;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .cta-section p {
+            font-size: 1.3em;
+            margin-bottom: 30px;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .cta-button {
+            background: white;
+            color: #0369a1;
+            padding: 18px 40px;
+            border-radius: 8px;
+            font-size: 1.2em;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .cta-button.secondary {
+            background: transparent;
+            border: 2px solid white;
+            color: white;
+        }
+
+        .differentiators {
+            background: #f8fafc;
+            padding: 30px;
+            border-radius: 12px;
+            margin-top: 30px;
+        }
+
+        .differentiators ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .differentiators li {
+            padding: 15px;
+            background: white;
+            border-left: 4px solid #0ea5e9;
+            border-radius: 6px;
+        }
+
+        .differentiators li strong {
+            color: #0369a1;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .footer {
+            background: #1e293b;
+            color: white;
+            padding: 40px 20px;
+            margin: 40px -20px -40px -20px;
+            text-align: center;
+        }
+
+        .footer .summary {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .footer .links {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #475569;
+        }
+
+        @media print {
+            .container {
+                padding: 20px;
+            }
+
+            .header {
+                margin: 0;
+                page-break-after: avoid;
+            }
+
+            .section {
+                page-break-inside: avoid;
+            }
+
+            .cta-button {
+                border: 2px solid #0369a1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .hero-banner h2 {
+                font-size: 1.8em;
+            }
+
+            .value-props,
+            .features-grid,
+            .pricing-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .roi-breakdown {
+                grid-template-columns: 1fr;
+            }
+
+            .pricing-card.popular {
+                transform: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧭 ClearNav</h1>
+            <div class="tagline">Complete Fund Operations Platform - All-in-One Infrastructure</div>
+            <div class="contact">
+                🌐 clearnav.io | 📧 sales@clearnav.io | 📞 (555) 123-4567
+            </div>
+        </div>
+
+        <div class="hero-banner">
+            <h2>Replace Your $150K Fund Administrator with a $600/Month Platform</h2>
+            <div class="value-props">
+                <div class="value-prop">
+                    <div class="number">95%</div>
+                    <div class="label">Cost Reduction vs. Traditional Administrators</div>
+                </div>
+                <div class="value-prop">
+                    <div class="number">5 Minutes</div>
+                    <div class="label">Launch Time vs. 3-6 Month Onboarding</div>
+                </div>
+                <div class="value-prop">
+                    <div class="number">All-in-One</div>
+                    <div class="label">Platform Replacing 5+ Separate Tools</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Comprehensive Feature Suite</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="icon">📊</div>
+                    <h4>NAV Calculation Engine</h4>
+                    <p>Automated daily NAV calculations with multi-share class support, side pockets, and waterfall distributions. Handles complex fee structures including management fees, performance fees, and high water marks.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">💰</div>
+                    <h4>Capital Operations</h4>
+                    <p>Complete capital account management with automated capital calls, distributions, redemptions, and subscription tracking. Real-time balance calculations and transaction histories.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">🎨</div>
+                    <h4>White-Label Investor Portals</h4>
+                    <p>Launch professional, branded investor portals on your custom domain in minutes. Complete control over branding, colors, and content. Mobile-responsive design for 24/7 access.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">✅</div>
+                    <h4>Compliance Center</h4>
+                    <p>Built-in KYC/AML workflows, accredited investor verification, document collection, and regulatory reporting. Automated compliance task management with audit trails.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">🔗</div>
+                    <h4>Interactive Brokers Integration</h4>
+                    <p>Real-time portfolio synchronization with IBKR accounts. Automatic position updates, transaction imports, and P&L reconciliation. Supports multiple broker accounts.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">💬</div>
+                    <h4>Investor Relations CRM</h4>
+                    <p>Complete CRM with lead tracking, pipeline management, investor communications, and engagement analytics. Built-in messaging and newsletter system with AI-powered BDR agent.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">📈</div>
+                    <h4>Performance Reporting</h4>
+                    <p>Automated generation of investor statements, performance reports, tax documents (K-1s, 1099s), and quarterly reports. Custom report templates with white-label branding.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">📁</div>
+                    <h4>Document Management</h4>
+                    <p>Secure document vault with version control, e-signature integration, and automated distribution. Organize by investor, fund, or document type with granular access controls.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">⚙️</div>
+                    <h4>Fee Automation</h4>
+                    <p>Automated calculation and tracking of management fees, performance fees, carried interest, and hurdle rates. Supports crystallization, clawback provisions, and complex waterfall structures.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Enterprise-Grade Security</h2>
+            <div class="security-badges">
+                <div class="security-badge">🔒 AES-256 Encryption<br>Bank-Grade Protection</div>
+                <div class="security-badge">✓ SOC 2 Type II Certified<br>Independently Audited</div>
+                <div class="security-badge">🔐 Multi-Factor Authentication<br>Enforced for All Users</div>
+                <div class="security-badge">🏢 Complete Tenant Isolation<br>Row-Level Security</div>
+                <div class="security-badge">📝 Immutable Audit Trails<br>Every Action Logged</div>
+                <div class="security-badge">🌍 GDPR & CCPA Compliant<br>Global Data Protection</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Competitive Comparison: ClearNav vs. Traditional Fund Administrators</h2>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>ClearNav</th>
+                        <th>Traditional (SS&C, Citco, Northern Trust, BNY Mellon)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Annual Cost</strong></td>
+                        <td class="clearnav-col">$3,600 - $15,600</td>
+                        <td class="competitor-col">$50,000 - $200,000+</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Setup Time</strong></td>
+                        <td class="clearnav-col">5 Minutes</td>
+                        <td class="competitor-col">3-6 Months</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Implementation Cost</strong></td>
+                        <td class="clearnav-col">$0</td>
+                        <td class="competitor-col">$10,000 - $50,000</td>
+                    </tr>
+                    <tr>
+                        <td><strong>White-Label Portal</strong></td>
+                        <td class="clearnav-col">✓ Full Control</td>
+                        <td class="competitor-col">✗ Limited or Co-Branded</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Real-Time Data</strong></td>
+                        <td class="clearnav-col">✓ Instant Updates</td>
+                        <td class="competitor-col">✗ Batch Processing (24-48hr delay)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Custom Branding</strong></td>
+                        <td class="clearnav-col">✓ Complete Customization</td>
+                        <td class="competitor-col">✗ Generic Templates</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Secondary Market</strong></td>
+                        <td class="clearnav-col">✓ Built-In Exchange</td>
+                        <td class="competitor-col">✗ Not Available</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Contract Length</strong></td>
+                        <td class="clearnav-col">Monthly (Cancel Anytime)</td>
+                        <td class="competitor-col">3-5 Years (Long-Term Lock-In)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Technology Stack</strong></td>
+                        <td class="clearnav-col">Modern Cloud-Native</td>
+                        <td class="competitor-col">Legacy Systems (1990s-2000s)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>API Access</strong></td>
+                        <td class="clearnav-col">✓ Full API & Webhooks</td>
+                        <td class="competitor-col">✗ Limited or No API</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Account Manager</strong></td>
+                        <td class="clearnav-col">Self-Service + Support</td>
+                        <td class="competitor-col">Dedicated (Added Cost)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Pricing Model</strong></td>
+                        <td class="clearnav-col">Transparent Flat Fee</td>
+                        <td class="competitor-col">Opaque AUM-Based Pricing</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>ROI Analysis & Cost Savings</h2>
+            <div class="roi-box">
+                <h3>Annual Savings Breakdown</h3>
+                <div class="roi-breakdown">
+                    <div class="roi-column">
+                        <h4 style="color: #991b1b;">Traditional Approach</h4>
+                        <div class="roi-item">
+                            <span>Fund Administrator</span>
+                            <strong>$100,000</strong>
+                        </div>
+                        <div class="roi-item">
+                            <span>CRM Software</span>
+                            <strong>$10,000</strong>
+                        </div>
+                        <div class="roi-item">
+                            <span>Compliance Software</span>
+                            <strong>$8,000</strong>
+                        </div>
+                        <div class="roi-item">
+                            <span>Document Management</span>
+                            <strong>$5,000</strong>
+                        </div>
+                        <div class="roi-item">
+                            <span>Reporting Tools</span>
+                            <strong>$7,000</strong>
+                        </div>
+                        <div class="roi-item">
+                            <span>Staff Time (Manual Work)</span>
+                            <strong>$40,000</strong>
+                        </div>
+                        <div class="roi-item" style="background: #fecaca; font-weight: 700; font-size: 1.2em;">
+                            <span>Total Annual Cost</span>
+                            <strong>$170,000</strong>
+                        </div>
+                    </div>
+                    <div class="roi-column">
+                        <h4 style="color: #065f46;">ClearNav Platform</h4>
+                        <div class="roi-item">
+                            <span>ClearNav Professional</span>
+                            <strong>$7,200</strong>
+                        </div>
+                        <div class="roi-item">
+                            <span>All Features Included</span>
+                            <strong>$0</strong>
+                        </div>
+                        <div class="roi-item">
+                            <span>Setup & Onboarding</span>
+                            <strong>$0</strong>
+                        </div>
+                        <div class="roi-item">
+                            <span>Additional Software</span>
+                            <strong>$0</strong>
+                        </div>
+                        <div class="roi-item">
+                            <span>Integration Costs</span>
+                            <strong>$0</strong>
+                        </div>
+                        <div class="roi-item">
+                            <span>Staff Time Saved</span>
+                            <strong>-$32,000</strong>
+                        </div>
+                        <div class="roi-item" style="background: #d1fae5; font-weight: 700; font-size: 1.2em;">
+                            <span>Total Annual Cost</span>
+                            <strong>$7,200</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="roi-total">
+                    Net Annual Savings: $162,800 | 3-Year Savings: $488,400
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Novel Liquidity Generation: Built-In Secondary Marketplace</h2>
+            <div class="differentiators">
+                <p style="font-size: 1.2em; margin-bottom: 20px; color: #0369a1; font-weight: 600;">
+                    ClearNav includes a unique feature that traditional fund administrators like SS&C, Citco, Northern Trust, and BNY Mellon cannot provide: an integrated secondary marketplace for fund interests.
+                </p>
+                <ul>
+                    <li>
+                        <strong>Peer-to-Peer Trading</strong>
+                        Enable investors to trade fund interests directly with each other, reducing redemption pressure and improving fund liquidity without impacting your AUM.
+                    </li>
+                    <li>
+                        <strong>Tokenization Ready</strong>
+                        Convert fund interests into digital assets for enhanced tradability, fractional ownership, and automated settlement processes.
+                    </li>
+                    <li>
+                        <strong>Secure Escrow Processing</strong>
+                        Built-in escrow and transaction processing ensures secure, compliant transfers with automated documentation and regulatory reporting.
+                    </li>
+                    <li>
+                        <strong>Market-Driven Price Discovery</strong>
+                        Allow market forces to establish secondary market prices, providing real-time valuation insights and transparency for your fund.
+                    </li>
+                    <li>
+                        <strong>Regulatory Compliance Built-In</strong>
+                        Automated approval workflows ensure all transfers comply with fund documents, right of first refusal provisions, and regulatory requirements.
+                    </li>
+                    <li>
+                        <strong>Competitive Advantage</strong>
+                        Offer investors liquidity options that aren't available from traditional administrators, making your fund more attractive to sophisticated investors.
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Key Differentiators</h2>
+            <div class="differentiators">
+                <ul>
+                    <li>
+                        <strong>All-in-One Solution</strong>
+                        Replace your fund administrator, CRM, compliance software, reporting tools, and document management with a single integrated platform.
+                    </li>
+                    <li>
+                        <strong>Modern Technology Stack</strong>
+                        Built on cloud-native architecture from the ground up, not legacy systems cobbled together from acquisitions made in the 1990s and 2000s.
+                    </li>
+                    <li>
+                        <strong>Complete White-Label Control</strong>
+                        Your brand, your domain, your colors. Traditional administrators force you to use their co-branded portals and templates.
+                    </li>
+                    <li>
+                        <strong>Transparent Pricing Model</strong>
+                        Flat monthly fees with no hidden costs or opaque AUM-based pricing that increases as your fund grows. Know exactly what you'll pay.
+                    </li>
+                    <li>
+                        <strong>Instant Deployment</strong>
+                        Go live in 5 minutes instead of waiting 3-6 months for implementation. No lengthy onboarding projects or consulting fees.
+                    </li>
+                    <li>
+                        <strong>Multi-Tenant Architecture</strong>
+                        Purpose-built for fund administrators managing multiple clients. Centralized management with complete data isolation.
+                    </li>
+                    <li>
+                        <strong>AI-Powered Intelligence</strong>
+                        Intelligent BDR agent for lead qualification, automated investor communications, and predictive analytics on investor behavior.
+                    </li>
+                    <li>
+                        <strong>Real-Time Everything</strong>
+                        Instant updates, real-time reporting, and live data synchronization. No more waiting 24-48 hours for batch processing.
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Fund Management Value Proposition</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h4>⚡ Operational Efficiency</h4>
+                    <p>Reduce manual administrative work by 80%. Automated workflows handle routine tasks like capital calls, distributions, and NAV calculations, freeing your team to focus on investment strategy.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🎯 Professional Image</h4>
+                    <p>Provide institutional-grade investor portals that rival the largest fund administrators. White-label branding ensures your fund maintains a premium, professional appearance.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📊 Scalability</h4>
+                    <p>Handle 10 to 1,000+ investors with the same platform. No need to upgrade systems or hire additional staff as your AUM grows. Scale seamlessly without increasing overhead.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>✓ Error Reduction</h4>
+                    <p>Eliminate spreadsheet errors and manual calculation mistakes. Automated systems ensure accuracy in NAV calculations, fee computations, and investor allocations.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>⏰ Time Savings</h4>
+                    <p>Save 20-30 hours per month on administrative tasks. Automated reporting, investor communications, and compliance workflows reduce your operational burden.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🛡️ Compliance Confidence</h4>
+                    <p>Built-in compliance workflows ensure regulatory adherence. Automated audit trails, KYC/AML checks, and document retention provide peace of mind and reduce regulatory risk.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Investor Retention & Satisfaction Benefits</h2>
+            <div class="differentiators">
+                <ul>
+                    <li>
+                        <strong>Professional Branded Portal</strong>
+                        Your custom-branded investor portal enhances fund credibility and demonstrates institutional-quality operations, increasing investor confidence.
+                    </li>
+                    <li>
+                        <strong>24/7 Self-Service Access</strong>
+                        Investors can view their accounts, download documents, and track performance anytime, reducing inbound support requests by 70%.
+                    </li>
+                    <li>
+                        <strong>Real-Time Transparency</strong>
+                        Live portfolio updates and real-time performance data increase investor trust and reduce redemption requests caused by uncertainty.
+                    </li>
+                    <li>
+                        <strong>Integrated Messaging</strong>
+                        Built-in communication tools enable direct, secure messaging with investors, improving engagement and reducing email clutter.
+                    </li>
+                    <li>
+                        <strong>Mobile-Responsive Design</strong>
+                        Modern, mobile-friendly interface provides investors with a superior user experience on any device, meeting contemporary expectations.
+                    </li>
+                    <li>
+                        <strong>Automated Notifications</strong>
+                        Keep investors engaged with automated updates on distributions, capital calls, performance reports, and fund news.
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Transparent Pricing</h2>
+            <div class="pricing-cards">
+                <div class="pricing-card">
+                    <h4>Starter</h4>
+                    <div class="price">$299</div>
+                    <div class="period">per month</div>
+                    <ul>
+                        <li>Up to 25 investors</li>
+                        <li>Single fund</li>
+                        <li>White-label portal</li>
+                        <li>NAV calculation</li>
+                        <li>Capital operations</li>
+                        <li>Document management</li>
+                        <li>Basic reporting</li>
+                        <li>Email support</li>
+                    </ul>
+                </div>
+                <div class="pricing-card popular">
+                    <div class="badge">MOST POPULAR</div>
+                    <h4>Professional</h4>
+                    <div class="price">$599</div>
+                    <div class="period">per month</div>
+                    <ul>
+                        <li>Up to 100 investors</li>
+                        <li>Multiple funds</li>
+                        <li>Everything in Starter, plus:</li>
+                        <li>IBKR integration</li>
+                        <li>Advanced reporting</li>
+                        <li>CRM & investor relations</li>
+                        <li>Compliance center</li>
+                        <li>Secondary marketplace</li>
+                        <li>Priority support</li>
+                    </ul>
+                </div>
+                <div class="pricing-card">
+                    <h4>Enterprise</h4>
+                    <div class="price">$1,299</div>
+                    <div class="period">per month</div>
+                    <ul>
+                        <li>Unlimited investors</li>
+                        <li>Unlimited funds</li>
+                        <li>Everything in Professional, plus:</li>
+                        <li>Multi-tenant management</li>
+                        <li>Custom integrations</li>
+                        <li>AI BDR agent</li>
+                        <li>Advanced analytics</li>
+                        <li>Dedicated support</li>
+                        <li>Custom SLA</li>
+                    </ul>
+                </div>
+            </div>
+            <p style="text-align: center; margin-top: 30px; font-size: 1.2em; color: #0369a1;">
+                <strong>Annual Prepayment Discount: Save 15% with annual billing</strong><br>
+                No per-user charges • No setup fees • No hidden costs • Cancel anytime
+            </p>
+        </div>
+
+        <div class="section">
+            <h2>Trust & Credibility</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h4>🏆 SOC 2 Type II Certified</h4>
+                    <p>Independently audited security controls meet the highest standards for data protection, availability, and confidentiality.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🤝 Technology Partners</h4>
+                    <p>Built on enterprise infrastructure: Supabase (database), Vercel (hosting), Interactive Brokers (market data), and leading security providers.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>⚡ 99.9% Uptime SLA</h4>
+                    <p>Enterprise-grade infrastructure ensures your platform is always available when investors need access to their accounts and information.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🔒 Bank-Grade Security</h4>
+                    <p>AES-256 encryption, multi-factor authentication, penetration testing, and third-party security audits protect your sensitive fund data.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📋 Compliance Ready</h4>
+                    <p>GDPR and CCPA compliant data handling, with built-in tools for regulatory reporting and investor data management.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🛡️ Continuous Monitoring</h4>
+                    <p>24/7 infrastructure monitoring, automated backups, disaster recovery procedures, and incident response protocols ensure data protection.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="cta-section">
+            <h2>Start Your 14-Day Free Trial Today</h2>
+            <p>Launch your white-label investor portal in under 5 minutes. No credit card required.</p>
+            <div class="cta-buttons">
+                <a href="https://clearnav.io/signup" class="cta-button">Start Free Trial</a>
+                <a href="https://clearnav.io/demo" class="cta-button secondary">Schedule Demo</a>
+                <a href="mailto:sales@clearnav.io" class="cta-button secondary">Contact Sales</a>
+            </div>
+            <p style="margin-top: 30px; font-size: 1.1em;">
+                Full feature access during trial • No implementation fees • Cancel anytime
+            </p>
+        </div>
+
+        <div class="footer">
+            <div class="summary">
+                <h3 style="color: white; margin-bottom: 20px;">Transform Your Fund Operations Today</h3>
+                <p style="margin-bottom: 10px;">💰 <strong>Save $40,000-$200,000 annually</strong> compared to traditional fund administrators</p>
+                <p style="margin-bottom: 10px;">⚡ <strong>Launch in 5 minutes</strong>, not 6 months with complex onboarding projects</p>
+                <p style="margin-bottom: 10px;">🎯 <strong>Provide institutional-grade investor experience</strong> with your own branded portal</p>
+            </div>
+            <div class="links">
+                <p>🌐 <strong>Website:</strong> clearnav.io | <strong>Email:</strong> sales@clearnav.io | <strong>Phone:</strong> (555) 123-4567</p>
+                <p style="margin-top: 20px; font-size: 0.9em; opacity: 0.8;">
+                    © 2026 ClearNav Platform. All rights reserved. SOC 2 Type II Certified.<br>
+                    Securities offered through registered broker-dealers. ClearNav is a technology platform provider.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
