@@ -118,7 +118,18 @@ export function determineRedirect(userRoles: UserRoles, currentUrl: string): Red
   const params = new URLSearchParams(window.location.search);
   const currentTenantParam = params.get('tenant');
 
+  console.log('[Redirect Logic] Evaluating redirect:', {
+    isPlatformAdmin: userRoles.isPlatformAdmin,
+    isPlatformDomain,
+    currentTenantParam,
+    tenantAccessCount: userRoles.tenantAccesses.length,
+    isClient: userRoles.isClient,
+    clientTenantCount: userRoles.clientTenants.length,
+    currentUrl
+  });
+
   if (userRoles.isPlatformAdmin && !isPlatformDomain) {
+    console.log('[Redirect Logic] Platform admin on non-platform domain, redirecting to platform');
     return {
       shouldRedirect: true,
       url: `${window.location.protocol}//${window.location.hostname.split('.')[0] === 'www' ? window.location.hostname : 'localhost'}${window.location.port ? ':' + window.location.port : ''}`,
@@ -127,6 +138,7 @@ export function determineRedirect(userRoles: UserRoles, currentUrl: string): Red
   }
 
   if (userRoles.isPlatformAdmin && isPlatformDomain && !currentTenantParam) {
+    console.log('[Redirect Logic] Platform admin already on platform domain with no tenant param - no redirect needed');
     return {
       shouldRedirect: false,
       reason: 'already_on_platform_admin'

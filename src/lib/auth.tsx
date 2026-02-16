@@ -112,6 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!skipRedirect) {
       const redirect = determineRedirect(roles, window.location.href);
+      console.log('[Auth] Redirect decision:', redirect);
+
       if (redirect.shouldRedirect && redirect.url) {
         // Prevent infinite redirect loops by checking if we're already at the target URL
         const currentUrl = window.location.href;
@@ -122,8 +124,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return `${urlObj.origin}${urlObj.pathname}${urlObj.search}`.replace(/\/$/, '');
         };
 
-        if (normalizeUrl(redirect.url) === normalizeUrl(currentUrl)) {
-          console.log('Already at target URL, skipping redirect');
+        const normalizedTarget = normalizeUrl(redirect.url);
+        const normalizedCurrent = normalizeUrl(currentUrl);
+
+        console.log('[Auth] URL comparison:', {
+          current: normalizedCurrent,
+          target: normalizedTarget,
+          match: normalizedTarget === normalizedCurrent
+        });
+
+        if (normalizedTarget === normalizedCurrent) {
+          console.log('[Auth] Already at target URL, skipping redirect');
           return;
         }
 
@@ -133,14 +144,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const now = Date.now();
 
         if (lastRedirect === redirect.url && lastRedirectTime && (now - parseInt(lastRedirectTime)) < 3000) {
-          console.warn('Prevented potential redirect loop to:', redirect.url);
+          console.warn('[Auth] Prevented potential redirect loop to:', redirect.url);
           return;
         }
 
+        console.log('[Auth] Performing redirect to:', redirect.url, 'Reason:', redirect.reason);
         sessionStorage.setItem('lastRedirectUrl', redirect.url);
         sessionStorage.setItem('lastRedirectTime', now.toString());
         window.location.href = redirect.url;
         return;
+      } else {
+        console.log('[Auth] No redirect needed, reason:', redirect.reason);
       }
     }
 
