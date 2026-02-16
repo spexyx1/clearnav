@@ -4,6 +4,7 @@ import { isPlatformAdminDomain } from './lib/tenantResolver';
 import LandingPage from './components/LandingPage';
 import ClearNavLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
+import TenantSelector from './components/TenantSelector';
 
 const ClientPortal = lazy(() => import('./components/ClientPortal'));
 const ManagerPortal = lazy(() => import('./components/ManagerPortal'));
@@ -14,8 +15,9 @@ const DebugLogin = lazy(() => import('./components/DebugLogin'));
 const SalesSheet = lazy(() => import('./components/SalesSheet'));
 
 function AppContent() {
-  const { user, loading, isStaff, isTenantAdmin, isPlatformAdmin, currentTenant } = useAuth();
+  const { user, loading, isStaff, isTenantAdmin, isPlatformAdmin, currentTenant, allUserRoles, availableTenants } = useAuth();
   const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug' | 'sales-sheet'>('landing');
+  const [showTenantSelector, setShowTenantSelector] = useState(false);
 
   useEffect(() => {
     const checkRoute = () => {
@@ -89,6 +91,20 @@ function AppContent() {
   }
 
   if (user) {
+    const params = new URLSearchParams(window.location.search);
+    const tenantParam = params.get('tenant');
+    const needsTenantSelection = user &&
+      !isPlatformAdmin &&
+      !tenantParam &&
+      !currentTenant &&
+      availableTenants.length > 0 &&
+      allUserRoles &&
+      (allUserRoles.tenantAccesses.length > 0 || allUserRoles.clientTenants.length > 0);
+
+    if (needsTenantSelection || showTenantSelector) {
+      return <TenantSelector onClose={() => setShowTenantSelector(false)} />;
+    }
+
     if (isPlatformAdmin && isPlatformAdminDomain()) {
       return (
         <Suspense fallback={<LoadingSpinner />}>

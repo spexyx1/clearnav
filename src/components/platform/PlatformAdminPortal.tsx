@@ -17,6 +17,7 @@ import PlatformSettings from './PlatformSettings';
 import DiscountManagement from './DiscountManagement';
 import UserManagement from './UserManagement';
 import SupportTools from './SupportTools';
+import RoleSwitcher from '../RoleSwitcher';
 
 type Tab = 'tenants' | 'users' | 'discounts' | 'billing' | 'analytics' | 'support' | 'settings';
 
@@ -48,13 +49,16 @@ export default function PlatformAdminPortal() {
                 <p className="text-sm text-slate-600">Multi-Tenant Management</p>
               </div>
             </div>
-            <button
-              onClick={() => signOut()}
-              className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Sign Out</span>
-            </button>
+            <div className="flex items-center space-x-4">
+              <RoleSwitcher />
+              <button
+                onClick={() => signOut()}
+                className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>

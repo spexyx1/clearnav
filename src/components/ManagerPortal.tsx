@@ -33,6 +33,7 @@ import ExchangeManagement from './manager/ExchangeManagement';
 import NewsletterManager from './manager/NewsletterManager';
 import EmailClient from './manager/EmailClient';
 import CommunityHub from './community/CommunityHub';
+import RoleSwitcher from './RoleSwitcher';
 
 type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users';
 
@@ -160,6 +161,7 @@ export default function ManagerPortal() {
                 </div>
               </div>
               <div className="h-8 w-px bg-slate-700"></div>
+              <RoleSwitcher />
               <div className="text-right">
                 <div className="text-sm text-slate-400 capitalize">{userRole?.replace('_', ' ')}</div>
                 <div className="text-white font-medium">{staffAccount?.full_name || user?.email?.split('@')[0] || 'User'}</div>
