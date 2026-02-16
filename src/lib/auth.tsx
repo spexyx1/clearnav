@@ -1,9 +1,8 @@
-import { createContext, useContext, useEffect, useState, useRef, useMemo, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { Database } from '../types/database';
 import { resolveTenantFromDomain, isPlatformAdminDomain } from './tenantResolver';
-import { detectAllUserRoles, determineRedirect, UserRoles } from './roleManager';
 
 type UserRole = 'general_manager' | 'compliance_manager' | 'accountant' | 'cfo' | 'legal_counsel' | 'admin' | 'client' | 'platform_admin';
 type Tenant = Database['public']['Tables']['platform_tenants']['Row'];
@@ -24,7 +23,6 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  roleLoading: boolean;
   userRole: UserRole | null;
   isStaff: boolean;
   isTenantAdmin: boolean;
@@ -33,23 +31,17 @@ interface AuthContextType {
   platformAdminUser: PlatformAdminUser | null;
   currentTenant: Tenant | null;
   tenantUser: TenantUser | null;
-  allUserRoles: UserRoles | null;
-  availableTenants: Tenant[];
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refetch: () => Promise<void>;
-  switchTenant: (tenantSlug: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const RELEVANT_AUTH_EVENTS = new Set(['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED']);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [roleLoading, setRoleLoading] = useState(false);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isStaff, setIsStaff] = useState(false);
   const [isTenantAdmin, setIsTenantAdmin] = useState(false);
@@ -58,201 +50,164 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [platformAdminUser, setPlatformAdminUser] = useState<PlatformAdminUser | null>(null);
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
   const [tenantUser, setTenantUser] = useState<TenantUser | null>(null);
-  const [allUserRoles, setAllUserRoles] = useState<UserRoles | null>(null);
-  const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
-  const loadVersionRef = useRef(0);
 
-  const clearRoleState = useCallback(() => {
-    setUserRole(null);
-    setIsStaff(false);
-    setIsTenantAdmin(false);
-    setStaffAccount(null);
-    setIsPlatformAdmin(false);
-    setPlatformAdminUser(null);
-    setTenantUser(null);
-    setAllUserRoles(null);
-    setAvailableTenants([]);
-  }, []);
+  const loadUserRole = async (userId: string, resolvedTenant: Tenant | null) => {
+    if (isPlatformAdminDomain()) {
+      const { data: adminData } = await supabase
+        .from('platform_admin_users')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-  const loadUserRole = useCallback(async (userId: string, resolvedTenant: Tenant | null, skipRedirect = false) => {
-    const version = ++loadVersionRef.current;
-
-    let roles: UserRoles;
-    try {
-      roles = await detectAllUserRoles(userId);
-    } catch (err) {
-      console.error('Failed to detect user roles:', err);
-      clearRoleState();
-      return;
-    }
-
-    if (version !== loadVersionRef.current) return;
-
-    setAllUserRoles(roles);
-
-    const tenants: Tenant[] = [];
-    roles.tenantAccesses.forEach(access => tenants.push(access.tenant));
-    roles.clientTenants.forEach(tenant => {
-      if (!tenants.find(t => t.id === tenant.id)) {
-        tenants.push(tenant);
+      if (adminData) {
+        setIsPlatformAdmin(true);
+        setPlatformAdminUser(adminData);
+        setUserRole('platform_admin');
+        setIsStaff(false);
+        setIsTenantAdmin(false);
+        setStaffAccount(null);
+        return;
       }
-    });
-    setAvailableTenants(tenants);
-
-    if (roles.isPlatformAdmin && isPlatformAdminDomain()) {
-      setIsPlatformAdmin(true);
-      setPlatformAdminUser(roles.platformAdminUser);
-      setUserRole('platform_admin');
-      setIsStaff(false);
-      setIsTenantAdmin(false);
-      setStaffAccount(null);
-      setTenantUser(null);
-      return;
     }
 
-    const currentTenantAccess = roles.tenantAccesses.find(
-      access => resolvedTenant && access.tenant.id === resolvedTenant.id
-    );
+    const { data: staffData } = await supabase
+      .from('staff_accounts')
+      .select('*')
+      .eq('auth_user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
 
-    if (currentTenantAccess) {
-      setIsStaff(currentTenantAccess.isStaff);
-      setIsTenantAdmin(currentTenantAccess.isAdmin);
-      setUserRole(currentTenantAccess.userRole);
-      setStaffAccount(currentTenantAccess.staffAccount);
-      setTenantUser(currentTenantAccess.tenantUser);
+    if (staffData) {
+      setIsStaff(true);
+      setUserRole(staffData.role);
+      setStaffAccount(staffData);
       setIsPlatformAdmin(false);
       setPlatformAdminUser(null);
-      return;
-    }
 
-    if (roles.isClient && resolvedTenant) {
-      const isClientOfTenant = roles.clientTenants.some(t => t.id === resolvedTenant.id);
-      if (isClientOfTenant) {
+      if (resolvedTenant && staffData.tenant_id === resolvedTenant.id) {
+        const { data: tenantUserData } = await supabase
+          .from('tenant_users')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('tenant_id', resolvedTenant.id)
+          .maybeSingle();
+
+        setTenantUser(tenantUserData);
+        setIsTenantAdmin(
+          !!(tenantUserData && (tenantUserData.role === 'admin' || tenantUserData.role === 'owner'))
+        );
+      } else {
+        setIsTenantAdmin(false);
+      }
+    } else {
+      if (resolvedTenant) {
+        const { data: tenantUserData } = await supabase
+          .from('tenant_users')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('tenant_id', resolvedTenant.id)
+          .maybeSingle();
+
+        setTenantUser(tenantUserData);
+
+        if (tenantUserData && (tenantUserData.role === 'admin' || tenantUserData.role === 'owner')) {
+          setIsTenantAdmin(true);
+          setIsStaff(false);
+          setUserRole('admin');
+          setStaffAccount(null);
+          setIsPlatformAdmin(false);
+          setPlatformAdminUser(null);
+          return;
+        }
+      }
+
+      const { data: clientData } = await supabase
+        .from('client_profiles')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (clientData) {
         setIsStaff(false);
         setIsTenantAdmin(false);
         setUserRole('client');
         setStaffAccount(null);
         setIsPlatformAdmin(false);
         setPlatformAdminUser(null);
-        setTenantUser(null);
-        return;
+      } else {
+        setIsTenantAdmin(false);
       }
     }
-
-    if (!skipRedirect) {
-      const redirect = determineRedirect(roles, window.location.href);
-
-      if (redirect.shouldRedirect && redirect.url) {
-        const normalizeUrl = (url: string) => {
-          try {
-            const urlObj = new URL(url);
-            return `${urlObj.origin}${urlObj.pathname}${urlObj.search}`.replace(/\/$/, '');
-          } catch {
-            return url;
-          }
-        };
-
-        const normalizedTarget = normalizeUrl(redirect.url);
-        const normalizedCurrent = normalizeUrl(window.location.href);
-
-        if (normalizedTarget !== normalizedCurrent) {
-          window.location.href = redirect.url;
-          return;
-        }
-      }
-    }
-
-    setIsStaff(false);
-    setIsTenantAdmin(false);
-    setUserRole(null);
-    setStaffAccount(null);
-    setIsPlatformAdmin(false);
-    setPlatformAdminUser(null);
-    setTenantUser(null);
-  }, [clearRoleState]);
+  };
 
   useEffect(() => {
-    let cancelled = false;
+    let initComplete = false;
 
     const initAuth = async () => {
-      try {
-        const [{ data: { session } }, resolved] = await Promise.all([
-          supabase.auth.getSession(),
-          resolveTenantFromDomain(window.location.hostname)
-        ]);
+      const [{ data: { session } }, resolved] = await Promise.all([
+        supabase.auth.getSession(),
+        resolveTenantFromDomain(window.location.hostname)
+      ]);
 
-        if (cancelled) return;
+      setSession(session);
+      setUser(session?.user ?? null);
+      setCurrentTenant(resolved.tenant);
 
-        setCurrentTenant(resolved.tenant);
-
-        if (session?.user) {
-          setSession(session);
-          setUser(session.user);
-          await loadUserRole(session.user.id, resolved.tenant);
-        }
-      } catch (err) {
-        console.error('Auth initialization failed:', err);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      if (session?.user) {
+        await loadUserRole(session.user.id, resolved.tenant);
       }
+
+      setLoading(false);
+      initComplete = true;
     };
 
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (cancelled) return;
-
-      if (event === 'INITIAL_SESSION') return;
-
-      if (!RELEVANT_AUTH_EVENTS.has(event)) return;
-
-      if (!session?.user) {
-        setSession(null);
-        setUser(null);
-        setCurrentTenant(null);
-        clearRoleState();
-        setLoading(false);
-        return;
-      }
-
-      setSession(session);
-      setUser(session.user);
-      setRoleLoading(true);
+      if (event === 'INITIAL_SESSION' && !initComplete) return;
 
       (async () => {
-        try {
-          const resolved = await resolveTenantFromDomain(window.location.hostname);
-          if (cancelled) return;
-          setCurrentTenant(resolved.tenant);
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        const resolved = await resolveTenantFromDomain(window.location.hostname);
+        setCurrentTenant(resolved.tenant);
+
+        if (session?.user) {
           await loadUserRole(session.user.id, resolved.tenant);
-        } catch (err) {
-          console.error('Auth state change handling failed:', err);
-        } finally {
-          if (!cancelled) setRoleLoading(false);
+        } else {
+          setUserRole(null);
+          setIsStaff(false);
+          setIsTenantAdmin(false);
+          setStaffAccount(null);
+          setIsPlatformAdmin(false);
+          setPlatformAdminUser(null);
+          setTenantUser(null);
         }
       })();
     });
 
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
-  }, [loadUserRole, clearRoleState]);
-
-  const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
+    return () => subscription.unsubscribe();
   }, []);
 
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    clearRoleState();
-    setCurrentTenant(null);
-  }, [clearRoleState]);
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error };
+  };
 
-  const refetch = useCallback(async () => {
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setUserRole(null);
+    setIsStaff(false);
+    setIsTenantAdmin(false);
+    setStaffAccount(null);
+    setIsPlatformAdmin(false);
+    setPlatformAdminUser(null);
+    setCurrentTenant(null);
+    setTenantUser(null);
+  };
+
+  const refetch = async () => {
     const [{ data: { session } }, resolved] = await Promise.all([
       supabase.auth.getSession(),
       resolveTenantFromDomain(window.location.hostname)
@@ -261,40 +216,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (session?.user) {
       await loadUserRole(session.user.id, resolved.tenant);
     }
-  }, [loadUserRole]);
-
-  const switchTenant = useCallback(async (tenantSlug: string) => {
-    const baseUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}`;
-    window.location.href = `${baseUrl}?tenant=${tenantSlug}`;
-  }, []);
-
-  const value = useMemo<AuthContextType>(() => ({
-    user,
-    session,
-    loading,
-    roleLoading,
-    userRole,
-    isStaff,
-    isTenantAdmin,
-    staffAccount,
-    isPlatformAdmin,
-    platformAdminUser,
-    currentTenant,
-    tenantUser,
-    allUserRoles,
-    availableTenants,
-    signIn,
-    signOut,
-    refetch,
-    switchTenant
-  }), [
-    user, session, loading, roleLoading, userRole, isStaff, isTenantAdmin,
-    staffAccount, isPlatformAdmin, platformAdminUser, currentTenant, tenantUser,
-    allUserRoles, availableTenants, signIn, signOut, refetch, switchTenant
-  ]);
+  };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{
+      user,
+      session,
+      loading,
+      userRole,
+      isStaff,
+      isTenantAdmin,
+      staffAccount,
+      isPlatformAdmin,
+      platformAdminUser,
+      currentTenant,
+      tenantUser,
+      signIn,
+      signOut,
+      refetch
+    }}>
       {children}
     </AuthContext.Provider>
   );

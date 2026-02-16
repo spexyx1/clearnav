@@ -11,7 +11,6 @@ import RiskMetrics from './portal/RiskMetrics';
 import IBKRSettings from './portal/IBKRSettings';
 import Exchange from './portal/Exchange';
 import CommunityHub from './community/CommunityHub';
-import RoleSwitcher from './RoleSwitcher';
 
 type TabType = 'dashboard' | 'returns' | 'risk' | 'documents' | 'redemptions' | 'tax' | 'exchange' | 'community' | 'settings';
 
@@ -114,7 +113,6 @@ export default function ClientPortal() {
               )}
             </div>
             <div className="flex items-center space-x-6">
-              <RoleSwitcher />
               <div className="text-right">
                 <div className="text-sm text-slate-400">Welcome back,</div>
                 <div className="text-white font-medium">{profile?.full_name || 'Client'}</div>
