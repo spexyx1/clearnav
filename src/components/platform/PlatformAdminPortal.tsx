@@ -5,6 +5,7 @@ import {
   Users,
   Settings,
   BarChart3,
+  Percent,
   MessageSquare,
   LogOut,
 } from 'lucide-react';
@@ -13,8 +14,11 @@ import TenantManagement from './TenantManagement';
 import BillingOverview from './BillingOverview';
 import PlatformAnalytics from './PlatformAnalytics';
 import PlatformSettings from './PlatformSettings';
+import DiscountManagement from './DiscountManagement';
+import UserManagement from './UserManagement';
+import SupportTools from './SupportTools';
 
-type Tab = 'tenants' | 'billing' | 'analytics' | 'settings';
+type Tab = 'tenants' | 'users' | 'discounts' | 'billing' | 'analytics' | 'support' | 'settings';
 
 export default function PlatformAdminPortal() {
   const { signOut } = useAuth();
@@ -22,8 +26,11 @@ export default function PlatformAdminPortal() {
 
   const tabs = [
     { id: 'tenants', label: 'Tenants', icon: Building2 },
+    { id: 'users', label: 'Users', icon: Users },
+    { id: 'discounts', label: 'Discounts', icon: Percent },
     { id: 'billing', label: 'Billing', icon: DollarSign },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'support', label: 'Support', icon: MessageSquare },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -75,8 +82,11 @@ export default function PlatformAdminPortal() {
 
         <div className="bg-white rounded-lg shadow-sm">
           {activeTab === 'tenants' && <TenantManagement />}
+          {activeTab === 'users' && <UserManagement />}
+          {activeTab === 'discounts' && <DiscountManagement />}
           {activeTab === 'billing' && <BillingOverview />}
           {activeTab === 'analytics' && <PlatformAnalytics />}
+          {activeTab === 'support' && <SupportTools />}
           {activeTab === 'settings' && <PlatformSettings />}
         </div>
       </div>
