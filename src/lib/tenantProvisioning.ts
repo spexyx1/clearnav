@@ -45,24 +45,17 @@ export async function validateSlug(slug: string): Promise<{ available: boolean; 
     return { available: false, error: 'Subdomain cannot contain consecutive hyphens' };
   }
 
-  const { data: reserved } = await supabase
-    .from('reserved_subdomains')
-    .select('subdomain')
-    .eq('subdomain', slug)
-    .maybeSingle();
+  // Use RPC function to check availability (bypasses RLS to check all tenants)
+  const { data: isAvailable, error } = await supabase
+    .rpc('check_slug_available', { requested_slug: slug });
 
-  if (reserved) {
-    return { available: false, error: 'This subdomain is reserved for system use' };
+  if (error) {
+    console.error('Error checking slug availability:', error);
+    return { available: false, error: 'Failed to check subdomain availability' };
   }
 
-  const { data: existing } = await supabase
-    .from('platform_tenants')
-    .select('slug')
-    .eq('slug', slug)
-    .maybeSingle();
-
-  if (existing) {
-    return { available: false, error: 'This subdomain is already taken' };
+  if (!isAvailable) {
+    return { available: false, error: 'This subdomain is not available' };
   }
 
   return { available: true };
