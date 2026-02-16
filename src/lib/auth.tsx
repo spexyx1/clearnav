@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useMemo, useCallback, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { Database } from '../types/database';
@@ -43,6 +43,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const RELEVANT_AUTH_EVENTS = new Set(['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED']);
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -60,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
   const loadVersionRef = useRef(0);
 
-  const clearRoleState = () => {
+  const clearRoleState = useCallback(() => {
     setUserRole(null);
     setIsStaff(false);
     setIsTenantAdmin(false);
@@ -70,12 +72,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTenantUser(null);
     setAllUserRoles(null);
     setAvailableTenants([]);
-  };
+  }, []);
 
-  const loadUserRole = async (userId: string, resolvedTenant: Tenant | null, skipRedirect = false) => {
+  const loadUserRole = useCallback(async (userId: string, resolvedTenant: Tenant | null, skipRedirect = false) => {
     const version = ++loadVersionRef.current;
 
-    const roles = await detectAllUserRoles(userId);
+    let roles: UserRoles;
+    try {
+      roles = await detectAllUserRoles(userId);
+    } catch (err) {
+      console.error('Failed to detect user roles:', err);
+      clearRoleState();
+      return;
+    }
 
     if (version !== loadVersionRef.current) return;
 
@@ -135,8 +144,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (redirect.shouldRedirect && redirect.url) {
         const normalizeUrl = (url: string) => {
-          const urlObj = new URL(url);
-          return `${urlObj.origin}${urlObj.pathname}${urlObj.search}`.replace(/\/$/, '');
+          try {
+            const urlObj = new URL(url);
+            return `${urlObj.origin}${urlObj.pathname}${urlObj.search}`.replace(/\/$/, '');
+          } catch {
+            return url;
+          }
         };
 
         const normalizedTarget = normalizeUrl(redirect.url);
@@ -156,43 +169,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsPlatformAdmin(false);
     setPlatformAdminUser(null);
     setTenantUser(null);
-  };
+  }, [clearRoleState]);
 
   useEffect(() => {
     let cancelled = false;
-    let initComplete = false;
 
     const initAuth = async () => {
-      const [{ data: { session } }, resolved] = await Promise.all([
-        supabase.auth.getSession(),
-        resolveTenantFromDomain(window.location.hostname)
-      ]);
+      try {
+        const [{ data: { session } }, resolved] = await Promise.all([
+          supabase.auth.getSession(),
+          resolveTenantFromDomain(window.location.hostname)
+        ]);
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      setCurrentTenant(resolved.tenant);
+        setCurrentTenant(resolved.tenant);
 
-      if (session?.user) {
-        setSession(session);
-        setUser(session.user);
-        await loadUserRole(session.user.id, resolved.tenant);
+        if (session?.user) {
+          setSession(session);
+          setUser(session.user);
+          await loadUserRole(session.user.id, resolved.tenant);
+        }
+      } catch (err) {
+        console.error('Auth initialization failed:', err);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-
-      if (cancelled) return;
-      setLoading(false);
-      initComplete = true;
     };
 
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
-      if (event === 'INITIAL_SESSION' && !initComplete) return;
+
+      if (event === 'INITIAL_SESSION') return;
+
+      if (!RELEVANT_AUTH_EVENTS.has(event)) return;
 
       if (!session?.user) {
         setSession(null);
         setUser(null);
+        setCurrentTenant(null);
         clearRoleState();
+        setLoading(false);
         return;
       }
 
@@ -206,6 +227,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (cancelled) return;
           setCurrentTenant(resolved.tenant);
           await loadUserRole(session.user.id, resolved.tenant);
+        } catch (err) {
+          console.error('Auth state change handling failed:', err);
         } finally {
           if (!cancelled) setRoleLoading(false);
         }
@@ -216,20 +239,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadUserRole, clearRoleState]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     clearRoleState();
     setCurrentTenant(null);
-  };
+  }, [clearRoleState]);
 
-  const refetch = async () => {
+  const refetch = useCallback(async () => {
     const [{ data: { session } }, resolved] = await Promise.all([
       supabase.auth.getSession(),
       resolveTenantFromDomain(window.location.hostname)
@@ -238,34 +261,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (session?.user) {
       await loadUserRole(session.user.id, resolved.tenant);
     }
-  };
+  }, [loadUserRole]);
 
-  const switchTenant = async (tenantSlug: string) => {
+  const switchTenant = useCallback(async (tenantSlug: string) => {
     const baseUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}`;
     window.location.href = `${baseUrl}?tenant=${tenantSlug}`;
-  };
+  }, []);
+
+  const value = useMemo<AuthContextType>(() => ({
+    user,
+    session,
+    loading,
+    roleLoading,
+    userRole,
+    isStaff,
+    isTenantAdmin,
+    staffAccount,
+    isPlatformAdmin,
+    platformAdminUser,
+    currentTenant,
+    tenantUser,
+    allUserRoles,
+    availableTenants,
+    signIn,
+    signOut,
+    refetch,
+    switchTenant
+  }), [
+    user, session, loading, roleLoading, userRole, isStaff, isTenantAdmin,
+    staffAccount, isPlatformAdmin, platformAdminUser, currentTenant, tenantUser,
+    allUserRoles, availableTenants, signIn, signOut, refetch, switchTenant
+  ]);
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      session,
-      loading,
-      roleLoading,
-      userRole,
-      isStaff,
-      isTenantAdmin,
-      staffAccount,
-      isPlatformAdmin,
-      platformAdminUser,
-      currentTenant,
-      tenantUser,
-      allUserRoles,
-      availableTenants,
-      signIn,
-      signOut,
-      refetch,
-      switchTenant
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

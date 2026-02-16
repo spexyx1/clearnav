@@ -40,14 +40,14 @@ export async function detectAllUserRoles(userId: string): Promise<UserRoles> {
   ]);
 
   const result: UserRoles = {
-    isPlatformAdmin: !!platformAdminResult.data,
-    platformAdminUser: platformAdminResult.data,
+    isPlatformAdmin: !platformAdminResult.error && !!platformAdminResult.data,
+    platformAdminUser: platformAdminResult.error ? null : platformAdminResult.data,
     tenantAccesses: [],
-    isClient: !!clientResult.data && clientResult.data.length > 0,
+    isClient: !clientResult.error && !!clientResult.data && clientResult.data.length > 0,
     clientTenants: []
   };
 
-  if (staffResult.data) {
+  if (!staffResult.error && staffResult.data) {
     for (const staff of staffResult.data) {
       const tenant = staff.platform_tenants as unknown as Tenant;
       if (!tenant) continue;
@@ -73,7 +73,7 @@ export async function detectAllUserRoles(userId: string): Promise<UserRoles> {
     }
   }
 
-  if (tenantUserResult.data) {
+  if (!tenantUserResult.error && tenantUserResult.data) {
     for (const tenantUser of tenantUserResult.data) {
       const tenant = tenantUser.platform_tenants as unknown as Tenant;
       if (!tenant) continue;
@@ -94,7 +94,7 @@ export async function detectAllUserRoles(userId: string): Promise<UserRoles> {
     }
   }
 
-  if (clientResult.data) {
+  if (!clientResult.error && clientResult.data) {
     for (const client of clientResult.data) {
       const tenant = client.platform_tenants as unknown as Tenant;
       if (tenant) {
@@ -118,18 +118,7 @@ export function determineRedirect(userRoles: UserRoles, currentUrl: string): Red
   const params = new URLSearchParams(window.location.search);
   const currentTenantParam = params.get('tenant');
 
-  console.log('[Redirect Logic] Evaluating redirect:', {
-    isPlatformAdmin: userRoles.isPlatformAdmin,
-    isPlatformDomain,
-    currentTenantParam,
-    tenantAccessCount: userRoles.tenantAccesses.length,
-    isClient: userRoles.isClient,
-    clientTenantCount: userRoles.clientTenants.length,
-    currentUrl
-  });
-
   if (userRoles.isPlatformAdmin && !isPlatformDomain) {
-    console.log('[Redirect Logic] Platform admin on non-platform domain, redirecting to platform');
     return {
       shouldRedirect: true,
       url: `${window.location.protocol}//${window.location.hostname.split('.')[0] === 'www' ? window.location.hostname : 'localhost'}${window.location.port ? ':' + window.location.port : ''}`,
@@ -138,7 +127,6 @@ export function determineRedirect(userRoles: UserRoles, currentUrl: string): Red
   }
 
   if (userRoles.isPlatformAdmin && isPlatformDomain) {
-    console.log('[Redirect Logic] Platform admin on platform domain - staying on platform portal');
     return {
       shouldRedirect: false,
       reason: 'platform_admin_on_platform_domain'
@@ -168,6 +156,11 @@ export function determineRedirect(userRoles: UserRoles, currentUrl: string): Red
         reason: 'multiple_tenants_need_selection'
       };
     }
+
+    return {
+      shouldRedirect: false,
+      reason: 'multiple_tenants_with_selection'
+    };
   }
 
   if (userRoles.isClient && userRoles.clientTenants.length > 0) {
