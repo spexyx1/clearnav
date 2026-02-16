@@ -137,11 +137,11 @@ export function determineRedirect(userRoles: UserRoles, currentUrl: string): Red
     };
   }
 
-  if (userRoles.isPlatformAdmin && isPlatformDomain && !currentTenantParam) {
-    console.log('[Redirect Logic] Platform admin already on platform domain with no tenant param - no redirect needed');
+  if (userRoles.isPlatformAdmin && isPlatformDomain) {
+    console.log('[Redirect Logic] Platform admin on platform domain - staying on platform portal');
     return {
       shouldRedirect: false,
-      reason: 'already_on_platform_admin'
+      reason: 'platform_admin_on_platform_domain'
     };
   }
 

@@ -71,6 +71,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAvailableTenants(tenants);
 
     if (roles.isPlatformAdmin && isPlatformAdminDomain()) {
+      console.log('[Auth] Setting platform admin role and clearing redirect tracking');
+      sessionStorage.removeItem('lastRedirectUrl');
+      sessionStorage.removeItem('lastRedirectTime');
       setIsPlatformAdmin(true);
       setPlatformAdminUser(roles.platformAdminUser);
       setUserRole('platform_admin');
