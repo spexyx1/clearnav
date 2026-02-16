@@ -113,6 +113,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!skipRedirect) {
       const redirect = determineRedirect(roles, window.location.href);
       if (redirect.shouldRedirect && redirect.url) {
+        // Prevent infinite redirect loops by checking if we're already at the target URL
+        const currentUrl = window.location.href;
+
+        // Normalize URLs for comparison (remove trailing slashes, normalize query params)
+        const normalizeUrl = (url: string) => {
+          const urlObj = new URL(url);
+          return `${urlObj.origin}${urlObj.pathname}${urlObj.search}`.replace(/\/$/, '');
+        };
+
+        if (normalizeUrl(redirect.url) === normalizeUrl(currentUrl)) {
+          console.log('Already at target URL, skipping redirect');
+          return;
+        }
+
+        // Additional safeguard: prevent rapid redirects to the same URL
+        const lastRedirect = sessionStorage.getItem('lastRedirectUrl');
+        const lastRedirectTime = sessionStorage.getItem('lastRedirectTime');
+        const now = Date.now();
+
+        if (lastRedirect === redirect.url && lastRedirectTime && (now - parseInt(lastRedirectTime)) < 3000) {
+          console.warn('Prevented potential redirect loop to:', redirect.url);
+          return;
+        }
+
+        sessionStorage.setItem('lastRedirectUrl', redirect.url);
+        sessionStorage.setItem('lastRedirectTime', now.toString());
         window.location.href = redirect.url;
         return;
       }

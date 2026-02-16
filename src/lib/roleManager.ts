@@ -136,11 +136,11 @@ export function determineRedirect(userRoles: UserRoles, currentUrl: string): Red
   if (userRoles.tenantAccesses.length > 0) {
     if (userRoles.tenantAccesses.length === 1) {
       const access = userRoles.tenantAccesses[0];
-      if (currentTenantParam !== access.tenant.subdomain) {
+      if (currentTenantParam !== access.tenant.slug) {
         const baseUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}`;
         return {
           shouldRedirect: true,
-          url: `${baseUrl}?tenant=${access.tenant.subdomain}`,
+          url: `${baseUrl}?tenant=${access.tenant.slug}`,
           reason: 'single_tenant_access'
         };
       }
@@ -160,11 +160,11 @@ export function determineRedirect(userRoles: UserRoles, currentUrl: string): Red
 
   if (userRoles.isClient && userRoles.clientTenants.length > 0) {
     const clientTenant = userRoles.clientTenants[0];
-    if (currentTenantParam !== clientTenant.subdomain) {
+    if (currentTenantParam !== clientTenant.slug) {
       const baseUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}`;
       return {
         shouldRedirect: true,
-        url: `${baseUrl}?tenant=${clientTenant.subdomain}`,
+        url: `${baseUrl}?tenant=${clientTenant.slug}`,
         reason: 'client_access'
       };
     }
