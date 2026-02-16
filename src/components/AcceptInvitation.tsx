@@ -85,6 +85,31 @@ export default function AcceptInvitation() {
 
       const userType = invitation.metadata?.user_type || 'client';
 
+      // Create user_roles entry first
+      const roleCategory = userType === 'staff' ? 'staff_user' : 'client';
+      const roleDetail = userType === 'staff' ? invitation.role : null;
+
+      const { error: userRoleError } = await supabase
+        .from('user_roles')
+        .insert({
+          user_id: authData.user.id,
+          email: invitation.email,
+          role_category: roleCategory,
+          role_detail: roleDetail,
+          tenant_id: invitation.tenant_id,
+          status: 'active',
+          metadata: {
+            created_via: 'invitation',
+            invitation_id: invitation.id,
+            full_name: signupForm.fullName,
+          },
+        });
+
+      if (userRoleError) {
+        console.error('Error creating user role:', userRoleError);
+        throw new Error('Failed to create user role');
+      }
+
       if (userType === 'staff') {
         const { error: staffError } = await supabase
           .from('staff_accounts')
@@ -94,6 +119,7 @@ export default function AcceptInvitation() {
             full_name: signupForm.fullName,
             role: invitation.role,
             status: 'active',
+            tenant_id: invitation.tenant_id,
           });
 
         if (staffError) {
@@ -113,6 +139,7 @@ export default function AcceptInvitation() {
             total_invested: 0,
             current_value: 0,
             inception_date: new Date().toISOString(),
+            tenant_id: invitation.tenant_id,
           });
 
         if (clientError) {

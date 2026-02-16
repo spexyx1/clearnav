@@ -151,6 +151,26 @@ export async function provisionTenant(data: SignupData): Promise<ProvisioningRes
 
     console.log('Tenant created successfully:', tenant.id);
 
+    console.log('Creating user role record (unified role system)');
+    const { error: userRoleError } = await supabase.from('user_roles').insert({
+      user_id: authUser.user.id,
+      email: data.contactEmail,
+      role_category: 'tenant_admin',
+      role_detail: null,
+      tenant_id: tenant.id,
+      status: 'active',
+      metadata: {
+        created_via: 'self_service_signup',
+        full_name: data.contactName,
+        company_name: data.companyName,
+      },
+    });
+
+    if (userRoleError) {
+      console.error('User role creation error:', userRoleError);
+      return { success: false, error: `Failed to create user role: ${userRoleError.message}` };
+    }
+
     console.log('Creating tenant user (must be created before settings/subscriptions)');
     const { error: tenantUserError } = await supabase.from('tenant_users').insert({
       tenant_id: tenant.id,

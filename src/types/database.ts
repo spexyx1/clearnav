@@ -1195,6 +1195,44 @@ export interface Database {
           created_at?: string;
         };
       };
+      user_roles: {
+        Row: {
+          id: string;
+          user_id: string;
+          email: string;
+          role_category: 'superadmin' | 'tenant_admin' | 'client' | 'staff_user';
+          role_detail: string | null;
+          tenant_id: string | null;
+          status: string;
+          metadata: any;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          email: string;
+          role_category: 'superadmin' | 'tenant_admin' | 'client' | 'staff_user';
+          role_detail?: string | null;
+          tenant_id?: string | null;
+          status?: string;
+          metadata?: any;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          email?: string;
+          role_category?: 'superadmin' | 'tenant_admin' | 'client' | 'staff_user';
+          role_detail?: string | null;
+          tenant_id?: string | null;
+          status?: string;
+          metadata?: any;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       user_invitations: {
         Row: {
           id: string;

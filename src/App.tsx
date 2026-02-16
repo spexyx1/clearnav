@@ -14,7 +14,7 @@ const DebugLogin = lazy(() => import('./components/DebugLogin'));
 const SalesSheet = lazy(() => import('./components/SalesSheet'));
 
 function AppContent() {
-  const { user, loading, isStaff, isTenantAdmin, isPlatformAdmin, currentTenant } = useAuth();
+  const { user, loading, roleCategory, isPlatformAdmin, currentTenant } = useAuth();
   const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug' | 'sales-sheet'>('landing');
 
   useEffect(() => {
@@ -88,27 +88,63 @@ function AppContent() {
     );
   }
 
-  if (user) {
-    if (isPlatformAdmin && isPlatformAdminDomain()) {
-      return (
-        <Suspense fallback={<LoadingSpinner />}>
-          <PlatformAdminPortal />
-        </Suspense>
-      );
-    }
+  if (user && roleCategory) {
+    // Route based on role_category from user_roles table
+    switch (roleCategory) {
+      case 'superadmin':
+        // Platform admins can only access the platform admin domain
+        if (isPlatformAdminDomain()) {
+          return (
+            <Suspense fallback={<LoadingSpinner />}>
+              <PlatformAdminPortal />
+            </Suspense>
+          );
+        }
+        // If superadmin tries to access tenant domain, show error
+        return (
+          <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+            <div className="text-center text-slate-300 max-w-md">
+              <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+              <p>Platform administrators must access the platform admin portal.</p>
+            </div>
+          </div>
+        );
 
-    if (isStaff || isTenantAdmin) {
-      return (
-        <Suspense fallback={<LoadingSpinner />}>
-          <ManagerPortal />
-        </Suspense>
-      );
+      case 'tenant_admin':
+        // Tenant admins access the manager portal with full permissions
+        return (
+          <Suspense fallback={<LoadingSpinner />}>
+            <ManagerPortal />
+          </Suspense>
+        );
+
+      case 'staff_user':
+        // Staff users access the manager portal with role-based restrictions
+        return (
+          <Suspense fallback={<LoadingSpinner />}>
+            <ManagerPortal />
+          </Suspense>
+        );
+
+      case 'client':
+        // Clients access the client portal
+        return (
+          <Suspense fallback={<LoadingSpinner />}>
+            <ClientPortal />
+          </Suspense>
+        );
+
+      default:
+        // Unknown role - show error
+        return (
+          <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+            <div className="text-center text-slate-300 max-w-md">
+              <h1 className="text-2xl font-bold mb-4">Invalid Role</h1>
+              <p>Your account does not have a valid role assigned. Please contact support.</p>
+            </div>
+          </div>
+        );
     }
-    return (
-      <Suspense fallback={<LoadingSpinner />}>
-        <ClientPortal />
-      </Suspense>
-    );
   }
 
   if (view === 'login') {
