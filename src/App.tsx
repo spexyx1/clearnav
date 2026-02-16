@@ -15,7 +15,7 @@ const DebugLogin = lazy(() => import('./components/DebugLogin'));
 const SalesSheet = lazy(() => import('./components/SalesSheet'));
 
 function AppContent() {
-  const { user, loading, isStaff, isTenantAdmin, isPlatformAdmin, currentTenant, allUserRoles, availableTenants } = useAuth();
+  const { user, loading, roleLoading, isStaff, isTenantAdmin, isPlatformAdmin, currentTenant, allUserRoles, availableTenants } = useAuth();
   const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug' | 'sales-sheet'>('landing');
   const [showTenantSelector, setShowTenantSelector] = useState(false);
 
@@ -44,7 +44,7 @@ function AppContent() {
     return () => window.removeEventListener('popstate', handleUrlChange);
   }, []);
 
-  if (loading) {
+  if (loading || roleLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full"></div>

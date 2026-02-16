@@ -14,7 +14,7 @@ export default function TenantSelector({ onClose }: TenantSelectorProps) {
   const [hoveredTenant, setHoveredTenant] = useState<string | null>(null);
 
   const handleTenantSelect = async (tenant: Tenant) => {
-    await switchTenant(tenant.subdomain);
+    await switchTenant(tenant.slug);
   };
 
   const handlePlatformAdmin = () => {
@@ -100,7 +100,7 @@ export default function TenantSelector({ onClose }: TenantSelectorProps) {
                     <h3 className="text-lg font-semibold text-white">{tenant.name}</h3>
                     <div className="flex items-center space-x-2 mt-1">
                       <span className="text-sm text-slate-400">
-                        {tenant.subdomain}
+                        {tenant.slug}
                       </span>
                       <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full border border-blue-500/30 font-medium">
                         {getTenantRole(tenant.id)}

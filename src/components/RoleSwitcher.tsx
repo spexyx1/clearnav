@@ -84,7 +84,7 @@ export default function RoleSwitcher() {
                   <button
                     key={access.tenant.id}
                     onClick={() => {
-                      switchTenant(access.tenant.subdomain);
+                      switchTenant(access.tenant.slug);
                       setIsOpen(false);
                     }}
                     className={`w-full flex items-center space-x-3 px-4 py-3 hover:bg-slate-700 transition-colors ${
@@ -111,7 +111,7 @@ export default function RoleSwitcher() {
                     <button
                       key={tenant.id}
                       onClick={() => {
-                        switchTenant(tenant.subdomain);
+                        switchTenant(tenant.slug);
                         setIsOpen(false);
                       }}
                       className={`w-full flex items-center space-x-3 px-4 py-3 hover:bg-slate-700 transition-colors ${
