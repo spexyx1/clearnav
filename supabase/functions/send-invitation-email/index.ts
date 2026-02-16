@@ -23,6 +23,74 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing Authorization header" }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    const { createClient } = await import("jsr:@supabase/supabase-js@2");
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
+
+    const { data: { user: caller }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !caller) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    const { data: isPlatformAdmin } = await supabase
+      .from("platform_admin_users")
+      .select("id")
+      .eq("user_id", caller.id)
+      .maybeSingle();
+
+    const { data: staffAccount } = await supabase
+      .from("staff_accounts")
+      .select("tenant_id, role")
+      .eq("user_id", caller.id)
+      .maybeSingle();
+
+    const canInvite = isPlatformAdmin || (staffAccount && (staffAccount.role === "admin" || staffAccount.role === "manager"));
+
+    if (!canInvite) {
+      return new Response(
+        JSON.stringify({ error: "Insufficient permissions. Admin or Manager access required." }),
+        {
+          status: 403,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
     const { email, token, role, userType, tenantName }: InvitationRequest = await req.json();
 
     const inviteUrl = `${Deno.env.get('SITE_URL')}/accept-invite?token=${token}`;

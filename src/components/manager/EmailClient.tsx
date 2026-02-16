@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Mail, Send, Trash2, Archive, Star, Search, RefreshCw, Paperclip, ChevronLeft, MoreVertical, Inbox, FileText, Send as SentIcon, Folder } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { sanitizeHtml } from '../../lib/sanitize';
 
 interface EmailAccount {
   id: string;
@@ -558,7 +559,7 @@ export default function EmailClient() {
 
               <div className="prose max-w-none">
                 {selectedMessage.body_html ? (
-                  <div dangerouslySetInnerHTML={{ __html: selectedMessage.body_html }} />
+                  <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedMessage.body_html) }} />
                 ) : (
                   <pre className="whitespace-pre-wrap font-sans text-gray-700">
                     {selectedMessage.body_text}

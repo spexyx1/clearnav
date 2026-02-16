@@ -33,7 +33,73 @@ Deno.serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing Authorization header' }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
+
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
+
+    const { data: { user: caller }, error: authError } = await supabaseAuth.auth.getUser();
+
+    if (authError || !caller) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
+
+    const { data: tenantUser } = await supabaseAuth
+      .from('tenant_users')
+      .select('tenant_id')
+      .eq('user_id', caller.id)
+      .maybeSingle();
+
+    const { data: staffAccount } = await supabaseAuth
+      .from('staff_accounts')
+      .select('tenant_id')
+      .eq('user_id', caller.id)
+      .maybeSingle();
+
+    const tenantId = tenantUser?.tenant_id || staffAccount?.tenant_id;
+
+    if (!tenantId) {
+      return new Response(
+        JSON.stringify({ error: 'No tenant association found' }),
+        {
+          status: 403,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const ibkrGatewayUrl = Deno.env.get('IBKR_GATEWAY_URL') || 'https://localhost:5000';
@@ -46,7 +112,8 @@ Deno.serve(async (req: Request) => {
     const { data: trustAccount } = await supabase
       .from('trust_account')
       .select('*')
-      .single();
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
 
     if (!trustAccount) {
       throw new Error('Trust account not found');

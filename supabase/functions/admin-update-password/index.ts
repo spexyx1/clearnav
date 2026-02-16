@@ -23,6 +23,72 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing Authorization header" }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    const { createClient } = await import("jsr:@supabase/supabase-js@2");
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
+
+    const { data: { user: caller }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !caller) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    const { data: isPlatformAdmin } = await supabase
+      .from("platform_admin_users")
+      .select("id")
+      .eq("user_id", caller.id)
+      .maybeSingle();
+
+    const { data: staffAccount } = await supabase
+      .from("staff_accounts")
+      .select("tenant_id, role")
+      .eq("user_id", caller.id)
+      .maybeSingle();
+
+    const isAdmin = isPlatformAdmin || (staffAccount && staffAccount.role === "admin");
+
+    if (!isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Insufficient permissions. Admin access required." }),
+        {
+          status: 403,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
 
     const { email, userId, newPassword }: UpdatePasswordRequest = await req.json();
 

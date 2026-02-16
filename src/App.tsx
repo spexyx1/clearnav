@@ -5,14 +5,14 @@ import { isPlatformAdminDomain } from './lib/tenantResolver';
 import LandingPage from './components/LandingPage';
 import ClearNavLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
-import ClientPortal from './components/ClientPortal';
-import AcceptInvitation from './components/AcceptInvitation';
-import ClientSignup from './components/ClientSignup';
-import DebugLogin from './components/DebugLogin';
-import SalesSheet from './components/SalesSheet';
 
+const ClientPortal = lazy(() => import('./components/ClientPortal'));
 const ManagerPortal = lazy(() => import('./components/ManagerPortal'));
 const PlatformAdminPortal = lazy(() => import('./components/platform/PlatformAdminPortal'));
+const AcceptInvitation = lazy(() => import('./components/AcceptInvitation'));
+const ClientSignup = lazy(() => import('./components/ClientSignup'));
+const DebugLogin = lazy(() => import('./components/DebugLogin'));
+const SalesSheet = lazy(() => import('./components/SalesSheet'));
 
 function AppContent() {
   const { user, loading, isStaff, isTenantAdmin, isPlatformAdmin, currentTenant } = useAuth();
@@ -51,30 +51,48 @@ function AppContent() {
     );
   }
 
+  const LoadingSpinner = () => (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
+    </div>
+  );
+
   if (view === 'debug') {
-    return <DebugLogin />;
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        <DebugLogin />
+      </Suspense>
+    );
   }
 
   if (view === 'sales-sheet') {
-    return <SalesSheet onBack={() => setView('landing')} />;
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        <SalesSheet onBack={() => setView('landing')} />
+      </Suspense>
+    );
   }
 
   if (view === 'accept-invite') {
-    return <AcceptInvitation />;
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        <AcceptInvitation />
+      </Suspense>
+    );
   }
 
   if (view === 'signup') {
-    return <ClientSignup onBack={() => setView('landing')} />;
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        <ClientSignup onBack={() => setView('landing')} />
+      </Suspense>
+    );
   }
 
   if (user) {
     if (isPlatformAdmin && isPlatformAdminDomain()) {
       return (
-        <Suspense fallback={
-          <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-            <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
-          </div>
-        }>
+        <Suspense fallback={<LoadingSpinner />}>
           <PlatformAdminPortal />
         </Suspense>
       );
@@ -82,16 +100,16 @@ function AppContent() {
 
     if (isStaff || isTenantAdmin) {
       return (
-        <Suspense fallback={
-          <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-            <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
-          </div>
-        }>
+        <Suspense fallback={<LoadingSpinner />}>
           <ManagerPortal />
         </Suspense>
       );
     }
-    return <ClientPortal />;
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        <ClientPortal />
+      </Suspense>
+    );
   }
 
   if (view === 'login') {

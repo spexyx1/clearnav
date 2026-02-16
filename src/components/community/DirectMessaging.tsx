@@ -111,20 +111,35 @@ export default function DirectMessaging() {
               })
           );
 
-          const { count } = await supabase
+          const { data: threadMessages } = await supabase
             .from('direct_messages')
-            .select('id', { count: 'exact', head: true })
+            .select('id')
             .eq('thread_id', thread.id)
-            .not('sender_id', 'eq', user.id)
-            .not('id', 'in', `(
-              SELECT message_id FROM message_read_receipts
-              WHERE user_id = '${user.id}'
-            )`);
+            .not('sender_id', 'eq', user.id);
+
+          if (threadMessages && threadMessages.length > 0) {
+            const messageIds = threadMessages.map(m => m.id);
+
+            const { data: readReceipts } = await supabase
+              .from('message_read_receipts')
+              .select('message_id')
+              .eq('user_id', user.id)
+              .in('message_id', messageIds);
+
+            const readMessageIds = new Set(readReceipts?.map(r => r.message_id) || []);
+            const unreadCount = messageIds.filter(id => !readMessageIds.has(id)).length;
+
+            return {
+              ...thread,
+              participants: participantProfiles,
+              unread_count: unreadCount
+            };
+          }
 
           return {
             ...thread,
             participants: participantProfiles,
-            unread_count: count || 0
+            unread_count: 0
           };
         })
       );
