@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, UserPlus, Check, X, MessageSquare, Users, MapPin, Briefcase } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { sanitizeText } from '../../lib/sanitize';
 
 interface UserProfile {
   user_id: string;
@@ -56,38 +57,42 @@ export default function UserNetwork() {
       .limit(50);
 
     if (searchQuery) {
-      query = query.or(`display_name.ilike.%${searchQuery}%,company.ilike.%${searchQuery}%`);
+      const sanitized = searchQuery.replace(/[%_\\(),.*]/g, '');
+      if (sanitized) {
+        query = query.or(`display_name.ilike.%${sanitized}%,company.ilike.%${sanitized}%`);
+      }
     }
 
     const { data } = await query;
 
     if (data) {
-      const usersWithStatus = await Promise.all(
-        data.map(async (profile) => {
-          const { data: connectionData } = await supabase
-            .from('user_connections')
-            .select('status, user_id, connected_user_id')
-            .or(`and(user_id.eq.${user.id},connected_user_id.eq.${profile.user_id}),and(user_id.eq.${profile.user_id},connected_user_id.eq.${user.id})`)
-            .eq('connection_type', 'connection')
-            .maybeSingle();
+      const profileIds = data.map(p => p.user_id);
+      const { data: statuses } = await supabase.rpc('get_user_connection_statuses', {
+        p_user_id: user.id,
+        p_profile_ids: profileIds
+      });
 
-          let connectionStatus: 'none' | 'pending' | 'accepted' | 'sent' = 'none';
-          if (connectionData) {
-            if (connectionData.status === 'accepted') {
-              connectionStatus = 'accepted';
-            } else if (connectionData.user_id === user.id) {
-              connectionStatus = 'sent';
-            } else {
-              connectionStatus = 'pending';
-            }
+      const statusMap = new Map<string, { status: string; connection_user_id: string }>();
+      if (Array.isArray(statuses)) {
+        statuses.forEach((s: { profile_user_id: string; status: string; connection_user_id: string }) => {
+          statusMap.set(s.profile_user_id, { status: s.status, connection_user_id: s.connection_user_id });
+        });
+      }
+
+      const usersWithStatus = data.map(profile => {
+        const conn = statusMap.get(profile.user_id);
+        let connectionStatus: 'none' | 'pending' | 'accepted' | 'sent' = 'none';
+        if (conn) {
+          if (conn.status === 'accepted') {
+            connectionStatus = 'accepted';
+          } else if (conn.connection_user_id === user.id) {
+            connectionStatus = 'sent';
+          } else {
+            connectionStatus = 'pending';
           }
-
-          return {
-            ...profile,
-            connection_status: connectionStatus
-          };
-        })
-      );
+        }
+        return { ...profile, connection_status: connectionStatus };
+      });
 
       setUsers(usersWithStatus);
     }
@@ -223,7 +228,7 @@ export default function UserNetwork() {
             </p>
           )}
           {profile.bio && (
-            <p className="text-sm text-gray-700 mt-2 line-clamp-2">{profile.bio}</p>
+            <p className="text-sm text-gray-700 mt-2 line-clamp-2">{sanitizeText(profile.bio)}</p>
           )}
         </div>
       </div>
@@ -376,7 +381,7 @@ export default function UserNetwork() {
                           </p>
                         )}
                         {profile.bio && (
-                          <p className="text-sm text-gray-700 mt-2">{profile.bio}</p>
+                          <p className="text-sm text-gray-700 mt-2">{sanitizeText(profile.bio)}</p>
                         )}
                       </div>
                     </div>

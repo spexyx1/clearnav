@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { usePlatform } from '../../lib/platformContext';
 
 interface Category {
   id: string;
@@ -17,8 +16,7 @@ interface CreatePostModalProps {
 }
 
 export default function CreatePostModal({ categories, onClose, onSuccess }: CreatePostModalProps) {
-  const { user } = useAuth();
-  const { currentTenant } = usePlatform();
+  const { user, currentTenant } = useAuth();
 
   const [formData, setFormData] = useState({
     category_id: categories[0]?.id || '',

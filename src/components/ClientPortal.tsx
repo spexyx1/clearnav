@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { LogOut, LayoutDashboard, TrendingUp, FileText, ArrowDownCircle, Receipt, Activity, Settings, ShoppingCart, Globe } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
-import { usePlatform } from '../lib/platformContext';
 import Dashboard from './portal/Dashboard';
 import Returns from './portal/Returns';
 import Documents from './portal/Documents';
@@ -28,8 +27,7 @@ interface TenantBranding {
 }
 
 export default function ClientPortal() {
-  const { user, signOut } = useAuth();
-  const { currentTenant } = usePlatform();
+  const { user, signOut, currentTenant } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [profile, setProfile] = useState<any>(null);
   const [branding, setBranding] = useState<TenantBranding>({

@@ -4,7 +4,7 @@ import {
   Clock, TrendingUp, Zap, AlertTriangle, CheckCircle
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { usePlatformContext } from '../../lib/platformContext';
+import { useAuth } from '../../lib/auth';
 
 interface AgentConfig {
   id: string;
@@ -35,7 +35,7 @@ interface AgentConfig {
 }
 
 export default function AIAgentConfig() {
-  const { tenant } = usePlatformContext();
+  const { currentTenant: tenant } = useAuth();
   const [config, setConfig] = useState<AgentConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

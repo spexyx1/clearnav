@@ -51,13 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
   const [tenantUser, setTenantUser] = useState<TenantUser | null>(null);
 
-  const loadUserRole = async (userId: string) => {
-    const resolved = await resolveTenantFromDomain(window.location.hostname);
-    console.log('🔍 Resolved tenant:', resolved);
-    setCurrentTenant(resolved.tenant);
-
+  const loadUserRole = async (userId: string, resolvedTenant: Tenant | null) => {
     if (isPlatformAdminDomain()) {
-      console.log('🔒 Checking platform admin domain');
       const { data: adminData } = await supabase
         .from('platform_admin_users')
         .select('*')
@@ -65,7 +60,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (adminData) {
-        console.log('✅ Platform admin user found');
         setIsPlatformAdmin(true);
         setPlatformAdminUser(adminData);
         setUserRole('platform_admin');
@@ -76,63 +70,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    console.log('🔍 Checking for staff account, userId:', userId);
-    const { data: staffData, error: staffError } = await supabase
+    const { data: staffData } = await supabase
       .from('staff_accounts')
       .select('*')
       .eq('auth_user_id', userId)
       .eq('status', 'active')
       .maybeSingle();
 
-    console.log('📊 Staff data:', staffData, 'error:', staffError);
-
     if (staffData) {
-      console.log('✅ Staff account found:', staffData);
       setIsStaff(true);
       setUserRole(staffData.role);
       setStaffAccount(staffData);
       setIsPlatformAdmin(false);
       setPlatformAdminUser(null);
 
-      if (resolved.tenant && staffData.tenant_id === resolved.tenant.id) {
-        console.log('✅ Tenant matches staff account');
+      if (resolvedTenant && staffData.tenant_id === resolvedTenant.id) {
         const { data: tenantUserData } = await supabase
           .from('tenant_users')
           .select('*')
           .eq('user_id', userId)
-          .eq('tenant_id', resolved.tenant.id)
+          .eq('tenant_id', resolvedTenant.id)
           .maybeSingle();
 
         setTenantUser(tenantUserData);
-
-        if (tenantUserData && (tenantUserData.role === 'admin' || tenantUserData.role === 'owner')) {
-          console.log('✅ User is BOTH staff AND tenant admin/owner');
-          setIsTenantAdmin(true);
-        } else {
-          setIsTenantAdmin(false);
-        }
+        setIsTenantAdmin(
+          !!(tenantUserData && (tenantUserData.role === 'admin' || tenantUserData.role === 'owner'))
+        );
       } else {
-        console.log('⚠️ Tenant mismatch:', {
-          resolvedTenant: resolved.tenant?.id,
-          staffTenant: staffData.tenant_id
-        });
         setIsTenantAdmin(false);
       }
     } else {
-      console.log('❌ No staff account found, checking tenant_users for admin/owner');
-
-      if (resolved.tenant) {
+      if (resolvedTenant) {
         const { data: tenantUserData } = await supabase
           .from('tenant_users')
           .select('*')
           .eq('user_id', userId)
-          .eq('tenant_id', resolved.tenant.id)
+          .eq('tenant_id', resolvedTenant.id)
           .maybeSingle();
 
         setTenantUser(tenantUserData);
 
         if (tenantUserData && (tenantUserData.role === 'admin' || tenantUserData.role === 'owner')) {
-          console.log('✅ Tenant admin/owner found:', tenantUserData);
           setIsTenantAdmin(true);
           setIsStaff(false);
           setUserRole('admin');
@@ -143,7 +121,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      console.log('❌ No tenant admin found, checking client');
       const { data: clientData } = await supabase
         .from('client_profiles')
         .select('id')
@@ -151,7 +128,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (clientData) {
-        console.log('✅ Client found');
         setIsStaff(false);
         setIsTenantAdmin(false);
         setUserRole('client');
@@ -159,31 +135,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsPlatformAdmin(false);
         setPlatformAdminUser(null);
       } else {
-        console.log('❌ No client, staff, or tenant admin account found');
         setIsTenantAdmin(false);
       }
     }
   };
 
   useEffect(() => {
+    let initComplete = false;
+
     const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const [{ data: { session } }, resolved] = await Promise.all([
+        supabase.auth.getSession(),
+        resolveTenantFromDomain(window.location.hostname)
+      ]);
+
       setSession(session);
       setUser(session?.user ?? null);
-
-      const resolved = await resolveTenantFromDomain(window.location.hostname);
       setCurrentTenant(resolved.tenant);
 
       if (session?.user) {
-        await loadUserRole(session.user.id);
+        await loadUserRole(session.user.id, resolved.tenant);
       }
 
       setLoading(false);
+      initComplete = true;
     };
 
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION' && !initComplete) return;
+
       (async () => {
         setSession(session);
         setUser(session?.user ?? null);
@@ -192,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrentTenant(resolved.tenant);
 
         if (session?.user) {
-          await loadUserRole(session.user.id);
+          await loadUserRole(session.user.id, resolved.tenant);
         } else {
           setUserRole(null);
           setIsStaff(false);
@@ -226,9 +208,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refetch = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const [{ data: { session } }, resolved] = await Promise.all([
+      supabase.auth.getSession(),
+      resolveTenantFromDomain(window.location.hostname)
+    ]);
+    setCurrentTenant(resolved.tenant);
     if (session?.user) {
-      await loadUserRole(session.user.id);
+      await loadUserRole(session.user.id, resolved.tenant);
     }
   };
 

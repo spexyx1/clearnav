@@ -4,7 +4,7 @@ import {
   Link as LinkIcon, Trash2, Calendar, DollarSign, TrendingUp
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { usePlatformContext } from '../../lib/platformContext';
+import { useAuth } from '../../lib/auth';
 
 interface AccountingIntegration {
   id: string;
@@ -34,7 +34,7 @@ interface SyncLog {
 }
 
 export default function AccountingIntegrations() {
-  const { tenant } = usePlatformContext();
+  const { currentTenant: tenant } = useAuth();
   const [integrations, setIntegrations] = useState<AccountingIntegration[]>([]);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,6 +1,5 @@
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
-import { PlatformProvider } from './lib/platformContext';
 import { isPlatformAdminDomain } from './lib/tenantResolver';
 import LandingPage from './components/LandingPage';
 import ClearNavLandingPage from './components/ClearNavLandingPage';
@@ -150,9 +149,7 @@ function App() {
 
   return (
     <AuthProvider>
-      <PlatformProvider>
-        <AppContent />
-      </PlatformProvider>
+      <AppContent />
     </AuthProvider>
   );
 }

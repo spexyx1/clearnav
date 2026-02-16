@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, Zap, Shield, ChevronRight, Mail, Building2, FileText, BarChart3, Lock, Globe, Users, Bell, FileCheck, CreditCard, LineChart, Calculator, BookOpen, HelpCircle, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare, ShieldCheck, Award, Clock } from 'lucide-react';
 import InquiryForm from './InquiryForm';
-import { usePlatform } from '../lib/platformContext';
+import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import * as LucideIcons from 'lucide-react';
 
@@ -45,7 +45,7 @@ interface TenantSettings {
 export default function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
   const [showInquiryForm, setShowInquiryForm] = useState(false);
   const [showFAQ, setShowFAQ] = useState(false);
-  const { currentTenant } = usePlatform();
+  const { currentTenant } = useAuth();
   const [settings, setSettings] = useState<TenantSettings | null>(null);
   const [loading, setLoading] = useState(true);
 

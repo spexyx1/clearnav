@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ShoppingCart, TrendingUp, Clock, CheckCircle, XCircle, Plus, Search, Filter } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { usePlatform } from '../../lib/platformContext';
+import { useAuth } from '../../lib/auth';
 
 interface Listing {
   id: string;
@@ -46,7 +46,7 @@ interface Transaction {
 }
 
 export default function Exchange({ profile }: { profile: any }) {
-  const { currentTenant } = usePlatform();
+  const { currentTenant } = useAuth();
   const [activeView, setActiveView] = useState<'marketplace' | 'my_listings' | 'my_orders' | 'transactions'>('marketplace');
   const [listings, setListings] = useState<Listing[]>([]);
   const [myListings, setMyListings] = useState<Listing[]>([]);

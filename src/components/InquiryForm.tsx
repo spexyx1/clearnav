@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { usePlatform } from '../lib/platformContext';
+import { useAuth } from '../lib/auth';
 
 interface InquiryFormProps {
   onClose: () => void;
 }
 
 export default function InquiryForm({ onClose }: InquiryFormProps) {
-  const { currentTenant } = usePlatform();
+  const { currentTenant } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',

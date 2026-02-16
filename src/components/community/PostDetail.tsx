@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, ThumbsUp, MessageSquare, Send, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { sanitizeText } from '../../lib/sanitize';
 
 interface Post {
   id: string;
@@ -55,34 +56,17 @@ export default function PostDetail({ post, onBack, onUpdate }: PostDetailProps) 
   }, [post.id]);
 
   const loadComments = async () => {
-    const { data, error } = await supabase
-      .from('community_comments')
-      .select(`
-        *,
-        author_profile:user_profiles_public!author_user_id(display_name)
-      `)
-      .eq('post_id', post.id)
-      .is('parent_comment_id', null)
-      .order('created_at', { ascending: true });
+    const { data, error } = await supabase.rpc('get_comments_with_reactions', {
+      p_post_id: post.id,
+      p_user_id: user?.id || '00000000-0000-0000-0000-000000000000'
+    });
 
     if (!error && data) {
-      const commentsWithReactions = await Promise.all(
-        data.map(async (comment) => {
-          const { data: reactionData } = await supabase
-            .from('community_reactions')
-            .select('reaction_type')
-            .eq('comment_id', comment.id)
-            .eq('user_id', user?.id || '')
-            .maybeSingle();
-
-          return {
-            ...comment,
-            user_reaction: reactionData?.reaction_type || null
-          };
-        })
-      );
-
-      setComments(commentsWithReactions);
+      setComments(data.map((c: any) => ({
+        ...c,
+        author_profile: { display_name: c.author_display_name },
+        user_reaction: c.user_reaction_type || null
+      })));
     }
   };
 
@@ -261,7 +245,7 @@ export default function PostDetail({ post, onBack, onUpdate }: PostDetailProps) 
           </div>
 
           <div className="prose max-w-none mb-6">
-            <p className="text-gray-800 whitespace-pre-wrap">{post.content}</p>
+            <p className="text-gray-800 whitespace-pre-wrap">{sanitizeText(post.content)}</p>
           </div>
 
           {post.tags.length > 0 && (
@@ -348,7 +332,7 @@ export default function PostDetail({ post, onBack, onUpdate }: PostDetailProps) 
                         </button>
                       )}
                     </div>
-                    <p className="text-gray-800 mb-2 whitespace-pre-wrap">{comment.content}</p>
+                    <p className="text-gray-800 mb-2 whitespace-pre-wrap">{sanitizeText(comment.content)}</p>
                     <button
                       onClick={() => handleCommentReaction(comment.id, comment.user_reaction || null)}
                       className={`flex items-center gap-1 text-sm ${

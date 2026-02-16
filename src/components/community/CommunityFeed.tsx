@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Search, TrendingUp, MessageSquare, ThumbsUp, Bookmark, Share2, MoreVertical, ChevronDown, Eye } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { sanitizeText } from '../../lib/sanitize';
 import CreatePostModal from './CreatePostModal';
 import PostDetail from './PostDetail';
 
@@ -104,32 +105,22 @@ export default function CommunityFeed() {
     const { data, error } = await query.limit(50);
 
     if (!error && data) {
-      const postsWithUserData = await Promise.all(
-        data.map(async (post) => {
-          const [reactionData, savedData] = await Promise.all([
-            supabase
-              .from('community_reactions')
-              .select('reaction_type')
-              .eq('post_id', post.id)
-              .eq('user_id', user?.id || '')
-              .maybeSingle(),
-            supabase
-              .from('saved_posts')
-              .select('post_id')
-              .eq('post_id', post.id)
-              .eq('user_id', user?.id || '')
-              .maybeSingle()
-          ]);
-
-          return {
-            ...post,
-            user_reaction: reactionData.data?.reaction_type || null,
-            is_saved: !!savedData.data
-          };
-        })
-      );
-
-      setPosts(postsWithUserData);
+      if (user) {
+        const { data: userDataMap } = await supabase.rpc('get_feed_posts', { p_user_id: user.id });
+        const lookup = new Map<string, { user_reaction: string | null; is_saved: boolean }>();
+        if (Array.isArray(userDataMap)) {
+          userDataMap.forEach((item: { post_id: string; user_reaction: string | null; is_saved: boolean }) => {
+            lookup.set(item.post_id, { user_reaction: item.user_reaction, is_saved: item.is_saved });
+          });
+        }
+        setPosts(data.map(post => ({
+          ...post,
+          user_reaction: lookup.get(post.id)?.user_reaction || null,
+          is_saved: lookup.get(post.id)?.is_saved || false
+        })));
+      } else {
+        setPosts(data.map(post => ({ ...post, user_reaction: null, is_saved: false })));
+      }
     }
 
     setLoading(false);
@@ -411,7 +402,7 @@ export default function CommunityFeed() {
                     </div>
 
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">{post.title}</h3>
-                    <p className="text-gray-700 mb-3 line-clamp-3">{post.content}</p>
+                    <p className="text-gray-700 mb-3 line-clamp-3">{sanitizeText(post.content)}</p>
 
                     {post.marketplace_price && (
                       <div className="mb-3 p-3 bg-amber-50 rounded-lg border border-amber-200">

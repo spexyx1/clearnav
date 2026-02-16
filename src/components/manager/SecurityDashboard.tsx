@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Shield, AlertTriangle, Lock, Users, Activity, Eye, CheckCircle, XCircle, Clock, TrendingUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { usePlatform } from '../../lib/platformContext';
+import { useAuth } from '../../lib/auth';
 
 interface SecurityMetrics {
   activeAlerts: number;
@@ -34,7 +34,7 @@ interface LoginAttempt {
 }
 
 export default function SecurityDashboard() {
-  const { currentTenant } = usePlatform();
+  const { currentTenant } = useAuth();
   const [metrics, setMetrics] = useState<SecurityMetrics>({
     activeAlerts: 0,
     resolvedToday: 0,

@@ -5,7 +5,7 @@ import {
   Calendar, User, Tag
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { usePlatformContext } from '../../lib/platformContext';
+import { useAuth } from '../../lib/auth';
 
 interface Conversation {
   id: string;
@@ -27,7 +27,7 @@ interface Conversation {
 }
 
 export default function AIConversationDashboard() {
-  const { tenant } = usePlatformContext();
+  const { currentTenant: tenant } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterChannel, setFilterChannel] = useState<string>('all');

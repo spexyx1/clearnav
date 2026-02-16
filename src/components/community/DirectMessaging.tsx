@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, Search, Plus, X, Paperclip, MoreVertical, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { sanitizeText } from '../../lib/sanitize';
 
 interface MessageThread {
   id: string;
@@ -88,63 +89,27 @@ export default function DirectMessaging() {
 
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from('message_threads')
-      .select('*')
-      .contains('participant_ids', [user.id])
-      .order('last_message_at', { ascending: false });
+    const { data, error } = await supabase.rpc('get_user_threads_with_details', {
+      p_user_id: user.id
+    });
 
     if (!error && data) {
-      const threadsWithDetails = await Promise.all(
-        data.map(async (thread) => {
-          const participantProfiles = await Promise.all(
-            thread.participant_ids
-              .filter((id: string) => id !== user.id)
-              .map(async (participantId: string) => {
-                const { data: profile } = await supabase
-                  .from('user_profiles_public')
-                  .select('display_name, avatar_url')
-                  .eq('user_id', participantId)
-                  .maybeSingle();
-
-                return profile || { display_name: 'Unknown User' };
-              })
-          );
-
-          const { data: threadMessages } = await supabase
-            .from('direct_messages')
-            .select('id')
-            .eq('thread_id', thread.id)
-            .not('sender_id', 'eq', user.id);
-
-          if (threadMessages && threadMessages.length > 0) {
-            const messageIds = threadMessages.map(m => m.id);
-
-            const { data: readReceipts } = await supabase
-              .from('message_read_receipts')
-              .select('message_id')
-              .eq('user_id', user.id)
-              .in('message_id', messageIds);
-
-            const readMessageIds = new Set(readReceipts?.map(r => r.message_id) || []);
-            const unreadCount = messageIds.filter(id => !readMessageIds.has(id)).length;
-
-            return {
-              ...thread,
-              participants: participantProfiles,
-              unread_count: unreadCount
-            };
-          }
-
-          return {
-            ...thread,
-            participants: participantProfiles,
-            unread_count: 0
-          };
-        })
-      );
-
-      setThreads(threadsWithDetails);
+      const threads = (data as any[]).map(t => ({
+        id: t.thread_id,
+        participant_ids: t.participant_ids,
+        thread_type: t.thread_type,
+        thread_name: t.thread_name,
+        last_message_at: t.last_message_at,
+        last_message_preview: t.last_message_preview,
+        participants: Array.isArray(t.participant_names)
+          ? t.participant_names.map((p: any) => ({
+              display_name: p.display_name || 'Unknown User',
+              avatar_url: p.avatar_url
+            }))
+          : [],
+        unread_count: Number(t.unread_count) || 0
+      }));
+      setThreads(threads);
     }
 
     setLoading(false);
@@ -398,7 +363,7 @@ export default function DirectMessaging() {
                               : 'bg-gray-100 text-gray-900'
                           }`}
                         >
-                          <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                          <p className="text-sm whitespace-pre-wrap break-words">{sanitizeText(message.content)}</p>
                         </div>
                         <p className={`text-xs text-gray-400 mt-1 ${isOwnMessage ? 'text-right mr-1' : 'ml-1'}`}>
                           {formatMessageTime(message.sent_at)}
