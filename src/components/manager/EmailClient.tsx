@@ -47,6 +47,7 @@ export default function EmailClient() {
   const [loading, setLoading] = useState(true);
   const [composing, setComposing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const [composeForm, setComposeForm] = useState({
     to: '',
@@ -69,57 +70,76 @@ export default function EmailClient() {
   }, [selectedAccount, currentFolder]);
 
   const loadEmailAccounts = async () => {
-    if (!user) return;
-
-    const { data: accessData, error: accessError } = await supabase
-      .from('email_account_access')
-      .select(`
-        account_id,
-        access_level,
-        email_accounts (
-          id,
-          email_address,
-          display_name,
-          account_type,
-          is_active
-        )
-      `)
-      .eq('user_id', user.id);
-
-    if (accessError) {
-      console.error('Error loading email accounts:', accessError);
+    if (!user) {
+      setLoading(false);
       return;
     }
 
-    const accountsList = accessData
-      .filter(a => a.email_accounts)
-      .map(a => a.email_accounts as unknown as EmailAccount);
+    try {
+      setLoading(true);
+      setError(null);
 
-    setAccounts(accountsList);
-    if (accountsList.length > 0 && !selectedAccount) {
-      setSelectedAccount(accountsList[0]);
+      const { data: accessData, error: accessError } = await supabase
+        .from('email_account_access')
+        .select(`
+          account_id,
+          access_level,
+          email_accounts (
+            id,
+            email_address,
+            display_name,
+            account_type,
+            is_active
+          )
+        `)
+        .eq('user_id', user.id);
+
+      if (accessError) {
+        throw accessError;
+      }
+
+      const accountsList = accessData
+        .filter(a => a.email_accounts)
+        .map(a => a.email_accounts as unknown as EmailAccount);
+
+      setAccounts(accountsList);
+      if (accountsList.length > 0 && !selectedAccount) {
+        setSelectedAccount(accountsList[0]);
+      }
+    } catch (err: any) {
+      console.error('Error loading email accounts:', err);
+      setError(err.message || 'Failed to load email accounts');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const loadMessages = async () => {
     if (!selectedAccount) return;
 
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('email_messages')
-      .select('*')
-      .eq('account_id', selectedAccount.id)
-      .eq('folder', currentFolder)
-      .order('received_at', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false });
+    try {
+      setLoading(true);
+      setError(null);
 
-    if (error) {
-      console.error('Error loading messages:', error);
-    } else {
+      const { data, error } = await supabase
+        .from('email_messages')
+        .select('*')
+        .eq('account_id', selectedAccount.id)
+        .eq('folder', currentFolder)
+        .order('received_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
       setMessages(data || []);
+    } catch (err: any) {
+      console.error('Error loading messages:', err);
+      setError(err.message || 'Failed to load messages');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const markAsRead = async (messageId: string) => {
@@ -248,8 +268,27 @@ export default function EmailClient() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
-          <p className="text-gray-600">Loading email accounts...</p>
+          <RefreshCw className="h-8 w-8 animate-spin text-cyan-500 mx-auto mb-2" />
+          <p className="text-slate-300">Loading email accounts...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && accounts.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center max-w-md">
+          <Mail className="h-16 w-16 text-red-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-slate-100 mb-2">Failed to Load Email Accounts</h3>
+          <p className="text-slate-300 mb-4">{error}</p>
+          <button
+            onClick={() => loadEmailAccounts()}
+            className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex items-center gap-2 mx-auto"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -259,70 +298,84 @@ export default function EmailClient() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <Mail className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Email Accounts</h3>
-          <p className="text-gray-600">You don't have access to any email accounts yet.</p>
-          <p className="text-sm text-gray-500 mt-2">Contact your administrator to request access.</p>
+          <Mail className="h-16 w-16 text-slate-500 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-slate-100 mb-2">No Email Accounts</h3>
+          <p className="text-slate-300">You don't have access to any email accounts yet.</p>
+          <p className="text-sm text-slate-400 mt-2">Contact your administrator to request access.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col bg-white rounded-lg shadow">
-      <div className="border-b border-gray-200 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Mail className="h-6 w-6 text-blue-600" />
-          <h2 className="text-xl font-bold text-gray-900">Email</h2>
+    <div className="h-full flex flex-col">
+      <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-6 rounded-t-lg">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <Mail className="h-6 w-6 text-cyan-400" />
+            <h2 className="text-2xl font-bold text-white">Email</h2>
 
-          {accounts.length > 1 && (
-            <select
-              value={selectedAccount?.id || ''}
-              onChange={(e) => {
-                const account = accounts.find(a => a.id === e.target.value);
-                setSelectedAccount(account || null);
-              }}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm"
-            >
-              {accounts.map(account => (
-                <option key={account.id} value={account.id}>
-                  {account.email_address}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search emails..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm w-64"
-            />
+            {accounts.length > 1 && (
+              <select
+                value={selectedAccount?.id || ''}
+                onChange={(e) => {
+                  const account = accounts.find(a => a.id === e.target.value);
+                  setSelectedAccount(account || null);
+                }}
+                className="px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg text-sm hover:bg-slate-600"
+              >
+                {accounts.map(account => (
+                  <option key={account.id} value={account.id}>
+                    {account.email_address}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
-          <button
-            onClick={loadMessages}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-            title="Refresh"
-          >
-            <RefreshCw className="h-5 w-5 text-gray-600" />
-          </button>
-          <button
-            onClick={handleCompose}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-          >
-            <Send className="h-4 w-4" />
-            Compose
-          </button>
+
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search emails..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 text-white placeholder-slate-400 rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            </div>
+            <button
+              onClick={loadMessages}
+              className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg border border-slate-600"
+              title="Refresh"
+            >
+              <RefreshCw className="h-5 w-5 text-slate-300" />
+            </button>
+            <button
+              onClick={handleCompose}
+              className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex items-center gap-2"
+            >
+              <Send className="h-4 w-4" />
+              Compose
+            </button>
+          </div>
         </div>
+
+        {error && (
+          <div className="mt-4 bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg flex items-center justify-between">
+            <span>{error}</span>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-200 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="w-48 border-r border-gray-200 p-2">
+      <div className="flex-1 flex overflow-hidden bg-slate-900">
+        <div className="w-48 border-r border-slate-700 bg-slate-800 p-2">
           {folders.map(folder => {
             const Icon = folder.icon;
             return (
@@ -333,10 +386,10 @@ export default function EmailClient() {
                   setSelectedMessage(null);
                   setComposing(false);
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left ${
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   currentFolder === folder.id
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-cyan-600 text-white'
+                    : 'text-slate-300 hover:bg-slate-700'
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -346,15 +399,15 @@ export default function EmailClient() {
           })}
         </div>
 
-        <div className="w-96 border-r border-gray-200 overflow-y-auto">
+        <div className="w-96 border-r border-slate-700 bg-slate-850 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center h-full">
-              <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+              <RefreshCw className="h-6 w-6 animate-spin text-cyan-500" />
             </div>
           ) : messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
-              <div className="text-center text-gray-500">
-                <Folder className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+              <div className="text-center text-slate-400">
+                <Folder className="h-12 w-12 mx-auto mb-2 text-slate-600" />
                 <p>No messages in {currentFolder}</p>
               </div>
             </div>
@@ -370,19 +423,19 @@ export default function EmailClient() {
                       markAsRead(message.id);
                     }
                   }}
-                  className={`w-full p-4 border-b border-gray-200 text-left hover:bg-gray-50 ${
-                    selectedMessage?.id === message.id ? 'bg-blue-50' : ''
-                  } ${!message.is_read ? 'bg-blue-50/30' : ''}`}
+                  className={`w-full p-4 border-b border-slate-700 text-left hover:bg-slate-700/50 transition-colors ${
+                    selectedMessage?.id === message.id ? 'bg-cyan-900/30' : ''
+                  } ${!message.is_read ? 'bg-cyan-900/20' : ''}`}
                 >
                   <div className="flex items-start justify-between mb-1">
                     <span className={`text-sm truncate flex-1 ${
-                      !message.is_read ? 'font-semibold text-gray-900' : 'text-gray-700'
+                      !message.is_read ? 'font-semibold text-white' : 'text-slate-300'
                     }`}>
                       {message.from_name || message.from_address}
                     </span>
                     <div className="flex items-center gap-2 ml-2">
                       {message.has_attachments && (
-                        <Paperclip className="h-3 w-3 text-gray-400" />
+                        <Paperclip className="h-3 w-3 text-slate-500" />
                       )}
                       <button
                         onClick={(e) => {
@@ -394,21 +447,21 @@ export default function EmailClient() {
                           className={`h-4 w-4 ${
                             message.is_starred
                               ? 'fill-yellow-400 text-yellow-400'
-                              : 'text-gray-400'
+                              : 'text-slate-500'
                           }`}
                         />
                       </button>
                     </div>
                   </div>
                   <p className={`text-sm mb-1 truncate ${
-                    !message.is_read ? 'font-medium text-gray-900' : 'text-gray-600'
+                    !message.is_read ? 'font-medium text-white' : 'text-slate-400'
                   }`}>
                     {message.subject || '(No subject)'}
                   </p>
-                  <p className="text-xs text-gray-500 truncate">
+                  <p className="text-xs text-slate-500 truncate">
                     {message.body_text?.substring(0, 60)}...
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-slate-600 mt-1">
                     {formatDate(message.received_at || message.created_at)}
                   </p>
                 </button>
@@ -417,14 +470,14 @@ export default function EmailClient() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-slate-900">
           {composing ? (
             <div className="p-6">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold">New Message</h3>
+                <h3 className="text-lg font-semibold text-white">New Message</h3>
                 <button
                   onClick={() => setComposing(false)}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-slate-400 hover:text-white"
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
@@ -432,7 +485,7 @@ export default function EmailClient() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
                     To
                   </label>
                   <input
@@ -440,12 +493,12 @@ export default function EmailClient() {
                     value={composeForm.to}
                     onChange={(e) => setComposeForm({ ...composeForm, to: e.target.value })}
                     placeholder="recipient@example.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
                     CC
                   </label>
                   <input
@@ -453,12 +506,12 @@ export default function EmailClient() {
                     value={composeForm.cc}
                     onChange={(e) => setComposeForm({ ...composeForm, cc: e.target.value })}
                     placeholder="cc@example.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
                     Subject
                   </label>
                   <input
@@ -466,12 +519,12 @@ export default function EmailClient() {
                     value={composeForm.subject}
                     onChange={(e) => setComposeForm({ ...composeForm, subject: e.target.value })}
                     placeholder="Email subject"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
                     Message
                   </label>
                   <textarea
@@ -479,21 +532,21 @@ export default function EmailClient() {
                     onChange={(e) => setComposeForm({ ...composeForm, body: e.target.value })}
                     rows={12}
                     placeholder="Write your message..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </div>
 
                 <div className="flex gap-2">
                   <button
                     onClick={handleSendEmail}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                    className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex items-center gap-2"
                   >
                     <Send className="h-4 w-4" />
                     Send
                   </button>
                   <button
                     onClick={() => setComposing(false)}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800"
                   >
                     Cancel
                   </button>
@@ -502,17 +555,17 @@ export default function EmailClient() {
             </div>
           ) : selectedMessage ? (
             <div className="p-6">
-              <div className="mb-6 pb-4 border-b border-gray-200">
+              <div className="mb-6 pb-4 border-b border-slate-700">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    <h3 className="text-xl font-semibold text-white mb-2">
                       {selectedMessage.subject || '(No subject)'}
                     </h3>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <span className="font-medium">
+                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                      <span className="font-medium text-slate-300">
                         {selectedMessage.from_name || selectedMessage.from_address}
                       </span>
-                      <span className="text-gray-400">
+                      <span className="text-slate-500">
                         {formatDate(selectedMessage.received_at || selectedMessage.created_at)}
                       </span>
                     </div>
@@ -527,7 +580,7 @@ export default function EmailClient() {
                       className={`h-5 w-5 ${
                         selectedMessage.is_starred
                           ? 'fill-yellow-400 text-yellow-400'
-                          : 'text-gray-400'
+                          : 'text-slate-500'
                       }`}
                     />
                   </button>
@@ -536,20 +589,20 @@ export default function EmailClient() {
                 <div className="flex gap-2">
                   <button
                     onClick={handleReply}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="px-3 py-1 text-sm border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800"
                   >
                     Reply
                   </button>
                   <button
                     onClick={() => moveToFolder(selectedMessage.id, 'archive')}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1"
+                    className="px-3 py-1 text-sm border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800 flex items-center gap-1"
                   >
                     <Archive className="h-3 w-3" />
                     Archive
                   </button>
                   <button
                     onClick={() => moveToFolder(selectedMessage.id, 'trash')}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 text-red-600"
+                    className="px-3 py-1 text-sm border border-red-700 text-red-400 rounded-lg hover:bg-red-900/20 flex items-center gap-1"
                   >
                     <Trash2 className="h-3 w-3" />
                     Delete
@@ -557,20 +610,20 @@ export default function EmailClient() {
                 </div>
               </div>
 
-              <div className="prose max-w-none">
+              <div className="prose prose-invert max-w-none">
                 {selectedMessage.body_html ? (
-                  <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedMessage.body_html) }} />
+                  <div className="text-slate-300" dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedMessage.body_html) }} />
                 ) : (
-                  <pre className="whitespace-pre-wrap font-sans text-gray-700">
+                  <pre className="whitespace-pre-wrap font-sans text-slate-300">
                     {selectedMessage.body_text}
                   </pre>
                 )}
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
+            <div className="flex items-center justify-center h-full text-slate-500">
               <div className="text-center">
-                <Mail className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                <Mail className="h-16 w-16 mx-auto mb-4 text-slate-700" />
                 <p>Select a message to read</p>
               </div>
             </div>

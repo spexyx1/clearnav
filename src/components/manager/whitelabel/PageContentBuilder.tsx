@@ -42,6 +42,8 @@ export default function PageContentBuilder() {
   useEffect(() => {
     if (tenantId) {
       loadSections();
+    } else {
+      setLoading(false);
     }
   }, [tenantId, selectedPage]);
 
@@ -373,7 +375,21 @@ export default function PageContentBuilder() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+      </div>
+    );
+  }
+
+  if (!tenantId) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center max-w-md">
+          <FileText className="h-16 w-16 text-slate-500 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-slate-100 mb-2">No Tenant Context</h3>
+          <p className="text-slate-300">
+            A tenant context is required to edit page content. Please ensure you're accessing this from a valid tenant subdomain.
+          </p>
+        </div>
       </div>
     );
   }

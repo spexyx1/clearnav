@@ -38,18 +38,18 @@ export default function WhiteLabelManager() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
+      <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-6 rounded-t-lg mb-6">
         <div className="flex items-center gap-3 mb-2">
-          <Globe className="w-8 h-8 text-blue-600" />
-          <h1 className="text-3xl font-bold text-gray-900">White Label Platform</h1>
+          <Globe className="w-8 h-8 text-cyan-400" />
+          <h1 className="text-3xl font-bold text-white">White Label Platform</h1>
         </div>
-        <p className="text-gray-600">
+        <p className="text-slate-300">
           Customize your branded website with custom domains, design your pages, and invite clients
         </p>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm mb-6">
-        <div className="border-b border-gray-200">
+      <div className="bg-slate-800 rounded-lg shadow-sm mb-6">
+        <div className="border-b border-slate-700">
           <nav className="flex space-x-8 px-6" aria-label="Tabs">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -58,11 +58,11 @@ export default function WhiteLabelManager() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`
-                    flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm
+                    flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors
                     ${
                       activeTab === tab.id
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        ? 'border-cyan-500 text-cyan-400'
+                        : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
                     }
                   `}
                 >
@@ -74,7 +74,7 @@ export default function WhiteLabelManager() {
           </nav>
         </div>
 
-        <div className="p-6">{renderContent()}</div>
+        <div className="p-6 bg-slate-900">{renderContent()}</div>
       </div>
     </div>
   );
