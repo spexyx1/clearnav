@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, Send, Trash2, Archive, Star, Search, RefreshCw, Paperclip, ChevronLeft, MoreVertical, Inbox, FileText, Send as SentIcon, Folder } from 'lucide-react';
+import { Mail, Send, Trash2, Archive, Star, Search, RefreshCw, Paperclip, ChevronLeft, X, Inbox, FileText, Send as SentIcon, Folder } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { sanitizeHtml } from '../../lib/sanitize';
@@ -60,6 +60,8 @@ export default function EmailClient() {
   useEffect(() => {
     if (user) {
       loadEmailAccounts();
+    } else {
+      setLoading(false);
     }
   }, [user]);
 
@@ -199,31 +201,35 @@ export default function EmailClient() {
       return;
     }
 
-    const { error } = await supabase
-      .from('email_messages')
-      .insert({
-        account_id: selectedAccount.id,
-        from_address: selectedAccount.email_address,
-        from_name: selectedAccount.display_name,
-        to_addresses: composeForm.to.split(',').map(e => ({ email: e.trim() })),
-        cc_addresses: composeForm.cc ? composeForm.cc.split(',').map(e => ({ email: e.trim() })) : [],
-        bcc_addresses: composeForm.bcc ? composeForm.bcc.split(',').map(e => ({ email: e.trim() })) : [],
-        subject: composeForm.subject,
-        body_text: composeForm.body,
-        folder: 'sent',
-        is_read: true,
-        sent_at: new Date().toISOString()
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          account_id: selectedAccount.id,
+          to: composeForm.to.split(',').map((e: string) => e.trim()).filter(Boolean),
+          cc: composeForm.cc ? composeForm.cc.split(',').map((e: string) => e.trim()).filter(Boolean) : undefined,
+          subject: composeForm.subject,
+          body_text: composeForm.body,
+        }),
       });
 
-    if (error) {
-      console.error('Error sending email:', error);
-      alert('Failed to send email');
-    } else {
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to send');
+
       setComposing(false);
       setComposeForm({ to: '', cc: '', bcc: '', subject: '', body: '' });
       if (currentFolder === 'sent') {
         loadMessages();
       }
+    } catch (err: any) {
+      setError(err.message || 'Failed to send email');
     }
   };
 

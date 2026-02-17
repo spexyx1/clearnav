@@ -32,10 +32,11 @@ import SidePocketManager from './manager/SidePocketManager';
 import ExchangeManagement from './manager/ExchangeManagement';
 import NewsletterManager from './manager/NewsletterManager';
 import EmailClient from './manager/EmailClient';
+import EmailAccountManager from './manager/email/EmailAccountManager';
 import CommunityHub from './community/CommunityHub';
 import WhiteLabelManager from './manager/WhiteLabelManager';
 
-type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel';
+type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'email_accounts' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel';
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
@@ -103,6 +104,9 @@ export default function ManagerPortal() {
     { id: 'communications' as TabType, label: 'Communications', icon: MessageSquare },
     { id: 'newsletters' as TabType, label: 'Newsletters', icon: Mail },
     { id: 'email' as TabType, label: 'Email', icon: Inbox },
+    ...(isTenantAdmin ? [
+      { id: 'email_accounts' as TabType, label: 'Email Accounts', icon: Mail }
+    ] : []),
     { id: 'community' as TabType, label: 'Community', icon: Globe },
     ...(isTenantAdmin ? [
       { id: 'whitelabel' as TabType, label: 'White Label', icon: Globe }
@@ -226,6 +230,7 @@ export default function ManagerPortal() {
           {activeTab === 'communications' && <Communications />}
           {activeTab === 'newsletters' && <NewsletterManager />}
           {activeTab === 'email' && <EmailClient />}
+          {activeTab === 'email_accounts' && <EmailAccountManager />}
           {activeTab === 'community' && <CommunityHub />}
           {activeTab === 'whitelabel' && <WhiteLabelManager />}
           {activeTab === 'tasks' && <TaskManager />}
