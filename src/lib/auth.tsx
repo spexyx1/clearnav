@@ -35,6 +35,7 @@ interface AuthContextType {
   isPlatformAdmin: boolean;
   platformAdminUser: PlatformAdminUser | null;
   currentTenant: Tenant | null;
+  tenantId: string | null;
   tenantUser: TenantUser | null;
   userRoleRecord: UserRoleRecord | null;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
@@ -252,6 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isPlatformAdmin,
       platformAdminUser,
       currentTenant,
+      tenantId: currentTenant?.id || null,
       tenantUser,
       userRoleRecord,
       signIn,
