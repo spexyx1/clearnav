@@ -73,7 +73,6 @@ export async function provisionTenant(data: SignupData): Promise<ProvisioningRes
     }
 
     console.log('Creating signup request for slug:', slug);
-    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     const { data: signupRequest, error: signupError } = await supabase
       .from('signup_requests')
@@ -122,114 +121,51 @@ export async function provisionTenant(data: SignupData): Promise<ProvisioningRes
 
     console.log('Auth user created successfully:', authUser.user.id);
 
-    console.log('Creating tenant for company:', data.companyName);
-    const { data: tenant, error: tenantError } = await supabase
-      .from('platform_tenants')
-      .insert({
-        name: data.companyName,
-        slug: slug,
-        database_type: 'managed',
-        status: 'trial',
-        trial_ends_at: trialEndsAt,
-        is_self_service: true,
-        contact_email: data.contactEmail,
-        contact_name: data.contactName,
-        signup_completed_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    console.log('Calling secure tenant provisioning function');
+    const { data: provisionResult, error: provisionError } = await supabase.rpc('provision_tenant', {
+      p_user_id: authUser.user.id,
+      p_company_name: data.companyName,
+      p_subdomain: slug,
+      p_contact_name: data.contactName,
+      p_contact_email: data.contactEmail,
+      p_contact_phone: data.phone || null,
+      p_primary_use_case: 'hedge_fund',
+      p_aum_range: 'under_10m'
+    });
 
-    if (tenantError) {
-      console.error('Tenant creation error:', tenantError);
+    if (provisionError) {
+      console.error('Tenant provisioning RPC error:', provisionError);
       await supabase
         .from('signup_requests')
         .update({ status: 'failed' })
         .eq('id', signupRequest.id);
 
-      return { success: false, error: `Failed to create tenant: ${tenantError.message || tenantError.code || 'Unknown error'}` };
+      return {
+        success: false,
+        error: `Failed to provision tenant: ${provisionError.message || 'Unknown error'}`
+      };
     }
 
-    console.log('Tenant created successfully:', tenant.id);
+    if (!provisionResult || !provisionResult.success) {
+      console.error('Tenant provisioning failed:', provisionResult?.error);
+      await supabase
+        .from('signup_requests')
+        .update({ status: 'failed' })
+        .eq('id', signupRequest.id);
 
-    console.log('Creating user role record (unified role system)');
-    const { error: userRoleError } = await supabase.from('user_roles').insert({
-      user_id: authUser.user.id,
-      email: data.contactEmail,
-      role_category: 'tenant_admin',
-      role_detail: null,
-      tenant_id: tenant.id,
-      status: 'active',
-      metadata: {
-        created_via: 'self_service_signup',
-        full_name: data.contactName,
-        company_name: data.companyName,
-      },
-    });
-
-    if (userRoleError) {
-      console.error('User role creation error:', userRoleError);
-      return { success: false, error: `Failed to create user role: ${userRoleError.message}` };
+      return {
+        success: false,
+        error: provisionResult?.error || 'Failed to provision tenant'
+      };
     }
 
-    console.log('Creating tenant user (must be created before settings/subscriptions)');
-    const { error: tenantUserError } = await supabase.from('tenant_users').insert({
-      tenant_id: tenant.id,
-      user_id: authUser.user.id,
-      role: 'admin',
-      onboarding_status: 'in_progress',
-    });
-
-    if (tenantUserError) {
-      console.error('Tenant user creation error:', tenantUserError);
-      return { success: false, error: `Failed to create tenant user: ${tenantUserError.message}` };
-    }
-
-    console.log('Creating tenant settings');
-    const { error: settingsError } = await supabase.from('tenant_settings').insert({
-      tenant_id: tenant.id,
-      branding: {
-        company_name: data.companyName,
-      },
-      features: {},
-      notifications: {},
-      integrations: {},
-    });
-
-    if (settingsError) {
-      console.error('Tenant settings creation error:', settingsError);
-    }
-
-    const { data: defaultPlan } = await supabase
-      .from('subscription_plans')
-      .select('*')
-      .eq('is_active', true)
-      .eq('database_type', 'managed')
-      .order('price_monthly', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (defaultPlan) {
-      console.log('Creating tenant subscription with plan:', defaultPlan.id);
-      const currentPeriodEnd = new Date();
-      currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
-
-      const { error: subscriptionError } = await supabase.from('tenant_subscriptions').insert({
-        tenant_id: tenant.id,
-        plan_id: defaultPlan.id,
-        status: 'trialing',
-        current_period_end: currentPeriodEnd.toISOString(),
-      });
-
-      if (subscriptionError) {
-        console.error('Subscription creation error:', subscriptionError);
-      }
-    }
+    console.log('Tenant provisioned successfully:', provisionResult.tenant_id);
 
     await supabase
       .from('signup_requests')
       .update({
         status: 'completed',
-        tenant_id: tenant.id,
+        tenant_id: provisionResult.tenant_id,
         completed_at: new Date().toISOString(),
       })
       .eq('id', signupRequest.id);
@@ -239,11 +175,12 @@ export async function provisionTenant(data: SignupData): Promise<ProvisioningRes
 
     return {
       success: true,
-      tenantId: tenant.id,
+      tenantId: provisionResult.tenant_id,
       slug: slug,
       subdomainUrl: subdomainUrl,
     };
   } catch (error: any) {
+    console.error('Unexpected error during provisioning:', error);
     return {
       success: false,
       error: error.message || 'An unexpected error occurred',
