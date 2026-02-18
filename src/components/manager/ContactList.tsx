@@ -3,9 +3,23 @@ import { Search, Plus, Mail, Phone, Edit, Trash2, Filter, Download } from 'lucid
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
+interface Contact {
+  id: string;
+  full_name: string;
+  email: string;
+  phone?: string | null;
+  company?: string | null;
+  lifecycle_stage: string;
+  estimated_investment_amount?: number | null;
+  created_at: string;
+  staff_accounts?: {
+    full_name: string;
+  };
+}
+
 export default function ContactList() {
   const { staffAccount } = useAuth();
-  const [contacts, setContacts] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
@@ -19,8 +33,9 @@ export default function ContactList() {
     setLoading(true);
     let query = supabase
       .from('crm_contacts')
-      .select('*, staff_accounts!crm_contacts_assigned_to_fkey(full_name)')
-      .order('created_at', { ascending: false });
+      .select('id, full_name, email, phone, company, lifecycle_stage, estimated_investment_amount, created_at, staff_accounts!crm_contacts_assigned_to_fkey(full_name)')
+      .order('created_at', { ascending: false })
+      .limit(500);
 
     if (stageFilter !== 'all') {
       query = query.eq('lifecycle_stage', stageFilter);
@@ -32,13 +47,13 @@ export default function ContactList() {
   };
 
   const filteredContacts = contacts.filter(contact =>
-    contact.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contact.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (contact.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (contact.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (contact.company && contact.company.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const getStageColor = (stage: string) => {
-    const colors: any = {
+  const getStageColor = (stage: string): string => {
+    const colors: Record<string, string> = {
       lead: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
       prospect: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
       qualified: 'bg-green-500/20 text-green-300 border-green-500/30',

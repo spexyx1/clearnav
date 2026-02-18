@@ -125,11 +125,12 @@ export default function EmailClient() {
 
       const { data, error } = await supabase
         .from('email_messages')
-        .select('*')
+        .select('id, from_address, from_name, to_addresses, subject, body_html, body_text, folder, is_read, is_starred, is_draft, has_attachments, received_at, sent_at, created_at')
         .eq('account_id', selectedAccount.id)
         .eq('folder', currentFolder)
         .order('received_at', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (error) {
         throw error;

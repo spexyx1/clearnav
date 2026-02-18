@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,6 +45,12 @@ Deno.serve(async (req: Request) => {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Rate limiting: 50 emails per minute per user
+    const rateLimitResult = checkRateLimit(user.id, { maxRequests: 50, windowMs: 60000 });
+    if (!rateLimitResult.allowed) {
+      return rateLimitResponse(rateLimitResult.resetAt);
     }
 
     const payload: SendEmailPayload = await req.json();

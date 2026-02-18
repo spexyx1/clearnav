@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { Database } from '../types/database';
+import { isLocalHost, extractSubdomain } from './hostUtils';
 
 type Tenant = Database['public']['Tables']['platform_tenants']['Row'];
 type TenantDomain = Database['public']['Tables']['tenant_domains']['Row'];
@@ -12,7 +13,6 @@ export interface ResolvedTenant {
 
 export async function resolveTenantFromDomain(hostname: string): Promise<ResolvedTenant> {
   const parts = hostname.split('.');
-  const host = window.location.host;
 
   if (parts.length >= 3 && parts[0] === 'admin') {
     return {
@@ -28,7 +28,7 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
   const params = new URLSearchParams(window.location.search);
   const tenantParam = params.get('tenant');
 
-  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.');
+  const isLocalhost = isLocalHost(hostname);
 
   if (isLocalhost && tenantParam) {
     subdomain = tenantParam;
