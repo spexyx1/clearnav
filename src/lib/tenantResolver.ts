@@ -13,6 +13,7 @@ export interface ResolvedTenant {
 
 export async function resolveTenantFromDomain(hostname: string): Promise<ResolvedTenant> {
   const parts = hostname.split('.');
+  const host = window.location.host;
 
   if (parts.length >= 3 && parts[0] === 'admin') {
     return {
@@ -76,7 +77,7 @@ export function getTenantSlugFromUrl(): string | null {
   const params = new URLSearchParams(window.location.search);
   const tenantParam = params.get('tenant');
 
-  if (tenantParam && (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.'))) {
+  if (tenantParam && isLocalHost(hostname)) {
     return tenantParam;
   }
 
@@ -94,7 +95,7 @@ export function isPlatformAdminDomain(): boolean {
   const params = new URLSearchParams(window.location.search);
   const tenantParam = params.get('tenant');
 
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
+  if (isLocalHost(hostname)) {
     return !tenantParam;
   }
 
@@ -105,7 +106,7 @@ export function getTenantUrl(slug: string): string {
   const hostname = window.location.hostname;
   const parts = hostname.split('.');
 
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
+  if (isLocalHost(hostname)) {
     return `${window.location.protocol}//${hostname}${window.location.port ? ':' + window.location.port : ''}?tenant=${slug}`;
   }
 
@@ -121,7 +122,7 @@ export function getPlatformAdminUrl(): string {
   const hostname = window.location.hostname;
   const parts = hostname.split('.');
 
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
+  if (isLocalHost(hostname)) {
     return `${window.location.protocol}//${hostname}${window.location.port ? ':' + window.location.port : ''}`;
   }
 
