@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Eye, Building2, DollarSign, Calendar, TrendingUp } from 'lucide-react';
+import { Plus, Edit, Eye, Building2, DollarSign, Calendar, TrendingUp, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import FundDocumentUpload from './documents/FundDocumentUpload';
+import DocumentExtractionReview from './documents/DocumentExtractionReview';
 
 interface Fund {
   id: string;
@@ -17,11 +19,21 @@ interface Fund {
   created_at: string;
 }
 
+type ActiveTab = 'funds' | 'documents';
+type DocumentView = 'list' | 'review';
+
 export default function FundManagement() {
   const { currentTenant } = useAuth();
+  const [activeTab, setActiveTab] = useState<ActiveTab>('funds');
+  const [documentView, setDocumentView] = useState<DocumentView>('list');
+  const [reviewDocumentId, setReviewDocumentId] = useState<string | null>(null);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [approvalSummary, setApprovalSummary] = useState<{
+    fundId: string | null;
+    invitationId: string | null;
+  } | null>(null);
   const [formData, setFormData] = useState({
     fund_code: '',
     fund_name: '',
@@ -76,6 +88,26 @@ export default function FundManagement() {
     }
   };
 
+  const handleReviewDocument = (documentId: string) => {
+    setReviewDocumentId(documentId);
+    setDocumentView('review');
+    setApprovalSummary(null);
+  };
+
+  const handleExtractionApproved = (
+    _resultId: string,
+    createdFundId: string | null,
+    createdInvitationId: string | null
+  ) => {
+    setApprovalSummary({ fundId: createdFundId, invitationId: createdInvitationId });
+    loadFunds();
+  };
+
+  const handleBackToDocuments = () => {
+    setDocumentView('list');
+    setReviewDocumentId(null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -91,93 +123,175 @@ export default function FundManagement() {
           <h2 className="text-2xl font-bold text-white">Fund Management</h2>
           <p className="text-slate-400 mt-1">Create and manage your investment funds</p>
         </div>
+        {activeTab === 'funds' && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg flex items-center space-x-2 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Fund</span>
+          </button>
+        )}
+      </div>
+
+      <div className="flex space-x-1 bg-slate-800/50 rounded-xl p-1 border border-slate-700 w-fit">
         <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg flex items-center space-x-2 transition-colors"
+          onClick={() => setActiveTab('funds')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'funds'
+              ? 'bg-slate-700 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>Create Fund</span>
+          <Building2 className="w-4 h-4" />
+          <span>Funds</span>
+          {funds.length > 0 && (
+            <span className="bg-slate-600 text-slate-300 text-xs rounded-full px-2 py-0.5">
+              {funds.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => { setActiveTab('documents'); setDocumentView('list'); }}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'documents'
+              ? 'bg-slate-700 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Document Intelligence</span>
         </button>
       </div>
 
-      {funds.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {funds.map((fund) => (
-            <div
-              key={fund.id}
-              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700 hover:border-cyan-500/50 transition-all"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">
-                    {fund.fund_code}
+      {activeTab === 'funds' && (
+        <>
+          {funds.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {funds.map((fund) => (
+                <div
+                  key={fund.id}
+                  className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700 hover:border-cyan-500/50 transition-all"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">
+                        {fund.fund_code}
+                      </div>
+                      <h3 className="text-lg font-bold text-white">{fund.fund_name}</h3>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      fund.status === 'active'
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-slate-500/20 text-slate-400'
+                    }`}>
+                      {fund.status}
+                    </span>
                   </div>
-                  <h3 className="text-lg font-bold text-white">{fund.fund_name}</h3>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  fund.status === 'active'
-                    ? 'bg-green-500/20 text-green-400'
-                    : 'bg-slate-500/20 text-slate-400'
-                }`}>
-                  {fund.status}
-                </span>
-              </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center text-sm">
-                  <Building2 className="w-4 h-4 text-slate-400 mr-2" />
-                  <span className="text-slate-300 capitalize">{fund.fund_type} Fund</span>
-                </div>
-                <div className="flex items-center text-sm">
-                  <DollarSign className="w-4 h-4 text-slate-400 mr-2" />
-                  <span className="text-slate-300">{fund.base_currency} | {fund.accounting_standard}</span>
-                </div>
-                <div className="flex items-center text-sm">
-                  <Calendar className="w-4 h-4 text-slate-400 mr-2" />
-                  <span className="text-slate-300">
-                    Inception: {new Date(fund.inception_date).toLocaleDateString()}
-                  </span>
-                </div>
-                <div className="flex items-center text-sm">
-                  <TrendingUp className="w-4 h-4 text-slate-400 mr-2" />
-                  <span className="text-slate-300 capitalize">NAV: {fund.nav_frequency}</span>
-                </div>
-              </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center text-sm">
+                      <Building2 className="w-4 h-4 text-slate-400 mr-2" />
+                      <span className="text-slate-300 capitalize">{fund.fund_type} Fund</span>
+                    </div>
+                    <div className="flex items-center text-sm">
+                      <DollarSign className="w-4 h-4 text-slate-400 mr-2" />
+                      <span className="text-slate-300">{fund.base_currency} | {fund.accounting_standard}</span>
+                    </div>
+                    <div className="flex items-center text-sm">
+                      <Calendar className="w-4 h-4 text-slate-400 mr-2" />
+                      <span className="text-slate-300">
+                        Inception: {new Date(fund.inception_date).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center text-sm">
+                      <TrendingUp className="w-4 h-4 text-slate-400 mr-2" />
+                      <span className="text-slate-300 capitalize">NAV: {fund.nav_frequency}</span>
+                    </div>
+                  </div>
 
-              <div className="mt-4 pt-4 border-t border-slate-700">
-                <div className="text-xs text-slate-400">Total Commitments</div>
-                <div className="text-xl font-bold text-white mt-1">
-                  {fund.base_currency} {(fund.total_commitments / 1000000).toFixed(2)}M
-                </div>
-              </div>
+                  <div className="mt-4 pt-4 border-t border-slate-700">
+                    <div className="text-xs text-slate-400">Total Commitments</div>
+                    <div className="text-xl font-bold text-white mt-1">
+                      {fund.base_currency} {(fund.total_commitments / 1000000).toFixed(2)}M
+                    </div>
+                  </div>
 
-              <div className="flex space-x-2 mt-4">
-                <button className="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors flex items-center justify-center space-x-1">
-                  <Eye className="w-4 h-4" />
-                  <span>View</span>
+                  <div className="flex space-x-2 mt-4">
+                    <button className="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors flex items-center justify-center space-x-1">
+                      <Eye className="w-4 h-4" />
+                      <span>View</span>
+                    </button>
+                    <button className="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors flex items-center justify-center space-x-1">
+                      <Edit className="w-4 h-4" />
+                      <span>Edit</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-slate-800/30 rounded-xl p-12 border-2 border-dashed border-slate-700 text-center">
+              <Building2 className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">No Funds Created</h3>
+              <p className="text-slate-400 mb-6 max-w-md mx-auto">
+                Create a fund manually, or use Document Intelligence to upload a Trust Deed or IM and let AI set up your fund automatically.
+              </p>
+              <div className="flex items-center justify-center space-x-3">
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg inline-flex items-center space-x-2 transition-colors text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Manually</span>
                 </button>
-                <button className="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors flex items-center justify-center space-x-1">
-                  <Edit className="w-4 h-4" />
-                  <span>Edit</span>
+                <button
+                  onClick={() => setActiveTab('documents')}
+                  className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg inline-flex items-center space-x-2 transition-colors text-sm"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Upload Document</span>
                 </button>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="bg-slate-800/30 rounded-xl p-12 border-2 border-dashed border-slate-700 text-center">
-          <Building2 className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-white mb-2">No Funds Created</h3>
-          <p className="text-slate-400 mb-6">
-            Create your first fund to start managing investments and calculating NAV
-          </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg inline-flex items-center space-x-2 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Create First Fund</span>
-          </button>
+          )}
+        </>
+      )}
+
+      {activeTab === 'documents' && (
+        <div className="bg-slate-800/30 rounded-xl border border-slate-700 p-6">
+          {documentView === 'list' ? (
+            <>
+              {approvalSummary && (
+                <div className="mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl flex items-start space-x-3">
+                  <Sparkles className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-green-300 font-medium">Document approved successfully!</p>
+                    <p className="text-green-400/70 text-sm mt-0.5">
+                      Fund and share classes have been created. A draft NAV calculation is ready for review.
+                      {approvalSummary.invitationId && ' An investor invitation has been sent.'}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2 flex-shrink-0">
+                    <button
+                      onClick={() => { setActiveTab('funds'); setApprovalSummary(null); }}
+                      className="flex items-center space-x-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs transition-colors"
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>View Fund</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+              <FundDocumentUpload onReviewDocument={handleReviewDocument} />
+            </>
+          ) : reviewDocumentId ? (
+            <DocumentExtractionReview
+              documentId={reviewDocumentId}
+              onBack={handleBackToDocuments}
+              onApproved={handleExtractionApproved}
+            />
+          ) : null}
         </div>
       )}
 
