@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Mail, Send, Trash2, Archive, Star, Search, RefreshCw, Paperclip, ChevronLeft, X, Inbox, FileText, Send as SentIcon, Folder } from 'lucide-react';
+import { Mail, Send, Trash2, Archive, Star, Search, RefreshCw, Paperclip, ChevronLeft, X, Inbox, FileText, Send as SentIcon, Folder, Settings } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { sanitizeHtml } from '../../lib/sanitize';
+import EmailAccountManager from './email/EmailAccountManager';
 
 interface EmailAccount {
   id: string;
@@ -38,7 +39,7 @@ interface EmailThread {
 }
 
 export default function EmailClient() {
-  const { user } = useAuth();
+  const { user, isTenantAdmin } = useAuth();
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<EmailAccount | null>(null);
   const [messages, setMessages] = useState<EmailMessage[]>([]);
@@ -48,6 +49,7 @@ export default function EmailClient() {
   const [composing, setComposing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const [composeForm, setComposeForm] = useState({
     to: '',
@@ -365,6 +367,15 @@ export default function EmailClient() {
               <Send className="h-4 w-4" />
               Compose
             </button>
+            {isTenantAdmin && (
+              <button
+                onClick={() => setShowSettings(true)}
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg border border-slate-600"
+                title="Email Settings"
+              >
+                <Settings className="h-5 w-5 text-slate-300" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -637,6 +648,22 @@ export default function EmailClient() {
           )}
         </div>
       </div>
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/40" onClick={() => setShowSettings(false)} />
+          <div className="w-full max-w-2xl bg-slate-900 border-l border-slate-700 overflow-y-auto">
+            <div className="sticky top-0 bg-slate-900 border-b border-slate-800 p-4 flex items-center justify-between z-10">
+              <h3 className="text-lg font-semibold text-white">Email Account Settings</h3>
+              <button onClick={() => setShowSettings(false)} className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <EmailAccountManager />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingCart, FileCheck, TrendingUp, DollarSign, Coins, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { ShoppingCart, FileCheck, TrendingUp, DollarSign, Coins, CheckCircle, XCircle, Clock, AlertCircle, Plus, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
@@ -69,13 +69,30 @@ interface TokenizationRequest {
 }
 
 export default function ExchangeManagement() {
-  const { currentTenant } = useAuth();
+  const { currentTenant, user } = useAuth();
   const [activeView, setActiveView] = useState<'listings' | 'orders' | 'transactions' | 'fees' | 'tokenization'>('listings');
   const [listings, setListings] = useState<Listing[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [tokenRequests, setTokenRequests] = useState<TokenizationRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateListing, setShowCreateListing] = useState(false);
+  const [listingFunds, setListingFunds] = useState<any[]>([]);
+  const [savingListing, setSavingListing] = useState(false);
+  const [listingForm, setListingForm] = useState({
+    asset_type: 'fund_share',
+    fund_id: '',
+    asset_name: '',
+    quantity_available: '',
+    price_per_unit: '',
+    listing_type: 'sell',
+    pricing_type: 'fixed',
+    min_purchase_quantity: '',
+    description: '',
+    visibility: 'public',
+    requires_accreditation: true,
+    expires_at: '',
+  });
   const [stats, setStats] = useState({
     pendingListings: 0,
     activeOrders: 0,
@@ -87,8 +104,68 @@ export default function ExchangeManagement() {
     if (currentTenant) {
       loadData();
       loadStats();
+      loadListingFunds();
     }
   }, [currentTenant, activeView]);
+
+  const loadListingFunds = async () => {
+    const { data } = await supabase
+      .from('funds')
+      .select('id, fund_code, fund_name, base_currency')
+      .eq('tenant_id', currentTenant?.id)
+      .eq('status', 'active')
+      .order('fund_name');
+    setListingFunds(data || []);
+  };
+
+  const openCreateListing = () => {
+    setListingForm({
+      asset_type: 'fund_share', fund_id: '', asset_name: '', quantity_available: '', price_per_unit: '',
+      listing_type: 'sell', pricing_type: 'fixed', min_purchase_quantity: '', description: '',
+      visibility: 'public', requires_accreditation: true,
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    });
+    setShowCreateListing(true);
+  };
+
+  const handleCreateListing = async () => {
+    if (!listingForm.asset_name || !listingForm.quantity_available || !listingForm.price_per_unit) return;
+    setSavingListing(true);
+
+    const qty = parseFloat(listingForm.quantity_available);
+    const price = parseFloat(listingForm.price_per_unit);
+
+    const { error } = await supabase
+      .from('marketplace_listings')
+      .insert({
+        tenant_id: currentTenant?.id,
+        lister_id: user?.id,
+        asset_type: listingForm.asset_type,
+        asset_id: listingForm.fund_id || null,
+        asset_name: listingForm.asset_name,
+        quantity_available: qty,
+        quantity_original: qty,
+        price_per_unit: price,
+        total_value: qty * price,
+        listing_type: listingForm.listing_type,
+        pricing_type: listingForm.pricing_type,
+        min_purchase_quantity: listingForm.min_purchase_quantity ? parseFloat(listingForm.min_purchase_quantity) : null,
+        description: listingForm.description || null,
+        visibility: listingForm.visibility,
+        requires_accreditation: listingForm.requires_accreditation,
+        expires_at: listingForm.expires_at ? new Date(listingForm.expires_at).toISOString() : null,
+        status: 'pending_approval',
+      });
+
+    if (error) {
+      alert('Error creating listing: ' + error.message);
+    } else {
+      setShowCreateListing(false);
+      loadData();
+      loadStats();
+    }
+    setSavingListing(false);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -254,9 +331,20 @@ export default function ExchangeManagement() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-light text-white mb-2">Exchange Management</h2>
-        <p className="text-slate-400">Monitor and manage secondary market exchange operations</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-light text-white mb-1">
+            Exchange <span className="font-semibold">Management</span>
+          </h2>
+          <p className="text-slate-400">Monitor and manage secondary market exchange operations</p>
+        </div>
+        <button
+          onClick={openCreateListing}
+          className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-colors font-medium text-sm"
+        >
+          <Plus className="w-4 h-4" />
+          Create Listing
+        </button>
       </div>
 
       <div className="grid grid-cols-4 gap-4">
@@ -515,6 +603,186 @@ export default function ExchangeManagement() {
 
       {activeView === 'fees' && <FeeConfiguration />}
       {activeView === 'tokenization' && <TokenizationManagement requests={tokenRequests} onUpdate={loadData} />}
+
+      {showCreateListing && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-slate-900 flex items-center justify-between p-5 border-b border-slate-800 z-10">
+              <h3 className="text-lg font-semibold text-white">Create Listing</h3>
+              <button onClick={() => setShowCreateListing(false)} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Asset Type</label>
+                  <select
+                    value={listingForm.asset_type}
+                    onChange={(e) => setListingForm({ ...listingForm, asset_type: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-teal-500"
+                  >
+                    <option value="fund_share">Fund Share</option>
+                    <option value="token">Token</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Listing Type</label>
+                  <select
+                    value={listingForm.listing_type}
+                    onChange={(e) => setListingForm({ ...listingForm, listing_type: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-teal-500"
+                  >
+                    <option value="sell">Sell</option>
+                    <option value="transfer">Transfer</option>
+                  </select>
+                </div>
+              </div>
+
+              {listingFunds.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Fund</label>
+                  <select
+                    value={listingForm.fund_id}
+                    onChange={(e) => {
+                      const f = listingFunds.find((f: any) => f.id === e.target.value);
+                      setListingForm({ ...listingForm, fund_id: e.target.value, asset_name: f ? `${f.fund_code} - ${f.fund_name}` : listingForm.asset_name });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-teal-500"
+                  >
+                    <option value="">Select fund...</option>
+                    {listingFunds.map((f: any) => (
+                      <option key={f.id} value={f.id}>{f.fund_code} - {f.fund_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Asset Name</label>
+                <input
+                  type="text"
+                  value={listingForm.asset_name}
+                  onChange={(e) => setListingForm({ ...listingForm, asset_name: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                  placeholder="e.g., Alpha Fund - Class A Shares"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Quantity</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={listingForm.quantity_available}
+                    onChange={(e) => setListingForm({ ...listingForm, quantity_available: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-teal-500"
+                    placeholder="1000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Price Per Unit</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={listingForm.price_per_unit}
+                    onChange={(e) => setListingForm({ ...listingForm, price_per_unit: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-teal-500"
+                    placeholder="100.00"
+                  />
+                </div>
+              </div>
+
+              {listingForm.quantity_available && listingForm.price_per_unit && (
+                <div className="bg-teal-500/10 border border-teal-500/30 rounded-lg p-3 flex items-center justify-between">
+                  <span className="text-sm text-teal-300">Total Value</span>
+                  <span className="text-lg font-semibold text-white">${(parseFloat(listingForm.quantity_available) * parseFloat(listingForm.price_per_unit)).toLocaleString()}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Pricing Type</label>
+                  <select
+                    value={listingForm.pricing_type}
+                    onChange={(e) => setListingForm({ ...listingForm, pricing_type: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-teal-500"
+                  >
+                    <option value="fixed">Fixed</option>
+                    <option value="negotiable">Negotiable</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Min Purchase Qty</label>
+                  <input
+                    type="number"
+                    value={listingForm.min_purchase_quantity}
+                    onChange={(e) => setListingForm({ ...listingForm, min_purchase_quantity: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-teal-500"
+                    placeholder="Optional"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Description</label>
+                <textarea
+                  value={listingForm.description}
+                  onChange={(e) => setListingForm({ ...listingForm, description: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                  placeholder="Describe the listing..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Expiration Date</label>
+                  <input
+                    type="date"
+                    value={listingForm.expires_at}
+                    onChange={(e) => setListingForm({ ...listingForm, expires_at: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Visibility</label>
+                  <select
+                    value={listingForm.visibility}
+                    onChange={(e) => setListingForm({ ...listingForm, visibility: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-teal-500"
+                  >
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                  </select>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-3 cursor-pointer bg-slate-800/50 rounded-lg px-3 py-2.5">
+                <input
+                  type="checkbox"
+                  checked={listingForm.requires_accreditation}
+                  onChange={(e) => setListingForm({ ...listingForm, requires_accreditation: e.target.checked })}
+                  className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-teal-600 focus:ring-teal-500"
+                />
+                <span className="text-sm text-slate-300">Requires Accreditation</span>
+              </label>
+            </div>
+            <div className="sticky bottom-0 bg-slate-900 flex justify-end gap-3 p-5 border-t border-slate-800">
+              <button onClick={() => setShowCreateListing(false)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm">Cancel</button>
+              <button
+                onClick={handleCreateListing}
+                disabled={savingListing || !listingForm.asset_name || !listingForm.quantity_available || !listingForm.price_per_unit}
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
+              >
+                {savingListing ? 'Creating...' : 'Create Listing'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

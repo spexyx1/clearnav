@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpCircle, Clock, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { ArrowUpCircle, Clock, CheckCircle, XCircle, AlertTriangle, Plus, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { getLatestNAV } from '../../lib/navCalculation';
@@ -41,6 +41,18 @@ export default function RedemptionManager() {
   const [loading, setLoading] = useState(true);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<RedemptionRequest | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [capitalAccounts, setCapitalAccounts] = useState<any[]>([]);
+  const [savingNew, setSavingNew] = useState(false);
+  const [newForm, setNewForm] = useState({
+    fund_id: '',
+    capital_account_id: '',
+    redemption_type: 'partial',
+    shares_requested: '',
+    amount_requested: '',
+    redemption_date: '',
+    reason: '',
+  });
   const [reviewData, setReviewData] = useState({
     shares_approved: 0,
     amount_approved: 0,
@@ -220,6 +232,71 @@ export default function RedemptionManager() {
     }
   };
 
+  const openCreateModal = async () => {
+    setNewForm({
+      fund_id: selectedFund,
+      capital_account_id: '',
+      redemption_type: 'partial',
+      shares_requested: '',
+      amount_requested: '',
+      redemption_date: '',
+      reason: '',
+    });
+    await loadCapitalAccounts(selectedFund);
+    setShowCreateModal(true);
+  };
+
+  const loadCapitalAccounts = async (fundId: string) => {
+    const { data } = await supabase
+      .from('capital_accounts')
+      .select('id, account_number, shares_owned, commitment_amount, investor:client_profiles!investor_id(full_name)')
+      .eq('fund_id', fundId)
+      .eq('tenant_id', currentTenant?.id)
+      .eq('status', 'active')
+      .order('account_number');
+    setCapitalAccounts(data || []);
+  };
+
+  const handleCreateRedemption = async () => {
+    if (!newForm.capital_account_id || !newForm.redemption_date) return;
+    setSavingNew(true);
+
+    const reqNum = `RDM-${Date.now().toString(36).toUpperCase()}`;
+    const account = capitalAccounts.find((a: any) => a.id === newForm.capital_account_id);
+    const sharesReq = newForm.redemption_type === 'full'
+      ? (account?.shares_owned || 0)
+      : parseFloat(newForm.shares_requested) || 0;
+
+    const latestNAV = await getLatestNAV(newForm.fund_id || selectedFund);
+    const navPrice = latestNAV?.nav_per_share || 100;
+    const amountReq = newForm.amount_requested ? parseFloat(newForm.amount_requested) : sharesReq * navPrice;
+
+    const { error } = await supabase
+      .from('redemption_requests')
+      .insert({
+        tenant_id: currentTenant?.id,
+        fund_id: newForm.fund_id || selectedFund,
+        capital_account_id: newForm.capital_account_id,
+        request_number: reqNum,
+        request_date: new Date().toISOString().split('T')[0],
+        redemption_date: newForm.redemption_date,
+        redemption_type: newForm.redemption_type,
+        shares_requested: sharesReq,
+        amount_requested: amountReq,
+        status: 'requested',
+        reason: newForm.reason || null,
+        requested_by: user?.id,
+      });
+
+    setSavingNew(false);
+    if (!error) {
+      setShowCreateModal(false);
+      loadRequests();
+    } else {
+      alert('Error creating redemption request: ' + error.message);
+    }
+  };
+
   const calculateStats = () => {
     return requests.reduce((acc, req) => {
       if (req.status === 'requested') acc.pending++;
@@ -250,7 +327,7 @@ export default function RedemptionManager() {
           <h2 className="text-2xl font-bold text-white">Redemption Management</h2>
           <p className="text-slate-400 mt-1">Review and process investor redemption requests</p>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex items-center space-x-3">
           <select
             value={selectedFund}
             onChange={(e) => setSelectedFund(e.target.value)}
@@ -262,6 +339,13 @@ export default function RedemptionManager() {
               </option>
             ))}
           </select>
+          <button
+            onClick={openCreateModal}
+            className="flex items-center space-x-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Request</span>
+          </button>
         </div>
       </div>
 
@@ -425,6 +509,124 @@ export default function RedemptionManager() {
           </div>
         )}
       </div>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 rounded-xl border border-slate-700 max-w-lg w-full">
+            <div className="flex items-center justify-between p-6 border-b border-slate-700">
+              <h3 className="text-xl font-bold text-white">New Redemption Request</h3>
+              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Capital Account</label>
+                <select
+                  value={newForm.capital_account_id}
+                  onChange={(e) => setNewForm({ ...newForm, capital_account_id: e.target.value })}
+                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="">Select account...</option>
+                  {capitalAccounts.map((a: any) => (
+                    <option key={a.id} value={a.id}>
+                      {a.account_number} - {a.investor?.full_name} ({a.shares_owned?.toLocaleString()} shares)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Redemption Type</label>
+                <div className="flex gap-3">
+                  {['partial', 'full'].map(type => (
+                    <button
+                      key={type}
+                      onClick={() => setNewForm({ ...newForm, redemption_type: type })}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        newForm.redemption_type === type
+                          ? 'bg-cyan-600 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+                      }`}
+                    >
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {newForm.redemption_type === 'partial' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">Shares to Redeem</label>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      value={newForm.shares_requested}
+                      onChange={(e) => setNewForm({ ...newForm, shares_requested: e.target.value })}
+                      placeholder="0.000000"
+                      className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">Amount (optional)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newForm.amount_requested}
+                      onChange={(e) => setNewForm({ ...newForm, amount_requested: e.target.value })}
+                      placeholder="Auto-calculated"
+                      className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {newForm.redemption_type === 'full' && newForm.capital_account_id && (
+                <div className="bg-slate-800/50 rounded-lg p-3 text-sm text-slate-300">
+                  Full redemption: all {capitalAccounts.find((a: any) => a.id === newForm.capital_account_id)?.shares_owned?.toLocaleString() || 0} shares will be redeemed.
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Redemption Date</label>
+                <input
+                  type="date"
+                  value={newForm.redemption_date}
+                  onChange={(e) => setNewForm({ ...newForm, redemption_date: e.target.value })}
+                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Reason (optional)</label>
+                <textarea
+                  value={newForm.reason}
+                  onChange={(e) => setNewForm({ ...newForm, reason: e.target.value })}
+                  rows={2}
+                  placeholder="Reason for redemption..."
+                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-6 border-t border-slate-700">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateRedemption}
+                disabled={savingNew || !newForm.capital_account_id || !newForm.redemption_date}
+                className="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+              >
+                {savingNew ? 'Creating...' : 'Submit Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showReviewModal && selectedRequest && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
