@@ -8,18 +8,17 @@ interface EmailSetupProps {
 }
 
 export default function EmailSetup({ onAccountCreated }: EmailSetupProps) {
-  const { user, tenantId, currentTenant, staffAccount } = useAuth();
+  const { user, tenantId, staffAccount } = useAuth();
   const [step, setStep] = useState<'choose' | 'confirm'>('choose');
   const [handle, setHandle] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [emailDomain, setEmailDomain] = useState('');
+  const emailDomain = 'clearnav.cv';
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
-    loadDomain();
     if (staffAccount?.full_name) {
       setDisplayName(staffAccount.full_name);
       const suggested = staffAccount.full_name
@@ -29,25 +28,7 @@ export default function EmailSetup({ onAccountCreated }: EmailSetupProps) {
         .replace(/^\.+|\.+$/g, '');
       setHandle(suggested);
     }
-  }, [tenantId, staffAccount]);
-
-  const loadDomain = async () => {
-    if (!tenantId) return;
-
-    const { data } = await supabase
-      .from('tenant_domains')
-      .select('domain')
-      .eq('tenant_id', tenantId)
-      .eq('is_verified', true)
-      .order('created_at', { ascending: true })
-      .limit(1);
-
-    if (data && data.length > 0) {
-      setEmailDomain(data[0].domain);
-    } else {
-      setEmailDomain(`${currentTenant?.slug || 'tenant'}.clearnav.cv`);
-    }
-  };
+  }, [staffAccount]);
 
   const sanitizeHandle = (value: string) => {
     return value.toLowerCase().replace(/[^a-z0-9._+-]/g, '');

@@ -37,7 +37,7 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
       .from('platform_tenants')
       .select('*')
       .eq('slug', tenantParam)
-      .eq('status', 'active')
+      .in('status', ['active', 'trial'])
       .maybeSingle();
 
     tenant = data;
@@ -58,7 +58,7 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
         .from('platform_tenants')
         .select('*')
         .eq('slug', subdomain)
-        .eq('status', 'active')
+        .in('status', ['active', 'trial'])
         .maybeSingle();
 
       tenant = subdomainData;

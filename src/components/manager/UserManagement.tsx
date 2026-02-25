@@ -64,9 +64,13 @@ export default function UserManagement() {
   });
 
   useEffect(() => {
-    loadData();
-    checkPermissions();
-  }, [staffAccount]);
+    if (currentTenant) {
+      loadData();
+      checkPermissions();
+    } else if (staffAccount !== undefined || isTenantAdmin) {
+      setLoading(false);
+    }
+  }, [staffAccount, currentTenant, isTenantAdmin]);
 
   useEffect(() => {
     if (toast && !toast.inviteUrl) {

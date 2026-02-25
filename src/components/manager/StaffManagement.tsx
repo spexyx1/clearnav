@@ -74,11 +74,13 @@ export default function StaffManagement() {
   const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
-    if (userRole === 'general_manager' || isTenantAdmin) {
+    if ((userRole === 'general_manager' || isTenantAdmin) && currentTenant) {
       loadStaff();
       loadInvitations();
+    } else if (userRole !== null && !currentTenant) {
+      setLoading(false);
     }
-  }, [userRole, isTenantAdmin]);
+  }, [userRole, isTenantAdmin, currentTenant]);
 
   useEffect(() => {
     if (toast) {
