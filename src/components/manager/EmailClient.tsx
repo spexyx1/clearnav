@@ -51,6 +51,9 @@ export default function EmailClient() {
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
+  const [sending, setSending] = useState(false);
+  const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+
   const [composeForm, setComposeForm] = useState({
     to: '',
     cc: '',
@@ -200,9 +203,13 @@ export default function EmailClient() {
 
   const handleSendEmail = async () => {
     if (!selectedAccount || !composeForm.to || !composeForm.subject) {
-      alert('Please fill in recipient and subject');
+      setError('Please fill in recipient and subject');
       return;
     }
+
+    setSending(true);
+    setError(null);
+    setSendSuccess(null);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -218,21 +225,32 @@ export default function EmailClient() {
           account_id: selectedAccount.id,
           to: composeForm.to.split(',').map((e: string) => e.trim()).filter(Boolean),
           cc: composeForm.cc ? composeForm.cc.split(',').map((e: string) => e.trim()).filter(Boolean) : undefined,
+          bcc: composeForm.bcc ? composeForm.bcc.split(',').map((e: string) => e.trim()).filter(Boolean) : undefined,
           subject: composeForm.subject,
           body_text: composeForm.body,
+          body_html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; white-space: pre-wrap;">${composeForm.body.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`,
         }),
       });
 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to send');
 
+      const providerInfo = result.sent_via_provider
+        ? `Sent via ${result.provider}`
+        : 'Message saved';
+      setSendSuccess(providerInfo);
       setComposing(false);
       setComposeForm({ to: '', cc: '', bcc: '', subject: '', body: '' });
+
       if (currentFolder === 'sent') {
         loadMessages();
       }
+
+      setTimeout(() => setSendSuccess(null), 4000);
     } catch (err: any) {
       setError(err.message || 'Failed to send email');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -378,6 +396,15 @@ export default function EmailClient() {
             )}
           </div>
         </div>
+
+        {sendSuccess && (
+          <div className="mt-4 bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-3 rounded-lg flex items-center justify-between">
+            <span>{sendSuccess}</span>
+            <button onClick={() => setSendSuccess(null)} className="text-green-200 hover:text-white">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {error && (
           <div className="mt-4 bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg flex items-center justify-between">
@@ -557,14 +584,20 @@ export default function EmailClient() {
                 <div className="flex gap-2">
                   <button
                     onClick={handleSendEmail}
-                    className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex items-center gap-2"
+                    disabled={sending}
+                    className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 flex items-center gap-2"
                   >
-                    <Send className="h-4 w-4" />
-                    Send
+                    {sending ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    {sending ? 'Sending...' : 'Send'}
                   </button>
                   <button
                     onClick={() => setComposing(false)}
-                    className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800"
+                    disabled={sending}
+                    className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800 disabled:opacity-50"
                   >
                     Cancel
                   </button>

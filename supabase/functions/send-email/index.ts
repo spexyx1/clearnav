@@ -19,6 +19,32 @@ interface SendEmailPayload {
   reply_to?: string;
 }
 
+async function sendViaResend(apiKey: string, payload: {
+  from: string;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  text?: string;
+  html?: string;
+  reply_to?: string;
+}): Promise<{ success: boolean; message_id: string | null; error?: string }> {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (res.ok) {
+    return { success: true, message_id: data.id };
+  }
+  return { success: false, message_id: null, error: data.message || JSON.stringify(data) };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -47,7 +73,6 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Rate limiting: 50 emails per minute per user
     const rateLimitResult = checkRateLimit(user.id, { maxRequests: 50, windowMs: 60000 });
     if (!rateLimitResult.allowed) {
       return rateLimitResponse(rateLimitResult.resetAt);
@@ -98,6 +123,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    let providerResult = { success: false, provider: "none", message_id: null as string | null };
+
     const { data: emailSettings } = await supabase
       .from("tenant_email_settings")
       .select("*")
@@ -105,39 +132,26 @@ Deno.serve(async (req: Request) => {
       .eq("is_active", true)
       .maybeSingle();
 
-    let providerResult = { success: false, provider: "internal", message_id: null as string | null };
+    const tenantApiKey = emailSettings?.api_key_encrypted || null;
+    let platformApiKey = Deno.env.get("RESEND_API_KEY") || null;
 
-    if (emailSettings && emailSettings.api_key_encrypted) {
-      const apiKey = emailSettings.api_key_encrypted;
+    if (!platformApiKey) {
+      const { data: vaultSecret } = await supabase
+        .from("vault.decrypted_secrets")
+        .select("decrypted_secret")
+        .eq("name", "RESEND_API_KEY")
+        .maybeSingle();
+      if (vaultSecret?.decrypted_secret) {
+        platformApiKey = vaultSecret.decrypted_secret;
+      }
+    }
 
-      if (emailSettings.provider_type === "resend") {
-        const resendPayload = {
-          from: `${account.display_name} <${account.email_address}>`,
-          to,
-          cc: cc || [],
-          bcc: bcc || [],
-          subject,
-          text: body_text,
-          html: body_html,
-          reply_to: reply_to || account.email_address,
-        };
+    const resendKey = tenantApiKey || platformApiKey;
 
-        const resendRes = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(resendPayload),
-        });
+    if (resendKey) {
+      const fromAddress = `${account.display_name} <${account.email_address}>`;
 
-        const resendData = await resendRes.json();
-        if (resendRes.ok) {
-          providerResult = { success: true, provider: "resend", message_id: resendData.id };
-        } else {
-          throw new Error(`Resend error: ${resendData.message || JSON.stringify(resendData)}`);
-        }
-      } else if (emailSettings.provider_type === "sendgrid") {
+      if (emailSettings?.provider_type === "sendgrid" && tenantApiKey) {
         const sgPayload = {
           personalizations: [{
             to: to.map(email => ({ email })),
@@ -156,7 +170,7 @@ Deno.serve(async (req: Request) => {
         const sgRes = await fetch("https://api.sendgrid.com/v3/mail/send", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${apiKey}`,
+            "Authorization": `Bearer ${tenantApiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(sgPayload),
@@ -167,6 +181,23 @@ Deno.serve(async (req: Request) => {
         } else {
           const sgData = await sgRes.json().catch(() => ({}));
           throw new Error(`SendGrid error: ${JSON.stringify(sgData)}`);
+        }
+      } else {
+        const result = await sendViaResend(resendKey, {
+          from: fromAddress,
+          to,
+          cc: cc || [],
+          bcc: bcc || [],
+          subject,
+          text: body_text,
+          html: body_html,
+          reply_to: reply_to || account.email_address,
+        });
+
+        if (result.success) {
+          providerResult = { success: true, provider: "resend", message_id: result.message_id };
+        } else {
+          throw new Error(`Resend error: ${result.error}`);
         }
       }
     }
