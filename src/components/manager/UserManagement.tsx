@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Mail, X, Search, Shield, User, Clock, Check, Ban, Edit2, Trash2, DollarSign } from 'lucide-react';
+import {
+  UserPlus, Mail, X, Search, Shield, User, Clock, Check,
+  Ban, Edit2, Trash2, DollarSign, Copy, Link, AlertCircle, RefreshCw
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
@@ -11,6 +14,8 @@ interface Invitation {
   expires_at: string;
   created_at: string;
   invited_by: string;
+  metadata: any;
+  token: string;
 }
 
 interface ClientProfile {
@@ -23,8 +28,14 @@ interface ClientProfile {
   inception_date: string;
 }
 
+function generateToken() {
+  const arr = new Uint8Array(24);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export default function UserManagement() {
-  const { staffAccount, currentTenant, isTenantAdmin } = useAuth();
+  const { staffAccount, currentTenant, isTenantAdmin, user } = useAuth();
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +44,9 @@ export default function UserManagement() {
   const [editingClient, setEditingClient] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [canManageUsers, setCanManageUsers] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string; inviteUrl?: string } | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const [inviteForm, setInviteForm] = useState({
     email: '',
@@ -54,12 +68,18 @@ export default function UserManagement() {
     checkPermissions();
   }, [staffAccount]);
 
+  useEffect(() => {
+    if (toast && !toast.inviteUrl) {
+      const timer = setTimeout(() => setToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   const checkPermissions = async () => {
     if (isTenantAdmin) {
       setCanManageUsers(true);
       return;
     }
-
     if (!staffAccount) return;
 
     const { data: permissions } = await supabase
@@ -98,20 +118,63 @@ export default function UserManagement() {
     ]);
 
     setInvitations(invitationsRes.data || []);
-
     const combinedUsers = [
-      ...(staffRes.data || []).map(s => ({ ...s, user_type: 'staff' })),
-      ...(clientsRes.data || []).map(c => ({ ...c, user_type: 'client' }))
+      ...(staffRes.data || []).map((s: any) => ({ ...s, user_type: 'staff' })),
+      ...(clientsRes.data || []).map((c: any) => ({ ...c, user_type: 'client' })),
     ];
     setUsers(combinedUsers);
     setLoading(false);
   };
 
+  const sendInvitationEmail = async (email: string, token: string, role: string, userType: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return { success: false, inviteUrl: '' };
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-invitation-email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          token,
+          role,
+          userType,
+          tenantName: currentTenant?.company_name || currentTenant?.name || 'ClearNav',
+        }),
+      });
+
+      return await response.json();
+    } catch {
+      return { success: false, inviteUrl: '' };
+    }
+  };
+
   const handleSendInvitation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentTenant) return;
+    setSaving(true);
 
-    const token = await generateToken();
+    const existingUser = users.find(u => u.email?.toLowerCase() === inviteForm.email.toLowerCase());
+    if (existingUser) {
+      setToast({ type: 'error', message: 'A user with this email already exists.' });
+      setSaving(false);
+      return;
+    }
+
+    const existingInvite = invitations.find(i =>
+      i.email?.toLowerCase() === inviteForm.email.toLowerCase() && i.status === 'pending'
+    );
+    if (existingInvite) {
+      setToast({ type: 'error', message: 'A pending invitation already exists for this email.' });
+      setSaving(false);
+      return;
+    }
+
+    const token = generateToken();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
@@ -122,130 +185,165 @@ export default function UserManagement() {
         role: inviteForm.role,
         token,
         expires_at: expiresAt.toISOString(),
-        invited_by: staffAccount?.id,
+        invited_by: staffAccount?.id || user?.id,
         tenant_id: currentTenant.id,
-        metadata: { user_type: inviteForm.userType }
+        metadata: { user_type: inviteForm.userType },
       });
 
     if (error) {
-      console.error('Error sending invitation:', error);
-      alert('Error sending invitation: ' + error.message);
+      setToast({ type: 'error', message: 'Failed to create invitation: ' + error.message });
+      setSaving(false);
       return;
+    }
+
+    const emailResult = await sendInvitationEmail(
+      inviteForm.email,
+      token,
+      inviteForm.role,
+      inviteForm.userType
+    );
+
+    if (emailResult?.sent) {
+      await supabase.from('user_invitations').update({ status: 'sent' }).eq('token', token);
     }
 
     setShowInviteModal(false);
     setInviteForm({ email: '', role: 'client', userType: 'client' });
     loadData();
-  };
 
-  const generateToken = async () => {
-    const array = new Uint8Array(24);
-    crypto.getRandomValues(array);
-    return btoa(String.fromCharCode(...array))
-      .replace(/\//g, '_')
-      .replace(/\+/g, '-');
+    const inviteUrl = emailResult?.inviteUrl || `${window.location.origin}/accept-invite?token=${token}`;
+
+    if (emailResult?.sent) {
+      setToast({ type: 'success', message: `Invitation email sent to ${inviteForm.email}` });
+    } else {
+      setToast({
+        type: 'success',
+        message: `Invitation created. Share this link:`,
+        inviteUrl,
+      });
+    }
+    setSaving(false);
   };
 
   const cancelInvitation = async (id: string) => {
-    await supabase
-      .from('user_invitations')
-      .update({ status: 'cancelled' })
-      .eq('id', id);
+    await supabase.from('user_invitations').update({ status: 'cancelled' }).eq('id', id);
     loadData();
+    setToast({ type: 'success', message: 'Invitation cancelled' });
   };
 
   const resendInvitation = async (invitation: Invitation) => {
+    const emailResult = await sendInvitationEmail(
+      invitation.email,
+      invitation.token,
+      invitation.role,
+      invitation.metadata?.user_type || 'client'
+    );
+
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
-
     await supabase
       .from('user_invitations')
-      .update({
-        status: 'pending',
-        expires_at: expiresAt.toISOString(),
-      })
+      .update({ status: emailResult?.sent ? 'sent' : 'pending', expires_at: expiresAt.toISOString() })
       .eq('id', invitation.id);
 
     loadData();
+
+    if (emailResult?.sent) {
+      setToast({ type: 'success', message: `Invitation resent to ${invitation.email}` });
+    } else {
+      const inviteUrl = emailResult?.inviteUrl || `${window.location.origin}/accept-invite?token=${invitation.token}`;
+      setToast({ type: 'success', message: 'Share this link:', inviteUrl });
+    }
+  };
+
+  const copyInviteLink = async (token: string) => {
+    const url = `${window.location.origin}/accept-invite?token=${token}`;
+    await navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentTenant) return;
+    setSaving(true);
+
+    const tempPassword = crypto.getRandomValues(new Uint8Array(16));
+    const password = btoa(String.fromCharCode(...tempPassword)).replace(/[^a-zA-Z0-9]/g, '') + 'Aa1!';
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: clientForm.email,
-      password: generateTemporaryPassword(),
+      password,
       options: {
-        data: {
-          full_name: clientForm.full_name,
-        },
+        data: { full_name: clientForm.full_name },
         emailRedirectTo: window.location.origin,
       },
     });
 
     if (authError) {
-      alert('Error creating user account: ' + authError.message);
+      setToast({ type: 'error', message: 'Error creating user account: ' + authError.message });
+      setSaving(false);
       return;
     }
 
     if (!authData.user) {
-      alert('Failed to create user');
+      setToast({ type: 'error', message: 'Failed to create user' });
+      setSaving(false);
       return;
     }
 
-    const { error: profileError } = await supabase
-      .from('client_profiles')
-      .insert({
-        id: authData.user.id,
-        full_name: clientForm.full_name,
-        email: clientForm.email,
-        account_number: clientForm.account_number,
-        total_invested: clientForm.total_invested,
-        current_value: clientForm.current_value,
-        inception_date: clientForm.inception_date,
-        tenant_id: currentTenant.id,
-      });
+    const { error: profileError } = await supabase.from('client_profiles').insert({
+      id: authData.user.id,
+      full_name: clientForm.full_name,
+      email: clientForm.email,
+      account_number: clientForm.account_number,
+      total_invested: clientForm.total_invested,
+      current_value: clientForm.current_value,
+      inception_date: clientForm.inception_date,
+      tenant_id: currentTenant.id,
+    });
 
     if (profileError) {
-      console.error('Error creating client profile:', profileError);
-      alert('Error creating client profile: ' + profileError.message);
+      setToast({ type: 'error', message: 'Error creating client profile: ' + profileError.message });
+      setSaving(false);
       return;
     }
 
-    const { error: tenantUserError } = await supabase
-      .from('tenant_users')
-      .insert({
-        user_id: authData.user.id,
-        tenant_id: currentTenant.id,
-        role: 'client',
-      });
+    await supabase.from('tenant_users').insert({
+      user_id: authData.user.id,
+      tenant_id: currentTenant.id,
+      role: 'client',
+    });
 
-    if (tenantUserError) {
-      console.error('Error creating tenant user:', tenantUserError);
-    }
+    await supabase.from('user_roles').insert({
+      user_id: authData.user.id,
+      email: clientForm.email,
+      role_category: 'client',
+      tenant_id: currentTenant.id,
+      status: 'active',
+      metadata: { created_via: 'direct_creation', full_name: clientForm.full_name },
+    });
 
     setShowClientModal(false);
     setClientForm({
-      full_name: '',
-      email: '',
-      account_number: '',
-      total_invested: '0',
-      current_value: '0',
+      full_name: '', email: '', account_number: '',
+      total_invested: '0', current_value: '0',
       inception_date: new Date().toISOString().split('T')[0],
     });
     loadData();
+    setToast({ type: 'success', message: `Client "${clientForm.full_name}" created successfully` });
+    setSaving(false);
   };
 
   const handleUpdateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingClient) return;
+    setSaving(true);
 
     const { error } = await supabase
       .from('client_profiles')
       .update({
         full_name: clientForm.full_name,
-        email: clientForm.email,
         account_number: clientForm.account_number,
         total_invested: clientForm.total_invested,
         current_value: clientForm.current_value,
@@ -254,57 +352,45 @@ export default function UserManagement() {
       .eq('id', editingClient.id);
 
     if (error) {
-      alert('Error updating client: ' + error.message);
+      setToast({ type: 'error', message: 'Error updating client: ' + error.message });
+      setSaving(false);
       return;
     }
 
     setShowClientModal(false);
     setEditingClient(null);
     setClientForm({
-      full_name: '',
-      email: '',
-      account_number: '',
-      total_invested: '0',
-      current_value: '0',
+      full_name: '', email: '', account_number: '',
+      total_invested: '0', current_value: '0',
       inception_date: new Date().toISOString().split('T')[0],
     });
     loadData();
+    setToast({ type: 'success', message: 'Client updated successfully' });
+    setSaving(false);
   };
 
-  const handleDeleteClient = async (clientId: string) => {
-    if (!confirm('Are you sure you want to delete this client? This action cannot be undone.')) {
-      return;
-    }
+  const handleDeleteClient = async (client: any) => {
+    if (!confirm(`Are you sure you want to delete "${client.full_name}"? This action cannot be undone.`)) return;
 
-    const { error } = await supabase
-      .from('client_profiles')
-      .delete()
-      .eq('id', clientId);
-
+    const { error } = await supabase.from('client_profiles').delete().eq('id', client.id);
     if (error) {
-      alert('Error deleting client: ' + error.message);
+      setToast({ type: 'error', message: 'Error deleting client: ' + error.message });
       return;
     }
-
     loadData();
+    setToast({ type: 'success', message: `${client.full_name} deleted` });
   };
 
-  const handleDeleteStaff = async (staffId: string) => {
-    if (!confirm('Are you sure you want to remove this staff member? This action cannot be undone.')) {
-      return;
-    }
+  const handleDeleteStaff = async (member: any) => {
+    if (!confirm(`Are you sure you want to remove "${member.full_name}"? This action cannot be undone.`)) return;
 
-    const { error } = await supabase
-      .from('staff_accounts')
-      .delete()
-      .eq('id', staffId);
-
+    const { error } = await supabase.from('staff_accounts').delete().eq('id', member.id);
     if (error) {
-      alert('Error removing staff member: ' + error.message);
+      setToast({ type: 'error', message: 'Error removing staff member: ' + error.message });
       return;
     }
-
     loadData();
+    setToast({ type: 'success', message: `${member.full_name} removed` });
   };
 
   const openEditClientModal = (client: any) => {
@@ -320,22 +406,19 @@ export default function UserManagement() {
     setShowClientModal(true);
   };
 
-  const generateTemporaryPassword = () => {
-    return Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10).toUpperCase() + '!@#';
-  };
-
-  const filteredInvitations = invitations.filter(inv =>
+  const pendingInvitations = invitations.filter(i => i.status === 'pending' || i.status === 'sent');
+  const filteredInvitations = pendingInvitations.filter(inv =>
     inv.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const filteredUsers = users.filter(user =>
-    (user.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = users.filter(u =>
+    (u.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getStatusBadge = (status: string) => {
-    const colors: any = {
-      pending: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+    const colors: Record<string, string> = {
+      pending: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+      sent: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
       accepted: 'bg-green-500/20 text-green-300 border-green-500/30',
       expired: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
       cancelled: 'bg-red-500/20 text-red-300 border-red-500/30',
@@ -344,7 +427,7 @@ export default function UserManagement() {
   };
 
   const getRoleBadge = (role: string) => {
-    const colors: any = {
+    const colors: Record<string, string> = {
       general_manager: 'bg-red-500/20 text-red-300 border-red-500/30',
       compliance_manager: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
       accountant: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
@@ -356,244 +439,260 @@ export default function UserManagement() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
+        <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start">
         <div>
           <h2 className="text-2xl font-light text-white mb-1">
             User <span className="font-semibold">Management</span>
           </h2>
           <p className="text-slate-400">Manage clients, staff, and invitations</p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center gap-3">
           {canManageUsers && (
             <button
               onClick={() => {
                 setEditingClient(null);
                 setClientForm({
-                  full_name: '',
-                  email: '',
-                  account_number: '',
-                  total_invested: '0',
-                  current_value: '0',
+                  full_name: '', email: '', account_number: '',
+                  total_invested: '0', current_value: '0',
                   inception_date: new Date().toISOString().split('T')[0],
                 });
                 setShowClientModal(true);
               }}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors text-sm font-medium"
             >
               <User className="w-4 h-4" />
-              <span>Add Client</span>
+              Add Client
             </button>
           )}
           <button
             onClick={() => setShowInviteModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors text-sm font-medium"
           >
             <UserPlus className="w-4 h-4" />
-            <span>Invite User</span>
+            Invite User
           </button>
         </div>
       </div>
 
+      {toast && (
+        <div className={`px-4 py-3 rounded-lg flex items-start gap-3 ${
+          toast.type === 'success'
+            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
+            : 'bg-red-500/10 border border-red-500/30 text-red-300'
+        }`}>
+          {toast.type === 'success' ? <Check className="w-4 h-4 mt-0.5 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />}
+          <div className="flex-1 min-w-0">
+            <span className="text-sm">{toast.message}</span>
+            {toast.inviteUrl && (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  readOnly
+                  value={toast.inviteUrl}
+                  className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-600 rounded text-xs text-white font-mono truncate"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+                <button
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(toast.inviteUrl!);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 2000);
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs whitespace-nowrap"
+                >
+                  {copiedLink ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copiedLink ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            )}
+          </div>
+          <button onClick={() => setToast(null)} className="text-slate-400 hover:text-white flex-shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-4">
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
           <div className="text-2xl font-bold text-white">{users.length}</div>
           <div className="text-sm text-slate-400">Total Users</div>
         </div>
-        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-4">
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
           <div className="text-2xl font-bold text-white">{users.filter(u => u.user_type === 'staff').length}</div>
           <div className="text-sm text-slate-400">Staff Members</div>
         </div>
-        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-4">
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
           <div className="text-2xl font-bold text-white">{users.filter(u => u.user_type === 'client').length}</div>
           <div className="text-sm text-slate-400">Clients</div>
         </div>
-        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-4">
-          <div className="text-2xl font-bold text-white">{invitations.filter(i => i.status === 'pending').length}</div>
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <div className="text-2xl font-bold text-white">{pendingInvitations.length}</div>
           <div className="text-sm text-slate-400">Pending Invitations</div>
         </div>
       </div>
 
       <div className="relative">
-        <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+        <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" />
         <input
           type="text"
           placeholder="Search users and invitations..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+          className="w-full pl-10 pr-4 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
         />
       </div>
 
-      <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg overflow-hidden">
-        <div className="border-b border-slate-800 px-6 py-3 bg-slate-800/50">
-          <h3 className="text-white font-medium">Pending Invitations</h3>
+      {filteredInvitations.length > 0 && (
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
+          <div className="border-b border-slate-700/50 px-5 py-3 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-400" />
+            <h3 className="text-sm font-semibold text-white">Pending Invitations</h3>
+          </div>
+          <div className="divide-y divide-slate-800/50">
+            {filteredInvitations.map((inv) => (
+              <div key={inv.id} className="px-5 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Mail className="w-4 h-4 text-slate-500" />
+                  <div>
+                    <div className="text-sm text-white">{inv.email}</div>
+                    <div className="text-xs text-slate-500">
+                      {inv.metadata?.user_type === 'staff' ? 'Staff' : 'Client'} - Expires {new Date(inv.expires_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded border ${getStatusBadge(inv.status)}`}>{inv.status}</span>
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded border ${getRoleBadge(inv.role)}`}>
+                    {inv.role.replace(/_/g, ' ')}
+                  </span>
+                  <button
+                    onClick={() => copyInviteLink(inv.token)}
+                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-400 transition-colors"
+                    title="Copy invite link"
+                  >
+                    {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Link className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => resendInvitation(inv)}
+                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-400 transition-colors"
+                    title="Resend"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => cancelInvitation(inv.id)}
+                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition-colors"
+                    title="Cancel"
+                  >
+                    <Ban className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-800/30 border-b border-slate-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Expires</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {filteredInvitations.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                    No invitations found
-                  </td>
-                </tr>
-              ) : (
-                filteredInvitations.map((invitation) => (
-                  <tr key={invitation.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
-                        <Mail className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm text-white">{invitation.email}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded border ${getRoleBadge(invitation.role)}`}>
-                        {invitation.role.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded border ${getStatusBadge(invitation.status)}`}>
-                        {invitation.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-1 text-sm text-slate-300">
-                        <Clock className="w-3 h-3" />
-                        <span>{new Date(invitation.expires_at).toLocaleDateString()}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center space-x-2">
-                        {invitation.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => resendInvitation(invitation)}
-                              className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-400"
-                              title="Resend invitation"
-                            >
-                              <Mail className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => cancelInvitation(invitation.id)}
-                              className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400"
-                              title="Cancel invitation"
-                            >
-                              <Ban className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
 
-      <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg overflow-hidden">
-        <div className="border-b border-slate-800 px-6 py-3 bg-slate-800/50">
-          <h3 className="text-white font-medium">Active Users</h3>
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
+        <div className="border-b border-slate-700/50 px-5 py-3">
+          <h3 className="text-sm font-semibold text-white">Active Users</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-800/30 border-b border-slate-700">
+            <thead className="bg-slate-800/30 border-b border-slate-700/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Role/Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Joined</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Email</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Type</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Role/Status</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Joined</th>
                 {canManageUsers && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+                  <th className="px-5 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-slate-800/50">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={canManageUsers ? 6 : 5} className="px-6 py-12 text-center text-slate-500">
-                    No users found
+                  <td colSpan={canManageUsers ? 6 : 5} className="px-5 py-16 text-center">
+                    <User className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+                    <p className="text-slate-500">No users found</p>
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-white">{user.full_name}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-300">{user.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
-                        {user.user_type === 'staff' ? (
-                          <Shield className="w-4 h-4 text-orange-400" />
-                        ) : (
-                          <User className="w-4 h-4 text-cyan-400" />
-                        )}
-                        <span className="text-sm text-slate-300 capitalize">{user.user_type}</span>
+                filteredUsers.map((u) => (
+                  <tr key={u.id} className="hover:bg-slate-800/20 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          u.user_type === 'staff'
+                            ? 'bg-gradient-to-br from-orange-500/30 to-amber-500/30'
+                            : 'bg-gradient-to-br from-cyan-500/30 to-teal-500/30'
+                        }`}>
+                          <span className={`text-xs font-semibold ${u.user_type === 'staff' ? 'text-orange-300' : 'text-cyan-300'}`}>
+                            {(u.full_name || '?')[0].toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium text-white">{u.full_name}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {user.user_type === 'staff' ? (
-                        <span className={`px-2 py-1 text-xs font-medium rounded border ${getRoleBadge(user.role)}`}>
-                          {user.role.replace('_', ' ')}
+                    <td className="px-5 py-3.5 text-sm text-slate-300">{u.email}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1.5">
+                        {u.user_type === 'staff' ? (
+                          <Shield className="w-3.5 h-3.5 text-orange-400" />
+                        ) : (
+                          <User className="w-3.5 h-3.5 text-cyan-400" />
+                        )}
+                        <span className="text-sm text-slate-300 capitalize">{u.user_type}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {u.user_type === 'staff' ? (
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded border ${getRoleBadge(u.role)}`}>
+                          {(u.role || '').replace(/_/g, ' ')}
                         </span>
                       ) : (
-                        <div className="flex items-center space-x-1 text-sm text-slate-300">
+                        <div className="flex items-center gap-1 text-sm text-slate-300">
                           <DollarSign className="w-3 h-3" />
-                          <span>{(user.current_value || 0).toLocaleString()}</span>
+                          <span>{Number(u.current_value || 0).toLocaleString()}</span>
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-300">
-                        {new Date(user.created_at).toLocaleDateString()}
-                      </div>
+                    <td className="px-5 py-3.5 text-sm text-slate-400">
+                      {new Date(u.created_at).toLocaleDateString()}
                     </td>
                     {canManageUsers && (
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          {user.user_type === 'client' && (
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
+                          {u.user_type === 'client' && (
                             <>
                               <button
-                                onClick={() => openEditClientModal(user)}
-                                className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-blue-400"
+                                onClick={() => openEditClientModal(u)}
+                                className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-blue-400 transition-colors"
                                 title="Edit client"
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleDeleteClient(user.id)}
-                                className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400"
+                                onClick={() => handleDeleteClient(u)}
+                                className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition-colors"
                                 title="Delete client"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </>
                           )}
-                          {user.user_type === 'staff' && user.id !== staffAccount?.id && (
+                          {u.user_type === 'staff' && u.id !== staffAccount?.id && (
                             <button
-                              onClick={() => handleDeleteStaff(user.id)}
-                              className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400"
+                              onClick={() => handleDeleteStaff(u)}
+                              className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition-colors"
                               title="Remove staff"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -611,37 +710,30 @@ export default function UserManagement() {
       </div>
 
       {showInviteModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-semibold text-white">Invite User</h3>
-              <button
-                onClick={() => setShowInviteModal(false)}
-                className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
-              >
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800">
+              <h3 className="text-lg font-semibold text-white">Invite User</h3>
+              <button onClick={() => setShowInviteModal(false)} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSendInvitation} className="space-y-4">
+            <form onSubmit={handleSendInvitation} className="p-5 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Email Address
-                </label>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Email Address</label>
                 <input
                   type="email"
                   required
                   value={inviteForm.email}
                   onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                   placeholder="user@example.com"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  User Type
-                </label>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">User Type</label>
                 <select
                   value={inviteForm.userType}
                   onChange={(e) => {
@@ -649,10 +741,10 @@ export default function UserManagement() {
                     setInviteForm({
                       ...inviteForm,
                       userType: type,
-                      role: type === 'staff' ? 'admin' : 'client'
+                      role: type === 'staff' ? 'admin' : 'client',
                     });
                   }}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                 >
                   <option value="client">Investor Client</option>
                   <option value="staff">Staff Member</option>
@@ -661,13 +753,11 @@ export default function UserManagement() {
 
               {inviteForm.userType === 'staff' && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Staff Role
-                  </label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Staff Role</label>
                   <select
                     value={inviteForm.role}
                     onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                   >
                     <option value="admin">Admin</option>
                     <option value="general_manager">General Manager</option>
@@ -679,20 +769,21 @@ export default function UserManagement() {
                 </div>
               )}
 
-              <div className="flex space-x-3 pt-4">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowInviteModal(false)}
-                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors flex items-center justify-center space-x-2"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
                 >
-                  <Mail className="w-4 h-4" />
-                  <span>Send Invitation</span>
+                  {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                  {saving ? 'Sending...' : 'Send Invitation'}
                 </button>
               </div>
             </form>
@@ -701,50 +792,43 @@ export default function UserManagement() {
       )}
 
       {showClientModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-semibold text-white">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-slate-900 flex items-center justify-between p-5 border-b border-slate-800 z-10">
+              <h3 className="text-lg font-semibold text-white">
                 {editingClient ? 'Edit Client' : 'Add New Client'}
               </h3>
               <button
-                onClick={() => {
-                  setShowClientModal(false);
-                  setEditingClient(null);
-                }}
+                onClick={() => { setShowClientModal(false); setEditingClient(null); }}
                 className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={editingClient ? handleUpdateClient : handleCreateClient} className="space-y-4">
+            <form onSubmit={editingClient ? handleUpdateClient : handleCreateClient} className="p-5 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Full Name *
-                  </label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Full Name</label>
                   <input
                     type="text"
                     required
                     value={clientForm.full_name}
                     onChange={(e) => setClientForm({ ...clientForm, full_name: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                     placeholder="John Doe"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Email Address *
-                  </label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Email Address</label>
                   <input
                     type="email"
                     required
                     value={clientForm.email}
                     onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })}
                     disabled={!!editingClient}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder="john@example.com"
                   />
                   {editingClient && (
@@ -753,36 +837,30 @@ export default function UserManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Account Number *
-                  </label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Account Number</label>
                   <input
                     type="text"
                     required
                     value={clientForm.account_number}
                     onChange={(e) => setClientForm({ ...clientForm, account_number: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                     placeholder="ACC001"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Inception Date *
-                  </label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Inception Date</label>
                   <input
                     type="date"
                     required
                     value={clientForm.inception_date}
                     onChange={(e) => setClientForm({ ...clientForm, inception_date: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Total Invested *
-                  </label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Total Invested</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
                     <input
@@ -791,16 +869,14 @@ export default function UserManagement() {
                       step="0.01"
                       value={clientForm.total_invested}
                       onChange={(e) => setClientForm({ ...clientForm, total_invested: e.target.value })}
-                      className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                      className="w-full pl-8 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                       placeholder="100000.00"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Current Value *
-                  </label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Current Value</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
                     <input
@@ -809,7 +885,7 @@ export default function UserManagement() {
                       step="0.01"
                       value={clientForm.current_value}
                       onChange={(e) => setClientForm({ ...clientForm, current_value: e.target.value })}
-                      className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                      className="w-full pl-8 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                       placeholder="110000.00"
                     />
                   </div>
@@ -819,28 +895,26 @@ export default function UserManagement() {
               {!editingClient && (
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
                   <p className="text-sm text-blue-300">
-                    A temporary password will be automatically generated. The client will receive an email to set up their account.
+                    A temporary password will be generated automatically. The client should reset their password upon first login.
                   </p>
                 </div>
               )}
 
-              <div className="flex space-x-3 pt-4">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowClientModal(false);
-                    setEditingClient(null);
-                  }}
-                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded transition-colors"
+                  onClick={() => { setShowClientModal(false); setEditingClient(null); }}
+                  className="flex-1 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors flex items-center justify-center space-x-2"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
                 >
-                  <User className="w-4 h-4" />
-                  <span>{editingClient ? 'Update Client' : 'Create Client'}</span>
+                  {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <User className="w-4 h-4" />}
+                  {saving ? 'Saving...' : editingClient ? 'Update Client' : 'Create Client'}
                 </button>
               </div>
             </form>

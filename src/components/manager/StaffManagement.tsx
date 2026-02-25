@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Edit, Trash2, Shield, X, Settings, Clock, RefreshCw, Mail } from 'lucide-react';
+import { UserPlus, Trash2, Shield, X, Settings, Clock, RefreshCw, Mail, Check, Copy, Link, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
@@ -70,6 +70,8 @@ export default function StaffManagement() {
     permissions: {} as Record<string, boolean>,
   });
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string; inviteUrl?: string } | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
     if (userRole === 'general_manager' || isTenantAdmin) {
@@ -77,6 +79,15 @@ export default function StaffManagement() {
       loadInvitations();
     }
   }, [userRole, isTenantAdmin]);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        if (!toast.inviteUrl) setToast(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const loadStaff = async () => {
     if (!currentTenant) return;
@@ -111,9 +122,52 @@ export default function StaffManagement() {
     setShowInviteModal(true);
   };
 
+  const sendInvitationEmail = async (email: string, token: string, role: string, customMessage?: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return { success: false, inviteUrl: '' };
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-invitation-email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          token,
+          role,
+          userType: 'staff',
+          tenantName: currentTenant?.company_name || currentTenant?.name || 'ClearNav',
+          customMessage,
+        }),
+      });
+
+      const result = await response.json();
+      return result;
+    } catch {
+      return { success: false, inviteUrl: '' };
+    }
+  };
+
   const handleSendInvitation = async () => {
     if (!inviteForm.email || !inviteForm.full_name || !currentTenant) return;
     setSaving(true);
+
+    const existing = staff.find(s => s.email?.toLowerCase() === inviteForm.email.toLowerCase());
+    if (existing) {
+      setToast({ type: 'error', message: 'A staff member with this email already exists.' });
+      setSaving(false);
+      return;
+    }
+
+    const existingInvite = invitations.find(i => i.email?.toLowerCase() === inviteForm.email.toLowerCase());
+    if (existingInvite) {
+      setToast({ type: 'error', message: 'An invitation has already been sent to this email.' });
+      setSaving(false);
+      return;
+    }
 
     const token = generateToken();
     const { error } = await supabase
@@ -131,20 +185,71 @@ export default function StaffManagement() {
       });
 
     if (error) {
-      alert('Error sending invitation: ' + error.message);
-    } else {
-      setShowInviteModal(false);
-      loadInvitations();
+      setToast({ type: 'error', message: 'Failed to create invitation: ' + error.message });
+      setSaving(false);
+      return;
     }
+
+    const emailResult = await sendInvitationEmail(
+      inviteForm.email,
+      token,
+      inviteForm.role,
+      inviteForm.custom_message
+    );
+
+    if (emailResult?.sent) {
+      await supabase
+        .from('staff_invitations')
+        .update({ status: 'sent' })
+        .eq('token', token);
+    }
+
+    setShowInviteModal(false);
+    loadInvitations();
+
+    const inviteUrl = emailResult?.inviteUrl || `${window.location.origin}/accept-invite?token=${token}`;
+
+    if (emailResult?.sent) {
+      setToast({ type: 'success', message: `Invitation email sent to ${inviteForm.email}` });
+    } else {
+      setToast({
+        type: 'success',
+        message: `Invitation created. Share the link below with ${inviteForm.full_name}:`,
+        inviteUrl,
+      });
+    }
+
     setSaving(false);
   };
 
-  const handleResendInvitation = async (invitationId: string) => {
+  const handleResendInvitation = async (invitation: any) => {
+    const emailResult = await sendInvitationEmail(
+      invitation.email,
+      invitation.token,
+      invitation.role,
+      invitation.custom_message
+    );
+
     await supabase
       .from('staff_invitations')
-      .update({ status: 'sent', expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() })
-      .eq('id', invitationId);
+      .update({
+        status: emailResult?.sent ? 'sent' : 'pending',
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      })
+      .eq('id', invitation.id);
+
     loadInvitations();
+
+    if (emailResult?.sent) {
+      setToast({ type: 'success', message: `Invitation resent to ${invitation.email}` });
+    } else {
+      const inviteUrl = emailResult?.inviteUrl || `${window.location.origin}/accept-invite?token=${invitation.token}`;
+      setToast({
+        type: 'success',
+        message: `Share this link with ${invitation.full_name}:`,
+        inviteUrl,
+      });
+    }
   };
 
   const handleCancelInvitation = async (invitationId: string) => {
@@ -153,6 +258,14 @@ export default function StaffManagement() {
       .update({ status: 'cancelled' })
       .eq('id', invitationId);
     loadInvitations();
+    setToast({ type: 'success', message: 'Invitation cancelled' });
+  };
+
+  const copyInviteLink = async (token: string) => {
+    const url = `${window.location.origin}/accept-invite?token=${token}`;
+    await navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const openPermissionsModal = (member: any) => {
@@ -174,16 +287,27 @@ export default function StaffManagement() {
       .update({ permissions })
       .eq('id', selectedStaff.id);
 
-    if (error) { alert('Error updating permissions: ' + error.message); }
+    if (error) {
+      setToast({ type: 'error', message: 'Error updating permissions: ' + error.message });
+    } else {
+      setToast({ type: 'success', message: `Permissions updated for ${selectedStaff.full_name}` });
+    }
     setShowPermissionsModal(false);
     setSelectedStaff(null);
     loadStaff();
   };
 
-  const handleDeactivate = async (memberId: string) => {
-    if (!confirm('Are you sure you want to deactivate this staff member?')) return;
-    await supabase.from('staff_accounts').update({ status: 'inactive' }).eq('id', memberId);
+  const handleDeactivate = async (member: any) => {
+    if (!confirm(`Are you sure you want to deactivate ${member.full_name}?`)) return;
+    await supabase.from('staff_accounts').update({ status: 'inactive' }).eq('id', member.id);
     loadStaff();
+    setToast({ type: 'success', message: `${member.full_name} has been deactivated` });
+  };
+
+  const handleReactivate = async (member: any) => {
+    await supabase.from('staff_accounts').update({ status: 'active' }).eq('id', member.id);
+    loadStaff();
+    setToast({ type: 'success', message: `${member.full_name} has been reactivated` });
   };
 
   if (userRole !== 'general_manager' && !isTenantAdmin) {
@@ -215,6 +339,9 @@ export default function StaffManagement() {
     return colors[role] || colors.admin;
   };
 
+  const activeStaff = staff.filter(s => s.status === 'active');
+  const inactiveStaff = staff.filter(s => s.status !== 'active');
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start">
@@ -233,9 +360,46 @@ export default function StaffManagement() {
         </button>
       </div>
 
+      {toast && (
+        <div className={`px-4 py-3 rounded-lg flex items-start gap-3 ${
+          toast.type === 'success'
+            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
+            : 'bg-red-500/10 border border-red-500/30 text-red-300'
+        }`}>
+          {toast.type === 'success' ? <Check className="w-4 h-4 mt-0.5 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />}
+          <div className="flex-1 min-w-0">
+            <span className="text-sm">{toast.message}</span>
+            {toast.inviteUrl && (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  readOnly
+                  value={toast.inviteUrl}
+                  className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-600 rounded text-xs text-white font-mono truncate"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+                <button
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(toast.inviteUrl!);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 2000);
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs whitespace-nowrap"
+                >
+                  {copiedLink ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copiedLink ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            )}
+          </div>
+          <button onClick={() => setToast(null)} className="text-slate-400 hover:text-white flex-shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-          <div className="text-2xl font-bold text-white">{staff.filter(s => s.status === 'active').length}</div>
+          <div className="text-2xl font-bold text-white">{activeStaff.length}</div>
           <div className="text-sm text-slate-400">Active Staff</div>
         </div>
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
@@ -259,21 +423,30 @@ export default function StaffManagement() {
               <div key={inv.id} className="px-5 py-3 flex items-center justify-between">
                 <div>
                   <div className="text-sm text-white font-medium">{inv.full_name}</div>
-                  <div className="text-xs text-slate-400">{inv.email} - <span className="capitalize">{inv.role.replace('_', ' ')}</span></div>
+                  <div className="text-xs text-slate-400">
+                    {inv.email} - <span className="capitalize">{inv.role.replace(/_/g, ' ')}</span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">{inv.status}</span>
                   <button
-                    onClick={() => handleResendInvitation(inv.id)}
-                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-teal-400"
-                    title="Resend"
+                    onClick={() => copyInviteLink(inv.token)}
+                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-400 transition-colors"
+                    title="Copy invite link"
+                  >
+                    {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Link className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => handleResendInvitation(inv)}
+                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-teal-400 transition-colors"
+                    title="Resend invitation"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => handleCancelInvitation(inv.id)}
-                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400"
-                    title="Cancel"
+                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition-colors"
+                    title="Cancel invitation"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -285,6 +458,9 @@ export default function StaffManagement() {
       )}
 
       <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-700/50">
+          <h3 className="text-sm font-semibold text-white">Active Team Members</h3>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-800/30 border-b border-slate-700/50">
@@ -298,18 +474,25 @@ export default function StaffManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
-              {staff.length === 0 ? (
+              {activeStaff.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-16 text-center">
                     <UserPlus className="w-12 h-12 text-slate-700 mx-auto mb-3" />
-                    <p className="text-slate-400">No staff members yet</p>
+                    <p className="text-slate-400">No active staff members</p>
                     <p className="text-slate-500 text-sm mt-1">Click "Invite Staff" to add your first team member</p>
                   </td>
                 </tr>
               ) : (
-                staff.map((member) => (
+                activeStaff.map((member) => (
                   <tr key={member.id} className="hover:bg-slate-800/20 transition-colors">
-                    <td className="px-5 py-3.5 text-sm font-medium text-white">{member.full_name}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500/30 to-cyan-500/30 flex items-center justify-center">
+                          <span className="text-xs font-semibold text-teal-300">{(member.full_name || '?')[0].toUpperCase()}</span>
+                        </div>
+                        <span className="text-sm font-medium text-white">{member.full_name}</span>
+                      </div>
+                    </td>
                     <td className="px-5 py-3.5 text-sm text-slate-300">{member.email}</td>
                     <td className="px-5 py-3.5">
                       <span className={`px-2 py-0.5 text-xs font-medium rounded border ${getRoleColor(member.role)}`}>
@@ -318,23 +501,23 @@ export default function StaffManagement() {
                     </td>
                     <td className="px-5 py-3.5 text-sm text-slate-300">{member.phone || '-'}</td>
                     <td className="px-5 py-3.5">
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${member.status === 'active' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-                        {member.status}
+                      <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-500/20 text-green-300">
+                        active
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => openPermissionsModal(member)}
-                          className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-teal-400"
+                          className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-teal-400 transition-colors"
                           title="Manage permissions"
                         >
                           <Settings className="w-4 h-4" />
                         </button>
-                        {member.id !== staffAccount?.id && member.status === 'active' && (
+                        {member.id !== staffAccount?.id && (
                           <button
-                            onClick={() => handleDeactivate(member.id)}
-                            className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400"
+                            onClick={() => handleDeactivate(member)}
+                            className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition-colors"
                             title="Deactivate"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -349,6 +532,35 @@ export default function StaffManagement() {
           </table>
         </div>
       </div>
+
+      {inactiveStaff.length > 0 && (
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-700/50">
+            <h3 className="text-sm font-semibold text-slate-400">Inactive Members</h3>
+          </div>
+          <div className="divide-y divide-slate-800/50">
+            {inactiveStaff.map((member) => (
+              <div key={member.id} className="px-5 py-3 flex items-center justify-between opacity-60">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
+                    <span className="text-xs font-semibold text-slate-400">{(member.full_name || '?')[0].toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <div className="text-sm text-white">{member.full_name}</div>
+                    <div className="text-xs text-slate-500">{member.email} - {member.role.replace(/_/g, ' ')}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleReactivate(member)}
+                  className="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors"
+                >
+                  Reactivate
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -443,7 +655,7 @@ export default function StaffManagement() {
                 disabled={saving || !inviteForm.full_name || !inviteForm.email}
                 className="px-4 py-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
               >
-                <Mail className="w-4 h-4" />
+                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
                 {saving ? 'Sending...' : 'Send Invitation'}
               </button>
             </div>

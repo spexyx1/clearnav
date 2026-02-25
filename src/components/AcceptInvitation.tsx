@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Loader2, Mail } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useNavigate } from 'react-router-dom';
 
 export default function AcceptInvitation() {
   const [invitation, setInvitation] = useState<any>(null);
+  const [invitationSource, setInvitationSource] = useState<'user' | 'staff'>('user');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [registering, setRegistering] = useState(false);
@@ -30,26 +30,48 @@ export default function AcceptInvitation() {
   }, []);
 
   const loadInvitation = async (token: string) => {
-    const { data, error: invError } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from('user_invitations')
       .select('*')
       .eq('token', token)
       .eq('status', 'pending')
       .maybeSingle();
 
-    if (invError || !data) {
-      setError('Invitation not found or has already been used');
+    if (userData) {
+      if (new Date(userData.expires_at) < new Date()) {
+        setError('This invitation has expired');
+        setLoading(false);
+        return;
+      }
+      setInvitation(userData);
+      setInvitationSource('user');
       setLoading(false);
       return;
     }
 
-    if (new Date(data.expires_at) < new Date()) {
-      setError('This invitation has expired');
+    const { data: staffData } = await supabase
+      .from('staff_invitations')
+      .select('*')
+      .eq('token', token)
+      .in('status', ['pending', 'sent'])
+      .maybeSingle();
+
+    if (staffData) {
+      if (staffData.expires_at && new Date(staffData.expires_at) < new Date()) {
+        setError('This invitation has expired');
+        setLoading(false);
+        return;
+      }
+      setInvitation(staffData);
+      setInvitationSource('staff');
+      if (staffData.full_name) {
+        setSignupForm(prev => ({ ...prev, fullName: staffData.full_name }));
+      }
       setLoading(false);
       return;
     }
 
-    setInvitation(data);
+    setError('Invitation not found or has already been used');
     setLoading(false);
   };
 
@@ -75,101 +97,124 @@ export default function AcceptInvitation() {
         password: signupForm.password,
       });
 
-      if (authError) {
-        throw authError;
-      }
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Failed to create user account');
 
-      if (!authData.user) {
-        throw new Error('Failed to create user account');
-      }
+      if (invitationSource === 'staff') {
+        const roleDetail = invitation.role || 'admin';
 
-      const userType = invitation.metadata?.user_type || 'client';
+        const { error: userRoleError } = await supabase
+          .from('user_roles')
+          .insert({
+            user_id: authData.user.id,
+            email: invitation.email,
+            role_category: 'staff_user',
+            role_detail: roleDetail,
+            tenant_id: invitation.tenant_id,
+            status: 'active',
+            metadata: {
+              created_via: 'staff_invitation',
+              invitation_id: invitation.id,
+              full_name: signupForm.fullName,
+            },
+          });
 
-      // Create user_roles entry first
-      const roleCategory = userType === 'staff' ? 'staff_user' : 'client';
-      const roleDetail = userType === 'staff' ? invitation.role : null;
+        if (userRoleError) throw new Error('Failed to create user role');
 
-      const { error: userRoleError } = await supabase
-        .from('user_roles')
-        .insert({
-          user_id: authData.user.id,
-          email: invitation.email,
-          role_category: roleCategory,
-          role_detail: roleDetail,
-          tenant_id: invitation.tenant_id,
-          status: 'active',
-          metadata: {
-            created_via: 'invitation',
-            invitation_id: invitation.id,
-            full_name: signupForm.fullName,
-          },
-        });
-
-      if (userRoleError) {
-        console.error('Error creating user role:', userRoleError);
-        throw new Error('Failed to create user role');
-      }
-
-      if (userType === 'staff') {
         const { error: staffError } = await supabase
           .from('staff_accounts')
           .insert({
             auth_user_id: authData.user.id,
             email: invitation.email,
             full_name: signupForm.fullName,
-            role: invitation.role,
+            role: roleDetail,
             status: 'active',
             tenant_id: invitation.tenant_id,
+            permissions: invitation.permissions || {},
           });
 
-        if (staffError) {
-          console.error('Error creating staff account:', staffError);
-          throw new Error('Failed to create staff account');
-        }
-      } else {
-        const accountNumber = `GA${String(Math.floor(Math.random() * 90000) + 10000)}`;
+        if (staffError) throw new Error('Failed to create staff account');
 
-        const { error: clientError } = await supabase
-          .from('client_profiles')
-          .insert({
-            id: authData.user.id,
-            email: invitation.email,
-            full_name: signupForm.fullName,
-            account_number: accountNumber,
-            total_invested: 0,
-            current_value: 0,
-            inception_date: new Date().toISOString(),
-            tenant_id: invitation.tenant_id,
-          });
-
-        if (clientError) {
-          console.error('Error creating client profile:', clientError);
-          throw new Error('Failed to create client profile');
-        }
-      }
-
-      const { error: updateError } = await supabase
-        .from('user_invitations')
-        .update({
-          status: 'accepted',
-          accepted_at: new Date().toISOString(),
-        })
-        .eq('id', invitation.id);
-
-      if (updateError) {
-        console.error('Error updating invitation:', updateError);
-      }
-
-      if (invitation.tenant_id) {
         await supabase
-          .from('tenant_users')
+          .from('staff_invitations')
+          .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+          .eq('id', invitation.id);
+
+        await supabase.from('tenant_users').insert({
+          user_id: authData.user.id,
+          tenant_id: invitation.tenant_id,
+          role: 'admin',
+          invited_via: invitation.id,
+          onboarding_status: 'completed',
+        });
+      } else {
+        const userType = invitation.metadata?.user_type || 'client';
+        const roleCategory = userType === 'staff' ? 'staff_user' : 'client';
+        const roleDetail = userType === 'staff' ? invitation.role : null;
+
+        const { error: userRoleError } = await supabase
+          .from('user_roles')
           .insert({
+            user_id: authData.user.id,
+            email: invitation.email,
+            role_category: roleCategory,
+            role_detail: roleDetail,
+            tenant_id: invitation.tenant_id,
+            status: 'active',
+            metadata: {
+              created_via: 'invitation',
+              invitation_id: invitation.id,
+              full_name: signupForm.fullName,
+            },
+          });
+
+        if (userRoleError) throw new Error('Failed to create user role');
+
+        if (userType === 'staff') {
+          const { error: staffError } = await supabase
+            .from('staff_accounts')
+            .insert({
+              auth_user_id: authData.user.id,
+              email: invitation.email,
+              full_name: signupForm.fullName,
+              role: invitation.role,
+              status: 'active',
+              tenant_id: invitation.tenant_id,
+            });
+
+          if (staffError) throw new Error('Failed to create staff account');
+        } else {
+          const accountNumber = `GA${String(Math.floor(Math.random() * 90000) + 10000)}`;
+          const { error: clientError } = await supabase
+            .from('client_profiles')
+            .insert({
+              id: authData.user.id,
+              email: invitation.email,
+              full_name: signupForm.fullName,
+              account_number: accountNumber,
+              total_invested: 0,
+              current_value: 0,
+              inception_date: new Date().toISOString(),
+              tenant_id: invitation.tenant_id,
+            });
+
+          if (clientError) throw new Error('Failed to create client profile');
+        }
+
+        await supabase
+          .from('user_invitations')
+          .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+          .eq('id', invitation.id);
+
+        if (invitation.tenant_id) {
+          await supabase.from('tenant_users').insert({
             user_id: authData.user.id,
             tenant_id: invitation.tenant_id,
             role: userType === 'staff' ? 'admin' : 'user',
             invited_via: invitation.id,
             onboarding_status: userType === 'client' ? 'in_progress' : 'completed',
           });
+        }
       }
 
       setSuccess(true);
@@ -230,14 +275,16 @@ export default function AcceptInvitation() {
     );
   }
 
+  const roleDisplay = (invitation.role || '').replace(/_/g, ' ');
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
       <div className="max-w-md w-full mx-4">
         <div className="bg-slate-900 border border-slate-800 rounded-lg p-8">
           <div className="text-center mb-8">
-            <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded mx-auto mb-4"></div>
+            <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-teal-600 rounded mx-auto mb-4" />
             <h1 className="text-3xl font-light text-white mb-2">
-              GREY<span className="font-semibold">ALPHA</span>
+              CLEAR<span className="font-semibold">NAV</span>
             </h1>
             <p className="text-slate-400">Complete your registration</p>
           </div>
@@ -249,7 +296,7 @@ export default function AcceptInvitation() {
             </div>
             <p className="text-white font-medium">{invitation.email}</p>
             <p className="text-sm text-slate-400 mt-1">
-              Role: <span className="text-cyan-400">{invitation.role.replace(/_/g, ' ')}</span>
+              Role: <span className="text-cyan-400 capitalize">{roleDisplay}</span>
             </p>
           </div>
 
