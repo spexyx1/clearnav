@@ -54,7 +54,7 @@ function generateToken() {
 }
 
 export default function StaffManagement() {
-  const { staffAccount, userRole, currentTenant, isTenantAdmin, user } = useAuth();
+  const { staffAccount, userRole, currentTenant, isTenantAdmin, user, isPlatformAdmin } = useAuth();
   const [staff, setStaff] = useState<any[]>([]);
   const [invitations, setInvitations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +76,7 @@ export default function StaffManagement() {
   const [successDetails, setSuccessDetails] = useState<{ email: string; fullName: string; inviteUrl: string; sent: boolean } | null>(null);
 
   useEffect(() => {
+    console.log('StaffManagement auth state:', { userRole, isTenantAdmin, currentTenant, isPlatformAdmin, staffAccount });
     if ((userRole === 'general_manager' || isTenantAdmin) && currentTenant) {
       loadStaff();
       loadInvitations();
@@ -351,6 +352,22 @@ export default function StaffManagement() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="animate-spin w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (!currentTenant) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center space-y-4">
+          <AlertCircle className="w-16 h-16 text-red-400 mx-auto" />
+          <div>
+            <h3 className="text-xl font-semibold text-white mb-2">No Tenant Context</h3>
+            <p className="text-slate-400 max-w-md">
+              Unable to load staff management. Please ensure you're accessing this page from a tenant-specific domain or contact support.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
