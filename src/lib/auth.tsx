@@ -82,6 +82,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoleCategory(userRoleData.role_category as RoleCategory);
     setRoleDetail(userRoleData.role_detail);
 
+    // If no tenant resolved from domain but user has a tenant_id, load that tenant
+    if (!resolvedTenant && userRoleData.tenant_id) {
+      const { data: userTenant } = await supabase
+        .from('tenants')
+        .select('*')
+        .eq('id', userRoleData.tenant_id)
+        .maybeSingle();
+      if (userTenant) {
+        setCurrentTenant(userTenant);
+        resolvedTenant = userTenant;
+      }
+    }
+
     // Set flags based on role_category
     switch (userRoleData.role_category) {
       case 'superadmin':

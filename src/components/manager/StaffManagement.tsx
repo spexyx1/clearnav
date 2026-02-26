@@ -75,34 +75,15 @@ export default function StaffManagement() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successDetails, setSuccessDetails] = useState<{ email: string; fullName: string; inviteUrl: string; sent: boolean } | null>(null);
 
-  const [availableTenants, setAvailableTenants] = useState<any[]>([]);
-  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
-  const [selectedTenantObj, setSelectedTenantObj] = useState<any | null>(null);
-
-  const effectiveTenant = currentTenant || selectedTenantObj;
-
   useEffect(() => {
     console.log('StaffManagement auth state:', { userRole, isTenantAdmin, currentTenant, isPlatformAdmin, staffAccount });
-    if (currentTenant) {
+    if ((userRole === 'general_manager' || isTenantAdmin) && currentTenant) {
       loadStaff();
       loadInvitations();
-    } else if (!currentTenant && (isTenantAdmin || isPlatformAdmin || staffAccount)) {
-      loadAvailableTenants();
     } else if (userRole !== null && !currentTenant) {
       setLoading(false);
     }
-  }, [userRole, isTenantAdmin, currentTenant, isPlatformAdmin, staffAccount]);
-
-  useEffect(() => {
-    if (selectedTenantId && !currentTenant) {
-      const tenant = availableTenants.find(t => t.id === selectedTenantId);
-      setSelectedTenantObj(tenant || null);
-      if (tenant) {
-        loadStaffForTenant(tenant.id);
-        loadInvitationsForTenant(tenant.id);
-      }
-    }
-  }, [selectedTenantId, availableTenants, currentTenant]);
+  }, [userRole, isTenantAdmin, currentTenant]);
 
   useEffect(() => {
     if (toast) {
@@ -113,49 +94,12 @@ export default function StaffManagement() {
     }
   }, [toast]);
 
-  const loadAvailableTenants = async () => {
-    setLoading(true);
-    if (isPlatformAdmin) {
-      const { data } = await supabase
-        .from('tenants')
-        .select('*')
-        .eq('status', 'active')
-        .order('name');
-      setAvailableTenants(data || []);
-    } else if (staffAccount) {
-      const { data } = await supabase
-        .from('tenants')
-        .select('*')
-        .eq('id', staffAccount.tenant_id)
-        .single();
-      setAvailableTenants(data ? [data] : []);
-      if (data) {
-        setSelectedTenantId(data.id);
-      }
-    } else if (user) {
-      const { data: userRoles } = await supabase
-        .from('user_roles')
-        .select('tenant_id, tenants(*)')
-        .eq('user_id', user.id);
-      const tenants = userRoles?.map(ur => ur.tenants).filter(Boolean) || [];
-      setAvailableTenants(tenants);
-      if (tenants.length === 1) {
-        setSelectedTenantId(tenants[0].id);
-      }
-    }
-    setLoading(false);
-  };
-
   const loadStaff = async () => {
     if (!currentTenant) return;
-    await loadStaffForTenant(currentTenant.id);
-  };
-
-  const loadStaffForTenant = async (tenantId: string) => {
     const { data } = await supabase
       .from('staff_accounts')
       .select('*')
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', currentTenant.id)
       .order('created_at', { ascending: false });
     setStaff(data || []);
     setLoading(false);
@@ -163,14 +107,10 @@ export default function StaffManagement() {
 
   const loadInvitations = async () => {
     if (!currentTenant) return;
-    await loadInvitationsForTenant(currentTenant.id);
-  };
-
-  const loadInvitationsForTenant = async (tenantId: string) => {
     const { data } = await supabase
       .from('staff_invitations')
       .select('*')
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', currentTenant.id)
       .in('status', ['pending', 'sent'])
       .order('created_at', { ascending: false });
     setInvitations(data || []);
@@ -187,7 +127,7 @@ export default function StaffManagement() {
     setShowInviteModal(true);
   };
 
-  const sendInvitationEmail = async (email: string, token: string, role: string, tenant: any, customMessage?: string) => {
+  const sendInvitationEmail = async (email: string, token: string, role: string, customMessage?: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -209,7 +149,7 @@ export default function StaffManagement() {
           token,
           role,
           userType: 'staff',
-          tenantName: tenant?.company_name || tenant?.name || 'ClearNav',
+          tenantName: currentTenant?.company_name || currentTenant?.name || 'ClearNav',
           customMessage,
         }),
       });
@@ -229,9 +169,8 @@ export default function StaffManagement() {
   };
 
   const handleSendInvitation = async () => {
-    if (!inviteForm.email || !inviteForm.full_name || !effectiveTenant) {
-      console.error('Missing required fields:', { email: inviteForm.email, full_name: inviteForm.full_name, effectiveTenant });
-      setToast({ type: 'error', message: 'Please select a tenant and fill in all required fields' });
+    if (!inviteForm.email || !inviteForm.full_name || !currentTenant) {
+      console.error('Missing required fields:', { email: inviteForm.email, full_name: inviteForm.full_name, currentTenant });
       return;
     }
 
@@ -253,12 +192,12 @@ export default function StaffManagement() {
       }
 
       const token = generateToken();
-      console.log('Creating staff invitation...', { email: inviteForm.email, tenant_id: effectiveTenant.id });
+      console.log('Creating staff invitation...', { email: inviteForm.email, tenant_id: currentTenant.id });
 
       const { error } = await supabase
         .from('staff_invitations')
         .insert({
-          tenant_id: effectiveTenant.id,
+          tenant_id: currentTenant.id,
           email: inviteForm.email,
           full_name: inviteForm.full_name,
           role: inviteForm.role,
@@ -281,7 +220,6 @@ export default function StaffManagement() {
         inviteForm.email,
         token,
         inviteForm.role,
-        effectiveTenant,
         inviteForm.custom_message
       );
       console.log('Email result:', emailResult);
@@ -418,15 +356,15 @@ export default function StaffManagement() {
     );
   }
 
-  if (!currentTenant && availableTenants.length === 0 && !loading) {
+  if (!currentTenant) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center space-y-4">
           <AlertCircle className="w-16 h-16 text-red-400 mx-auto" />
           <div>
-            <h3 className="text-xl font-semibold text-white mb-2">No Tenant Access</h3>
+            <h3 className="text-xl font-semibold text-white mb-2">No Tenant Context</h3>
             <p className="text-slate-400 max-w-md">
-              You don't have access to any tenants. Please contact support.
+              Unable to load staff management. Please ensure you're accessing this page from a tenant-specific domain or contact support.
             </p>
           </div>
         </div>
@@ -460,33 +398,12 @@ export default function StaffManagement() {
         </div>
         <button
           onClick={openInviteModal}
-          disabled={!effectiveTenant}
-          className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-colors font-medium text-sm"
         >
           <UserPlus className="w-4 h-4" />
           Invite Staff
         </button>
       </div>
-
-      {!currentTenant && availableTenants.length > 0 && (
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            Select Tenant
-          </label>
-          <select
-            value={selectedTenantId || ''}
-            onChange={(e) => setSelectedTenantId(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-          >
-            <option value="">-- Select a tenant --</option>
-            {availableTenants.map(tenant => (
-              <option key={tenant.id} value={tenant.id}>
-                {tenant.company_name || tenant.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {toast && (
         <div className={`px-4 py-3 rounded-lg flex items-start gap-3 ${
