@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { Database } from '../types/database';
-import { resolveTenantFromDomain, isPlatformAdminDomain } from './tenantResolver';
 
 type UserRole = 'general_manager' | 'compliance_manager' | 'accountant' | 'cfo' | 'legal_counsel' | 'admin' | 'client' | 'platform_admin';
 type RoleCategory = 'superadmin' | 'tenant_admin' | 'client' | 'staff_user';
@@ -82,8 +81,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoleCategory(userRoleData.role_category as RoleCategory);
     setRoleDetail(userRoleData.role_detail);
 
-    // If no tenant resolved from domain but user has a tenant_id, load that tenant
-    if (!resolvedTenant && userRoleData.tenant_id) {
+    // Load tenant directly from user's role record (every user has exactly one tenant)
+    if (userRoleData.tenant_id) {
       const { data: userTenant } = await supabase
         .from('tenants')
         .select('*')
@@ -189,17 +188,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let initComplete = false;
 
     const initAuth = async () => {
-      const [{ data: { session } }, resolved] = await Promise.all([
-        supabase.auth.getSession(),
-        resolveTenantFromDomain(window.location.hostname)
-      ]);
+      const { data: { session } } = await supabase.auth.getSession();
 
       setSession(session);
       setUser(session?.user ?? null);
-      setCurrentTenant(resolved.tenant);
 
       if (session?.user) {
-        await loadUserRole(session.user.id, resolved.tenant);
+        await loadUserRole(session.user.id, null);
       }
 
       setLoading(false);
@@ -215,11 +210,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
 
-        const resolved = await resolveTenantFromDomain(window.location.hostname);
-        setCurrentTenant(resolved.tenant);
-
         if (session?.user) {
-          await loadUserRole(session.user.id, resolved.tenant);
+          await loadUserRole(session.user.id, null);
         } else {
           resetRoleState();
         }
@@ -241,13 +233,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refetch = async () => {
-    const [{ data: { session } }, resolved] = await Promise.all([
-      supabase.auth.getSession(),
-      resolveTenantFromDomain(window.location.hostname)
-    ]);
-    setCurrentTenant(resolved.tenant);
+    const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
-      await loadUserRole(session.user.id, resolved.tenant);
+      await loadUserRole(session.user.id, null);
     }
   };
 
