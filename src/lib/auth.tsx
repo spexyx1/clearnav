@@ -62,6 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userRoleRecord, setUserRoleRecord] = useState<UserRoleRecord | null>(null);
 
   const loadUserRole = async (userId: string, resolvedTenant: Tenant | null) => {
+    console.log('[Auth] Loading user role for:', userId);
+
     // Query user_roles table as single source of truth
     const { data: userRoleData, error: roleError } = await supabase
       .from('user_roles')
@@ -69,6 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('user_id', userId)
       .eq('status', 'active')
       .maybeSingle();
+
+    console.log('[Auth] User role data:', userRoleData, 'Error:', roleError);
 
     if (roleError || !userRoleData) {
       console.error('Failed to load user role:', roleError);
@@ -83,15 +87,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Load tenant directly from user's role record (every user has exactly one tenant)
     if (userRoleData.tenant_id) {
-      const { data: userTenant } = await supabase
-        .from('tenants')
+      console.log('[Auth] Loading tenant:', userRoleData.tenant_id);
+      const { data: userTenant, error: tenantError } = await supabase
+        .from('platform_tenants')
         .select('*')
         .eq('id', userRoleData.tenant_id)
         .maybeSingle();
+
+      console.log('[Auth] Tenant data:', userTenant, 'Error:', tenantError);
+
       if (userTenant) {
         setCurrentTenant(userTenant);
         resolvedTenant = userTenant;
       }
+    } else {
+      console.log('[Auth] No tenant_id in user role data');
     }
 
     // Set flags based on role_category
