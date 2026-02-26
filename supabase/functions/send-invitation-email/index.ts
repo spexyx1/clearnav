@@ -276,7 +276,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const resendPayload = {
-      from: `${tenantName || 'ClearNav'} <onboarding@resend.dev>`,
+      from: `${tenantName || 'ClearNav'} <onboarding@clearnav.cv>`,
       to: [email],
       subject: emailSubject,
       html: emailHTML,
