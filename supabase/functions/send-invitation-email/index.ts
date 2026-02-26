@@ -63,14 +63,23 @@ Deno.serve(async (req: Request) => {
     const { data: staffAccount } = await supabase
       .from("staff_accounts")
       .select("tenant_id, role")
-      .eq("user_id", caller.id)
+      .eq("auth_user_id", caller.id)
       .maybeSingle();
 
-    const canInvite = isPlatformAdmin || (staffAccount && (staffAccount.role === "admin" || staffAccount.role === "manager"));
+    const { data: tenantAdmin } = await supabase
+      .from("tenant_users")
+      .select("tenant_id, role")
+      .eq("user_id", caller.id)
+      .in("role", ["owner", "admin"])
+      .maybeSingle();
+
+    const canInvite = isPlatformAdmin ||
+                      (staffAccount && (staffAccount.role === "admin" || staffAccount.role === "general_manager")) ||
+                      tenantAdmin;
 
     if (!canInvite) {
       return new Response(
-        JSON.stringify({ error: "Insufficient permissions. Admin or Manager access required." }),
+        JSON.stringify({ error: "Insufficient permissions. Admin access required." }),
         {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -47,6 +47,8 @@ export default function UserManagement() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string; inviteUrl?: string } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successDetails, setSuccessDetails] = useState<{ email: string; inviteUrl: string; sent: boolean } | null>(null);
 
   const [inviteForm, setInviteForm] = useState({
     email: '',
@@ -211,21 +213,18 @@ export default function UserManagement() {
       await supabase.from('user_invitations').update({ status: 'sent' }).eq('token', token);
     }
 
+    const inviteUrl = emailResult?.inviteUrl || `${window.location.origin}/accept-invite?token=${token}`;
+
     setShowInviteModal(false);
     setInviteForm({ email: '', role: 'client', userType: 'client' });
     loadData();
 
-    const inviteUrl = emailResult?.inviteUrl || `${window.location.origin}/accept-invite?token=${token}`;
-
-    if (emailResult?.sent) {
-      setToast({ type: 'success', message: `Invitation email sent to ${inviteForm.email}` });
-    } else {
-      setToast({
-        type: 'success',
-        message: `Invitation created. Share this link:`,
-        inviteUrl,
-      });
-    }
+    setSuccessDetails({
+      email: inviteForm.email,
+      inviteUrl,
+      sent: emailResult?.sent || false,
+    });
+    setShowSuccessModal(true);
     setSaving(false);
   };
 
@@ -922,6 +921,91 @@ export default function UserManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showSuccessModal && successDetails && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30">
+                <Check className="w-8 h-8 text-emerald-400" />
+              </div>
+
+              <h3 className="text-xl font-semibold text-white mb-2">
+                {successDetails.sent ? 'Invitation Sent!' : 'Invitation Created!'}
+              </h3>
+
+              {successDetails.sent ? (
+                <div>
+                  <p className="text-slate-300 mb-4">
+                    An invitation email has been sent to:
+                  </p>
+                  <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3 mb-4">
+                    <div className="flex items-center justify-center gap-2">
+                      <Mail className="w-4 h-4 text-cyan-400" />
+                      <span className="text-white font-medium">{successDetails.email}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-400">
+                    They'll receive an email with instructions to accept the invitation and create their account.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-slate-300 mb-4">
+                    Email delivery is not configured. Share this invitation link with:
+                  </p>
+                  <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3 mb-3">
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Mail className="w-4 h-4 text-cyan-400" />
+                      <span className="text-white font-medium">{successDetails.email}</span>
+                    </div>
+                  </div>
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4">
+                    <p className="text-xs text-amber-300 mb-2 font-medium">Invitation Link:</p>
+                    <input
+                      readOnly
+                      value={successDetails.inviteUrl}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-xs text-white font-mono truncate mb-2"
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                    <button
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(successDetails.inviteUrl);
+                        setCopiedLink(true);
+                        setTimeout(() => setCopiedLink(false), 2000);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm transition-colors"
+                    >
+                      {copiedLink ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied to Clipboard!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy Link
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  setSuccessDetails(null);
+                  setCopiedLink(false);
+                }}
+                className="w-full px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors text-sm font-medium mt-4"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}
