@@ -135,9 +135,14 @@ export default function UserManagement() {
   const sendInvitationEmail = async (email: string, token: string, role: string, userType: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return { success: false, inviteUrl: '' };
+      if (!session) {
+        console.error('No active session');
+        return { success: false, inviteUrl: '', error: 'No active session' };
+      }
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      console.log('Calling send-invitation-email edge function...');
+
       const response = await fetch(`${supabaseUrl}/functions/v1/send-invitation-email`, {
         method: 'POST',
         headers: {
@@ -153,79 +158,101 @@ export default function UserManagement() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Edge function error:', response.status, errorText);
+        return { success: false, inviteUrl: '', error: `HTTP ${response.status}: ${errorText}` };
+      }
+
       return await response.json();
-    } catch {
-      return { success: false, inviteUrl: '' };
+    } catch (error) {
+      console.error('Error calling send-invitation-email:', error);
+      return { success: false, inviteUrl: '', error: error instanceof Error ? error.message : 'Unknown error' };
     }
   };
 
   const handleSendInvitation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentTenant) return;
+    if (!currentTenant) {
+      console.error('No current tenant');
+      return;
+    }
+
     setSaving(true);
 
-    const existingUser = users.find(u => u.email?.toLowerCase() === inviteForm.email.toLowerCase());
-    if (existingUser) {
-      setToast({ type: 'error', message: 'A user with this email already exists.' });
-      setSaving(false);
-      return;
-    }
+    try {
+      const existingUser = users.find(u => u.email?.toLowerCase() === inviteForm.email.toLowerCase());
+      if (existingUser) {
+        setToast({ type: 'error', message: 'A user with this email already exists.' });
+        setSaving(false);
+        return;
+      }
 
-    const existingInvite = invitations.find(i =>
-      i.email?.toLowerCase() === inviteForm.email.toLowerCase() && i.status === 'pending'
-    );
-    if (existingInvite) {
-      setToast({ type: 'error', message: 'A pending invitation already exists for this email.' });
-      setSaving(false);
-      return;
-    }
+      const existingInvite = invitations.find(i =>
+        i.email?.toLowerCase() === inviteForm.email.toLowerCase() && i.status === 'pending'
+      );
+      if (existingInvite) {
+        setToast({ type: 'error', message: 'A pending invitation already exists for this email.' });
+        setSaving(false);
+        return;
+      }
 
-    const token = generateToken();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+      const token = generateToken();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
 
-    const { error } = await supabase
-      .from('user_invitations')
-      .insert({
-        email: inviteForm.email,
-        role: inviteForm.role,
+      console.log('Creating user invitation...', { email: inviteForm.email, tenant_id: currentTenant.id });
+
+      const { error } = await supabase
+        .from('user_invitations')
+        .insert({
+          email: inviteForm.email,
+          role: inviteForm.role,
+          token,
+          expires_at: expiresAt.toISOString(),
+          invited_by: staffAccount?.id || user?.id,
+          tenant_id: currentTenant.id,
+          metadata: { user_type: inviteForm.userType },
+        });
+
+      if (error) {
+        console.error('Error creating invitation:', error);
+        setToast({ type: 'error', message: 'Failed to create invitation: ' + error.message });
+        setSaving(false);
+        return;
+      }
+
+      console.log('Invitation created, sending email...');
+      const emailResult = await sendInvitationEmail(
+        inviteForm.email,
         token,
-        expires_at: expiresAt.toISOString(),
-        invited_by: staffAccount?.id || user?.id,
-        tenant_id: currentTenant.id,
-        metadata: { user_type: inviteForm.userType },
+        inviteForm.role,
+        inviteForm.userType
+      );
+      console.log('Email result:', emailResult);
+
+      if (emailResult?.sent) {
+        await supabase.from('user_invitations').update({ status: 'sent' }).eq('token', token);
+      }
+
+      const inviteUrl = emailResult?.inviteUrl || `${window.location.origin}/accept-invite?token=${token}`;
+
+      setShowInviteModal(false);
+      setInviteForm({ email: '', role: 'client', userType: 'client' });
+      loadData();
+
+      setSuccessDetails({
+        email: inviteForm.email,
+        inviteUrl,
+        sent: emailResult?.sent || false,
       });
-
-    if (error) {
-      setToast({ type: 'error', message: 'Failed to create invitation: ' + error.message });
+      setShowSuccessModal(true);
       setSaving(false);
-      return;
+    } catch (err) {
+      console.error('Unexpected error in handleSendInvitation:', err);
+      setToast({ type: 'error', message: 'Unexpected error: ' + (err instanceof Error ? err.message : 'Unknown error') });
+      setSaving(false);
     }
-
-    const emailResult = await sendInvitationEmail(
-      inviteForm.email,
-      token,
-      inviteForm.role,
-      inviteForm.userType
-    );
-
-    if (emailResult?.sent) {
-      await supabase.from('user_invitations').update({ status: 'sent' }).eq('token', token);
-    }
-
-    const inviteUrl = emailResult?.inviteUrl || `${window.location.origin}/accept-invite?token=${token}`;
-
-    setShowInviteModal(false);
-    setInviteForm({ email: '', role: 'client', userType: 'client' });
-    loadData();
-
-    setSuccessDetails({
-      email: inviteForm.email,
-      inviteUrl,
-      sent: emailResult?.sent || false,
-    });
-    setShowSuccessModal(true);
-    setSaving(false);
   };
 
   const cancelInvitation = async (id: string) => {

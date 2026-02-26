@@ -129,9 +129,14 @@ export default function StaffManagement() {
   const sendInvitationEmail = async (email: string, token: string, role: string, customMessage?: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return { success: false, inviteUrl: '' };
+      if (!session) {
+        console.error('No active session');
+        return { success: false, inviteUrl: '', error: 'No active session' };
+      }
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      console.log('Calling send-invitation-email edge function...');
+
       const response = await fetch(`${supabaseUrl}/functions/v1/send-invitation-email`, {
         method: 'POST',
         headers: {
@@ -148,79 +153,101 @@ export default function StaffManagement() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Edge function error:', response.status, errorText);
+        return { success: false, inviteUrl: '', error: `HTTP ${response.status}: ${errorText}` };
+      }
+
       const result = await response.json();
       return result;
-    } catch {
-      return { success: false, inviteUrl: '' };
+    } catch (error) {
+      console.error('Error calling send-invitation-email:', error);
+      return { success: false, inviteUrl: '', error: error instanceof Error ? error.message : 'Unknown error' };
     }
   };
 
   const handleSendInvitation = async () => {
-    if (!inviteForm.email || !inviteForm.full_name || !currentTenant) return;
+    if (!inviteForm.email || !inviteForm.full_name || !currentTenant) {
+      console.error('Missing required fields:', { email: inviteForm.email, full_name: inviteForm.full_name, currentTenant });
+      return;
+    }
+
     setSaving(true);
 
-    const existing = staff.find(s => s.email?.toLowerCase() === inviteForm.email.toLowerCase());
-    if (existing) {
-      setToast({ type: 'error', message: 'A staff member with this email already exists.' });
-      setSaving(false);
-      return;
-    }
+    try {
+      const existing = staff.find(s => s.email?.toLowerCase() === inviteForm.email.toLowerCase());
+      if (existing) {
+        setToast({ type: 'error', message: 'A staff member with this email already exists.' });
+        setSaving(false);
+        return;
+      }
 
-    const existingInvite = invitations.find(i => i.email?.toLowerCase() === inviteForm.email.toLowerCase());
-    if (existingInvite) {
-      setToast({ type: 'error', message: 'An invitation has already been sent to this email.' });
-      setSaving(false);
-      return;
-    }
+      const existingInvite = invitations.find(i => i.email?.toLowerCase() === inviteForm.email.toLowerCase());
+      if (existingInvite) {
+        setToast({ type: 'error', message: 'An invitation has already been sent to this email.' });
+        setSaving(false);
+        return;
+      }
 
-    const token = generateToken();
-    const { error } = await supabase
-      .from('staff_invitations')
-      .insert({
-        tenant_id: currentTenant.id,
-        email: inviteForm.email,
-        full_name: inviteForm.full_name,
-        role: inviteForm.role,
-        permissions: inviteForm.permissions,
-        token,
-        invited_by: user?.id,
-        status: 'pending',
-        custom_message: inviteForm.custom_message || null,
-      });
+      const token = generateToken();
+      console.log('Creating staff invitation...', { email: inviteForm.email, tenant_id: currentTenant.id });
 
-    if (error) {
-      setToast({ type: 'error', message: 'Failed to create invitation: ' + error.message });
-      setSaving(false);
-      return;
-    }
-
-    const emailResult = await sendInvitationEmail(
-      inviteForm.email,
-      token,
-      inviteForm.role,
-      inviteForm.custom_message
-    );
-
-    if (emailResult?.sent) {
-      await supabase
+      const { error } = await supabase
         .from('staff_invitations')
-        .update({ status: 'sent' })
-        .eq('token', token);
+        .insert({
+          tenant_id: currentTenant.id,
+          email: inviteForm.email,
+          full_name: inviteForm.full_name,
+          role: inviteForm.role,
+          permissions: inviteForm.permissions,
+          token,
+          invited_by: user?.id,
+          status: 'pending',
+          custom_message: inviteForm.custom_message || null,
+        });
+
+      if (error) {
+        console.error('Error creating invitation:', error);
+        setToast({ type: 'error', message: 'Failed to create invitation: ' + error.message });
+        setSaving(false);
+        return;
+      }
+
+      console.log('Invitation created, sending email...');
+      const emailResult = await sendInvitationEmail(
+        inviteForm.email,
+        token,
+        inviteForm.role,
+        inviteForm.custom_message
+      );
+      console.log('Email result:', emailResult);
+
+      if (emailResult?.sent) {
+        await supabase
+          .from('staff_invitations')
+          .update({ status: 'sent' })
+          .eq('token', token);
+      }
+
+      const inviteUrl = emailResult?.inviteUrl || `${window.location.origin}/accept-invite?token=${token}`;
+
+      setShowInviteModal(false);
+      loadInvitations();
+
+      setSuccessDetails({
+        email: inviteForm.email,
+        fullName: inviteForm.full_name,
+        inviteUrl,
+        sent: emailResult?.sent || false,
+      });
+      setShowSuccessModal(true);
+      setSaving(false);
+    } catch (err) {
+      console.error('Unexpected error in handleSendInvitation:', err);
+      setToast({ type: 'error', message: 'Unexpected error: ' + (err instanceof Error ? err.message : 'Unknown error') });
+      setSaving(false);
     }
-
-    const inviteUrl = emailResult?.inviteUrl || `${window.location.origin}/accept-invite?token=${token}`;
-
-    setShowInviteModal(false);
-    loadInvitations();
-
-    setSuccessDetails({
-      email: inviteForm.email,
-      fullName: inviteForm.full_name,
-      inviteUrl,
-      sent: emailResult?.sent || false,
-    });
-    setShowSuccessModal(true);
-    setSaving(false);
   };
 
   const handleResendInvitation = async (invitation: any) => {
