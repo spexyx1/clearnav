@@ -23,3 +23,8 @@ export function useTenantBranding() {
 
   return { branding };
 }
+
+export function useTenant() {
+  const { currentTenant } = useAuth();
+  return { tenant: currentTenant };
+}

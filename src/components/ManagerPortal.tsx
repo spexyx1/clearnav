@@ -35,6 +35,7 @@ import NewsletterManager from './manager/NewsletterManager';
 import EmailClient from './manager/EmailClient';
 import CommunityHub from './community/CommunityHub';
 import WhiteLabelManager from './manager/WhiteLabelManager';
+import AIAgentManagement from './manager/AIAgentManagement';
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
@@ -107,6 +108,7 @@ export default function ManagerPortal() {
           isTenantAdmin={isTenantAdmin}
           userRole={userRole}
           primaryColor={branding.colors.primary}
+          tenantId={currentTenant?.id}
         />
 
         <main className="flex-1 overflow-y-auto scrollbar-thin bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
@@ -138,6 +140,7 @@ export default function ManagerPortal() {
               {activeTab === 'email' && <EmailClient />}
               {activeTab === 'community' && <CommunityHub />}
               {activeTab === 'whitelabel' && <WhiteLabelManager />}
+              {activeTab === 'ai_agents' && <AIAgentManagement />}
               {activeTab === 'tasks' && <TaskManager />}
               {activeTab === 'analytics' && <Analytics />}
               {activeTab === 'compliance' && <ComplianceCenter />}

@@ -5,10 +5,11 @@ import {
   FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart,
   Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe,
   CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown,
-  ChevronRight, PanelLeftClose, PanelLeft, LucideIcon
+  ChevronRight, PanelLeftClose, PanelLeft, LucideIcon, Bot
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
-export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel';
+export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents';
 
 interface NavItem {
   id: TabType;
@@ -27,12 +28,13 @@ interface ManagerSidebarProps {
   isTenantAdmin: boolean;
   userRole: string | null;
   primaryColor: string;
+  tenantId?: string;
 }
 
 const STORAGE_KEY = 'clearnav-sidebar-collapsed';
 const SECTIONS_KEY = 'clearnav-sidebar-sections';
 
-export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, userRole, primaryColor }: ManagerSidebarProps) {
+export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, userRole, primaryColor, tenantId }: ManagerSidebarProps) {
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(STORAGE_KEY) === 'true';
@@ -46,6 +48,8 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
     } catch { return {}; }
   });
 
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, String(collapsed)); } catch {}
   }, [collapsed]);
@@ -53,6 +57,46 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
   useEffect(() => {
     try { localStorage.setItem(SECTIONS_KEY, JSON.stringify(collapsedSections)); } catch {}
   }, [collapsedSections]);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    loadPendingCount();
+    const subscription = subscribeToApprovals();
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [tenantId]);
+
+  const loadPendingCount = async () => {
+    if (!tenantId) return;
+    try {
+      const { data, error } = await supabase
+        .rpc('get_pending_approvals_count', { p_tenant_id: tenantId });
+      if (!error && data) {
+        setPendingApprovalsCount(data);
+      }
+    } catch (error) {
+      console.error('Error loading pending approvals count:', error);
+    }
+  };
+
+  const subscribeToApprovals = () => {
+    return supabase
+      .channel('sidebar_approvals')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ai_agent_actions',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => {
+          loadPendingCount();
+        }
+      )
+      .subscribe();
+  };
 
   const toggleSection = (label: string) => {
     setCollapsedSections(prev => ({ ...prev, [label]: !prev[label] }));
@@ -78,6 +122,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
         { id: 'redemptions', label: 'Redemptions', icon: ArrowUpCircle },
         { id: 'fees', label: 'Fees', icon: Percent },
         { id: 'exchange', label: 'Exchange', icon: ShoppingCart },
+        { id: 'ai_agents', label: 'AI Agents', icon: Bot },
       ],
     },
     {
@@ -190,9 +235,19 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
                         {!collapsed && (
                           <span className="text-sm font-medium truncate">{item.label}</span>
                         )}
+                        {item.id === 'ai_agents' && pendingApprovalsCount > 0 && (
+                          <span className="ml-auto flex items-center justify-center px-2 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full min-w-[20px]">
+                            {pendingApprovalsCount}
+                          </span>
+                        )}
                         {collapsed && (
                           <div className="absolute left-full ml-2 px-2.5 py-1 bg-slate-800 text-white text-xs font-medium rounded-md shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 border border-slate-700">
                             {item.label}
+                            {item.id === 'ai_agents' && pendingApprovalsCount > 0 && (
+                              <span className="ml-2 px-1.5 py-0.5 bg-red-500 rounded-full text-xs font-bold">
+                                {pendingApprovalsCount}
+                              </span>
+                            )}
                           </div>
                         )}
                       </button>
