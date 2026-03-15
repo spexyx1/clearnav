@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react';
-import {
-  UserPlus, Mail, X, Search, Shield, User, Clock, Check,
-  Ban, Edit2, Trash2, DollarSign, Copy, Link, AlertCircle, RefreshCw
-} from 'lucide-react';
+import { UserPlus, Mail, X, Search, Shield, User, Clock, Check, Ban, CreditCard as Edit2, Trash2, DollarSign, Copy, Link, AlertCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
@@ -459,8 +456,21 @@ export default function UserManagement() {
   const getRoleBadge = (role: string) => {
     const colors: Record<string, string> = {
       general_manager: 'bg-red-500/20 text-red-300 border-red-500/30',
+      ceo: 'bg-red-500/20 text-red-300 border-red-500/30',
+      coo: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+      cfo: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+      cio: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
       compliance_manager: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+      legal_counsel: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
       accountant: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      bookkeeper: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      analyst: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+      trader: 'bg-green-500/20 text-green-300 border-green-500/30',
+      tech: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+      admin: 'bg-red-500/20 text-red-300 border-red-500/30',
+      general_staff: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+      tax_specialist: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      operations: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
       client: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
     };
     return colors[role] || 'bg-slate-500/20 text-slate-300 border-slate-500/30';
@@ -791,10 +801,20 @@ export default function UserManagement() {
                   >
                     <option value="admin">Admin</option>
                     <option value="general_manager">General Manager</option>
-                    <option value="compliance_manager">Compliance Manager</option>
-                    <option value="accountant">Accountant</option>
+                    <option value="ceo">CEO</option>
+                    <option value="coo">COO</option>
                     <option value="cfo">CFO</option>
+                    <option value="cio">CIO</option>
+                    <option value="compliance_manager">Compliance Manager</option>
                     <option value="legal_counsel">Legal Counsel</option>
+                    <option value="accountant">Accountant</option>
+                    <option value="bookkeeper">Bookkeeper</option>
+                    <option value="analyst">Analyst</option>
+                    <option value="trader">Trader</option>
+                    <option value="tech">Tech/IT</option>
+                    <option value="general_staff">General Staff</option>
+                    <option value="tax_specialist">Tax Specialist</option>
+                    <option value="operations">Operations</option>
                   </select>
                 </div>
               )}
