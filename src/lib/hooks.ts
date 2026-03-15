@@ -28,3 +28,8 @@ export function useTenant() {
   const { currentTenant } = useAuth();
   return { tenant: currentTenant };
 }
+
+export function useTenantInfo() {
+  const { currentTenant } = useAuth();
+  return { tenantInfo: currentTenant };
+}

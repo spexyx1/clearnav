@@ -1,16 +1,24 @@
 import React, { useState } from 'react';
-import { Bot, Clock, CheckCircle, XCircle, Settings, History } from 'lucide-react';
+import { Bot, Clock, Settings, History, Upload, Users, Megaphone, Activity } from 'lucide-react';
 import PendingApprovals from './aiagent/PendingApprovals';
 import ApprovalSettings from './aiagent/ApprovalSettings';
 import ActionHistory from './aiagent/ActionHistory';
+import LeadUpload from './LeadUpload';
+import LeadQueue from './LeadQueue';
+import CampaignBuilder from './CampaignBuilder';
+import AgentActivityFeed from './AgentActivityFeed';
 
-type TabType = 'pending' | 'settings' | 'history';
+type TabType = 'pending' | 'settings' | 'history' | 'leads' | 'queue' | 'campaigns' | 'activity';
 
 export default function AIAgentManagement() {
   const [activeTab, setActiveTab] = useState<TabType>('pending');
 
   const tabs = [
     { id: 'pending' as TabType, label: 'Pending Approvals', icon: Clock },
+    { id: 'queue' as TabType, label: 'Lead Queue', icon: Users },
+    { id: 'leads' as TabType, label: 'Upload Leads', icon: Upload },
+    { id: 'campaigns' as TabType, label: 'Campaigns', icon: Megaphone },
+    { id: 'activity' as TabType, label: 'Activity Feed', icon: Activity },
     { id: 'settings' as TabType, label: 'Settings', icon: Settings },
     { id: 'history' as TabType, label: 'History', icon: History },
   ];
@@ -57,6 +65,10 @@ export default function AIAgentManagement() {
 
           <div className="p-6">
             {activeTab === 'pending' && <PendingApprovals />}
+            {activeTab === 'queue' && <LeadQueue />}
+            {activeTab === 'leads' && <LeadUpload />}
+            {activeTab === 'campaigns' && <CampaignBuilder />}
+            {activeTab === 'activity' && <AgentActivityFeed />}
             {activeTab === 'settings' && <ApprovalSettings />}
             {activeTab === 'history' && <ActionHistory />}
           </div>
