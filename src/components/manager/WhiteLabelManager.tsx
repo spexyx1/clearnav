@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { Globe, Palette, FileText, Users, Settings, Rocket } from 'lucide-react';
+import { Globe, Palette, FileText, Rocket } from 'lucide-react';
 import DomainManagement from './whitelabel/DomainManagement';
 import SiteDesignEditor from './whitelabel/SiteDesignEditor';
 import PageContentBuilder from './whitelabel/PageContentBuilder';
-import ClientInvitationManager from './whitelabel/ClientInvitationManager';
 import DeploymentManager from './whitelabel/DeploymentManager';
 
-type TabType = 'domains' | 'design' | 'content' | 'invitations' | 'deploy';
+type TabType = 'domains' | 'design' | 'content' | 'deploy';
 
 export default function WhiteLabelManager() {
   const [activeTab, setActiveTab] = useState<TabType>('domains');
@@ -15,7 +14,6 @@ export default function WhiteLabelManager() {
     { id: 'domains' as TabType, label: 'Custom Domains', icon: Globe },
     { id: 'design' as TabType, label: 'Site Design', icon: Palette },
     { id: 'content' as TabType, label: 'Page Content', icon: FileText },
-    { id: 'invitations' as TabType, label: 'Client Invitations', icon: Users },
     { id: 'deploy' as TabType, label: 'Deployment', icon: Rocket },
   ];
 
@@ -27,8 +25,6 @@ export default function WhiteLabelManager() {
         return <SiteDesignEditor />;
       case 'content':
         return <PageContentBuilder />;
-      case 'invitations':
-        return <ClientInvitationManager />;
       case 'deploy':
         return <DeploymentManager />;
       default:
@@ -44,7 +40,7 @@ export default function WhiteLabelManager() {
           <h1 className="text-3xl font-bold text-white">White Label Platform</h1>
         </div>
         <p className="text-slate-300">
-          Customize your branded website with custom domains, design your pages, and invite clients
+          Customize your branded website with custom domains and design your pages
         </p>
       </div>
 

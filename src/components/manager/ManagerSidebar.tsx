@@ -165,7 +165,6 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
       label: 'Admin',
       items: [
         ...(isTenantAdmin || userRole === 'general_manager' ? [
-          { id: 'staff' as TabType, label: 'Team', icon: Settings },
           { id: 'users' as TabType, label: 'Users', icon: UserCog },
         ] : []),
         ...(isTenantAdmin ? [
