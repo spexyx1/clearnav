@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Plus, Edit2, Copy, Trash2, Eye, TrendingUp, Save, X } from 'lucide-react';
+import { Mail, Plus, CreditCard as Edit2, Copy, Trash2, Eye, TrendingUp, Save, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useTenantInfo } from '../../lib/hooks';
 
