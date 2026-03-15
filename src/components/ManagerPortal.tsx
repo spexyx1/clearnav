@@ -40,6 +40,7 @@ import VoiceAgentSetup from './manager/VoiceAgentSetup';
 import LiveCallDashboard from './manager/LiveCallDashboard';
 import VoiceAgentDialer from './manager/VoiceAgentDialer';
 import VoiceAgentAnalytics from './manager/VoiceAgentAnalytics';
+import AccountSettings from './manager/AccountSettings';
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
@@ -154,6 +155,7 @@ export default function ManagerPortal() {
               {activeTab === 'compliance' && <ComplianceCenter />}
               {activeTab === 'users' && <UserManagement />}
               {activeTab === 'staff' && <StaffManagement />}
+              {activeTab === 'account_settings' && <AccountSettings />}
             </div>
           </div>
         </main>

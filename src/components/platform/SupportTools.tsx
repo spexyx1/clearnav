@@ -35,22 +35,64 @@ interface AuditLog {
   admin_email?: string;
 }
 
+interface SupportTicket {
+  id: string;
+  tenant_id: string;
+  subject: string;
+  description: string;
+  ticket_type: string;
+  status: string;
+  priority: string;
+  created_at: string;
+  tenant_name?: string;
+}
+
 export default function SupportTools() {
-  const [activeView, setActiveView] = useState<'notes' | 'audit'>('notes');
+  const [activeView, setActiveView] = useState<'tickets' | 'notes' | 'audit'>('tickets');
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [notes, setNotes] = useState<TenantNote[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateNote, setShowCreateNote] = useState(false);
   const [filterType, setFilterType] = useState<string | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (activeView === 'notes') {
+    if (activeView === 'tickets') {
+      loadTickets();
+    } else if (activeView === 'notes') {
       loadNotes();
     } else {
       loadAuditLogs();
     }
   }, [activeView]);
+
+  const loadTickets = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('support_tickets')
+        .select(`
+          *,
+          platform_tenants!inner(name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const ticketsWithTenant = (data || []).map((ticket: any) => ({
+        ...ticket,
+        tenant_name: ticket.platform_tenants?.name || 'Unknown',
+      }));
+
+      setTickets(ticketsWithTenant);
+    } catch (error) {
+      console.error('Error loading tickets:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadNotes = async () => {
     try {
@@ -177,6 +219,16 @@ export default function SupportTools() {
 
         <div className="flex space-x-2 mb-4">
           <button
+            onClick={() => setActiveView('tickets')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeView === 'tickets'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            Support Tickets
+          </button>
+          <button
             onClick={() => setActiveView('notes')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeView === 'notes'
@@ -197,6 +249,109 @@ export default function SupportTools() {
             Audit Logs
           </button>
         </div>
+
+        {activeView === 'tickets' && (
+          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Tenant
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Subject
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Priority
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Created
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {tickets.map((ticket) => (
+                      <tr key={ticket.id} className="hover:bg-slate-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center space-x-2">
+                            <Building2 className="w-4 h-4 text-slate-400" />
+                            <span className="text-sm font-medium text-slate-900">
+                              {ticket.tenant_name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-slate-900 max-w-xs truncate">
+                            {ticket.subject}
+                          </div>
+                          <div className="text-sm text-slate-500 max-w-xs truncate">
+                            {ticket.description}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
+                            {ticket.ticket_type.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                            ticket.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                            ticket.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                            ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-green-100 text-green-800'
+                          }`}>
+                            {ticket.priority}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                            ticket.status === 'open' ? 'bg-yellow-100 text-yellow-800' :
+                            ticket.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                            ticket.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                            'bg-slate-100 text-slate-800'
+                          }`}>
+                            {ticket.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                          {formatDate(ticket.created_at)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <button
+                            onClick={() => setSelectedTicket(ticket)}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {tickets.length === 0 && (
+                  <div className="text-center py-12 text-slate-500">
+                    No support tickets found
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {activeView === 'notes' && (
           <>
