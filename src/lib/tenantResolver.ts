@@ -15,14 +15,6 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
   const parts = hostname.split('.');
   const host = window.location.host;
 
-  if (parts.length >= 3 && parts[0] === 'admin') {
-    return {
-      tenant: null,
-      isPlatformAdmin: true,
-      subdomain: null,
-    };
-  }
-
   let tenant: Tenant | null = null;
   let subdomain: string | null = null;
 
@@ -83,7 +75,7 @@ export function getTenantSlugFromUrl(): string | null {
 
   const parts = hostname.split('.');
 
-  if (parts.length >= 3 && parts[0] !== 'www' && parts[0] !== 'admin') {
+  if (parts.length >= 3 && parts[0] !== 'www') {
     return parts[0];
   }
 
@@ -99,7 +91,7 @@ export function isPlatformAdminDomain(): boolean {
     return !tenantParam;
   }
 
-  return hostname.split('.')[0] === 'admin';
+  return false;
 }
 
 export function getTenantUrl(slug: string): string {
@@ -128,8 +120,8 @@ export function getPlatformAdminUrl(): string {
 
   if (parts.length >= 2) {
     const baseDomain = parts.slice(-2).join('.');
-    return `https://admin.${baseDomain}`;
+    return `https://${baseDomain}`;
   }
 
-  return 'https://admin.example.com';
+  return 'https://clearnav.cv';
 }

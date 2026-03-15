@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Shield, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
-import { isPlatformAdminDomain } from '../lib/tenantResolver';
 
 interface LoginPageProps {
   onBack: () => void;
@@ -17,13 +16,10 @@ export default function LoginPage({ onBack }: LoginPageProps) {
   const [tenantSettings, setTenantSettings] = useState<any>(null);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
-  const isAdminMode = isPlatformAdminDomain();
 
   useEffect(() => {
-    if (!isAdminMode) {
-      loadTenantSettings();
-    }
-  }, [currentTenant, isAdminMode]);
+    loadTenantSettings();
+  }, [currentTenant]);
 
   const loadTenantSettings = async () => {
     if (!currentTenant) return;
@@ -43,12 +39,8 @@ export default function LoginPage({ onBack }: LoginPageProps) {
     }
   };
 
-  const companyName = isAdminMode
-    ? 'ClearNav'
-    : (tenantSettings?.branding?.company_name || currentTenant?.name || 'ClearNav');
-  const contactEmail = isAdminMode
-    ? 'admin@clearnav.com'
-    : (tenantSettings?.landing_page?.contact_email || 'support@greyalpha.co');
+  const companyName = tenantSettings?.branding?.company_name || currentTenant?.name || 'ClearNav';
+  const contactEmail = tenantSettings?.landing_page?.contact_email || 'support@clearnav.cv';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

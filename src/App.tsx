@@ -1,6 +1,5 @@
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
-import { isPlatformAdminDomain } from './lib/tenantResolver';
 import LandingPage from './components/LandingPage';
 import ClearNavLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
@@ -92,22 +91,11 @@ function AppContent() {
     // Route based on role_category from user_roles table
     switch (roleCategory) {
       case 'superadmin':
-        // Platform admins can only access the platform admin domain
-        if (isPlatformAdminDomain()) {
-          return (
-            <Suspense fallback={<LoadingSpinner />}>
-              <PlatformAdminPortal />
-            </Suspense>
-          );
-        }
-        // If superadmin tries to access tenant domain, show error
+        // Platform admins access the platform admin portal
         return (
-          <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-            <div className="text-center text-slate-300 max-w-md">
-              <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-              <p>Platform administrators must access the platform admin portal.</p>
-            </div>
-          </div>
+          <Suspense fallback={<LoadingSpinner />}>
+            <PlatformAdminPortal />
+          </Suspense>
         );
 
       case 'tenant_admin':
