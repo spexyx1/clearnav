@@ -11,6 +11,7 @@ import {
   AlertCircle,
   XCircle,
   Settings,
+  Mail,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Database as DB } from '../../types/database';
@@ -210,6 +211,25 @@ export default function TenantManagement() {
                   <span className="text-slate-900">
                     {new Date(tenant.created_at).toLocaleDateString()}
                   </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600">Email</span>
+                  {tenant.tenant_email_address && tenant.email_verified ? (
+                    <span className="flex items-center space-x-1 text-green-600">
+                      <Mail className="w-4 h-4" />
+                      <span className="text-xs">Verified</span>
+                    </span>
+                  ) : tenant.tenant_email_address ? (
+                    <span className="flex items-center space-x-1 text-yellow-600">
+                      <Mail className="w-4 h-4" />
+                      <span className="text-xs">Pending</span>
+                    </span>
+                  ) : (
+                    <span className="flex items-center space-x-1 text-slate-400">
+                      <Mail className="w-4 h-4" />
+                      <span className="text-xs">Not Set</span>
+                    </span>
+                  )}
                 </div>
               </div>
 

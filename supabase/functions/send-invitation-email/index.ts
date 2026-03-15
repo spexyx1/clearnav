@@ -13,6 +13,7 @@ interface InvitationRequest {
   role: string;
   userType: string;
   tenantName: string;
+  tenantId?: string;
   customMessage?: string;
 }
 
@@ -87,7 +88,38 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { email, token, role, userType, tenantName, customMessage }: InvitationRequest = await req.json();
+    const { email, token, role, userType, tenantName, tenantId, customMessage }: InvitationRequest = await req.json();
+
+    let tenantEmail: string | null = null;
+    let tenantCompanyName: string | null = null;
+
+    if (tenantId) {
+      const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data: tenantData } = await serviceClient
+        .from("platform_tenants")
+        .select("tenant_email_address, email_verified, company_name, name")
+        .eq("id", tenantId)
+        .maybeSingle();
+
+      if (tenantData?.tenant_email_address && tenantData.email_verified) {
+        tenantEmail = tenantData.tenant_email_address;
+        tenantCompanyName = tenantData.company_name || tenantData.name;
+
+        const { data: currentTenant } = await serviceClient
+          .from("platform_tenants")
+          .select("email_sent_count")
+          .eq("id", tenantId)
+          .maybeSingle();
+
+        await serviceClient
+          .from("platform_tenants")
+          .update({
+            email_last_used_at: new Date().toISOString(),
+            email_sent_count: (currentTenant?.email_sent_count || 0) + 1
+          })
+          .eq("id", tenantId);
+      }
+    }
 
     const siteUrl = Deno.env.get("SITE_URL") || supabaseUrl.replace(".supabase.co", ".vercel.app");
     const inviteUrl = `${siteUrl}/accept-invite?token=${token}`;
@@ -275,8 +307,14 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const fromAddress = tenantEmail
+      ? `${tenantCompanyName || tenantName || 'ClearNav'} <${tenantEmail}>`
+      : `${tenantName || 'ClearNav'} <ny@clearnav.cv>`;
+
+    console.log(`Sending invitation email from: ${fromAddress} to: ${email}`);
+
     const resendPayload = {
-      from: `${tenantName || 'ClearNav'} <onboarding@clearnav.cv>`,
+      from: fromAddress,
       to: [email],
       subject: emailSubject,
       html: emailHTML,

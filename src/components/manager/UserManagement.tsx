@@ -46,6 +46,7 @@ export default function UserManagement() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successDetails, setSuccessDetails] = useState<{ email: string; inviteUrl: string; sent: boolean } | null>(null);
+  const [tenantEmailStatus, setTenantEmailStatus] = useState<{ configured: boolean; email: string | null }>({ configured: false, email: null });
 
   const [inviteForm, setInviteForm] = useState({
     email: '',
@@ -66,10 +67,32 @@ export default function UserManagement() {
     if (currentTenant) {
       loadData();
       checkPermissions();
+      checkTenantEmail();
     } else if (staffAccount !== undefined || isTenantAdmin) {
       setLoading(false);
     }
   }, [staffAccount, currentTenant, isTenantAdmin]);
+
+  const checkTenantEmail = async () => {
+    if (!currentTenant) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('platform_tenants')
+        .select('tenant_email_address, email_verified')
+        .eq('id', currentTenant.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      setTenantEmailStatus({
+        configured: !!(data?.tenant_email_address && data?.email_verified),
+        email: data?.tenant_email_address || null
+      });
+    } catch (error) {
+      console.error('Error checking tenant email:', error);
+    }
+  };
 
   useEffect(() => {
     if (toast && !toast.inviteUrl) {
@@ -152,6 +175,7 @@ export default function UserManagement() {
           role,
           userType,
           tenantName: currentTenant?.company_name || currentTenant?.name || 'ClearNav',
+          tenantId: currentTenant?.id,
         }),
       });
 
@@ -760,6 +784,40 @@ export default function UserManagement() {
             </div>
 
             <form onSubmit={handleSendInvitation} className="p-5 space-y-4">
+              {!tenantEmailStatus.configured && (
+                <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-lg p-3 flex items-start space-x-2">
+                  <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-yellow-200 font-medium">Email Not Configured</p>
+                    <p className="text-xs text-yellow-300/80 mt-1">
+                      Set up your branded email address in White Label settings for better deliverability.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowInviteModal(false);
+                        window.location.hash = '#whitelabel';
+                      }}
+                      className="text-xs text-yellow-400 hover:text-yellow-300 underline mt-1"
+                    >
+                      Configure Email Address
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {tenantEmailStatus.configured && tenantEmailStatus.email && (
+                <div className="bg-green-900/20 border border-green-700/50 rounded-lg p-3 flex items-start space-x-2">
+                  <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-green-200 font-medium">Email Configured</p>
+                    <p className="text-xs text-green-300/80 mt-1">
+                      Sending from: {tenantEmailStatus.email}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1.5">Email Address</label>
                 <input

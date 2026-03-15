@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
-import { Globe, Palette, FileText, Rocket } from 'lucide-react';
+import { Globe, Palette, FileText, Rocket, Mail } from 'lucide-react';
 import DomainManagement from './whitelabel/DomainManagement';
 import SiteDesignEditor from './whitelabel/SiteDesignEditor';
 import PageContentBuilder from './whitelabel/PageContentBuilder';
 import DeploymentManager from './whitelabel/DeploymentManager';
+import { TenantEmailClaiming } from './whitelabel/TenantEmailClaiming';
 
-type TabType = 'domains' | 'design' | 'content' | 'deploy';
+type TabType = 'domains' | 'design' | 'content' | 'deploy' | 'email';
 
 export default function WhiteLabelManager() {
   const [activeTab, setActiveTab] = useState<TabType>('domains');
 
   const tabs = [
     { id: 'domains' as TabType, label: 'Custom Domains', icon: Globe },
+    { id: 'email' as TabType, label: 'Email Address', icon: Mail },
     { id: 'design' as TabType, label: 'Site Design', icon: Palette },
     { id: 'content' as TabType, label: 'Page Content', icon: FileText },
     { id: 'deploy' as TabType, label: 'Deployment', icon: Rocket },
@@ -21,6 +23,8 @@ export default function WhiteLabelManager() {
     switch (activeTab) {
       case 'domains':
         return <DomainManagement />;
+      case 'email':
+        return <TenantEmailClaiming />;
       case 'design':
         return <SiteDesignEditor />;
       case 'content':
