@@ -36,6 +36,10 @@ import EmailClient from './manager/EmailClient';
 import CommunityHub from './community/CommunityHub';
 import WhiteLabelManager from './manager/WhiteLabelManager';
 import AIAgentManagement from './manager/AIAgentManagement';
+import VoiceAgentSetup from './manager/VoiceAgentSetup';
+import LiveCallDashboard from './manager/LiveCallDashboard';
+import VoiceAgentDialer from './manager/VoiceAgentDialer';
+import VoiceAgentAnalytics from './manager/VoiceAgentAnalytics';
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
@@ -141,6 +145,10 @@ export default function ManagerPortal() {
               {activeTab === 'community' && <CommunityHub />}
               {activeTab === 'whitelabel' && <WhiteLabelManager />}
               {activeTab === 'ai_agents' && <AIAgentManagement />}
+              {activeTab === 'voice_setup' && <VoiceAgentSetup />}
+              {activeTab === 'voice_live' && <LiveCallDashboard />}
+              {activeTab === 'voice_dialer' && <VoiceAgentDialer />}
+              {activeTab === 'voice_analytics' && <VoiceAgentAnalytics />}
               {activeTab === 'tasks' && <TaskManager />}
               {activeTab === 'analytics' && <Analytics />}
               {activeTab === 'compliance' && <ComplianceCenter />}

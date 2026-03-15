@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart, Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe, CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Video as LucideIcon, Bot } from 'lucide-react';
+import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart, Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe, CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Video as LucideIcon, Bot, Phone, PhoneCall, BarChart2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
-export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents';
+export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics';
 
 interface NavItem {
   id: TabType;
@@ -150,6 +150,15 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
         { id: 'newsletters', label: 'Newsletters', icon: Mail },
         { id: 'communications', label: 'Messaging', icon: MessageSquare },
         { id: 'community', label: 'Community', icon: Globe },
+      ],
+    },
+    {
+      label: 'Voice Agents',
+      items: [
+        { id: 'voice_setup', label: 'Setup', icon: Settings },
+        { id: 'voice_live', label: 'Live Calls', icon: Phone },
+        { id: 'voice_dialer', label: 'Dialer', icon: PhoneCall },
+        { id: 'voice_analytics', label: 'Analytics', icon: BarChart2 },
       ],
     },
     {
