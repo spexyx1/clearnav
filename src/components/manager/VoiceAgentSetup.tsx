@@ -16,7 +16,7 @@ interface VoiceConfig {
 }
 
 export default function VoiceAgentSetup() {
-  const { user, tenant } = useAuth();
+  const { user, currentTenant } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -34,16 +34,16 @@ export default function VoiceAgentSetup() {
 
   useEffect(() => {
     loadConfigurations();
-  }, [tenant?.id]);
+  }, [currentTenant?.id]);
 
   async function loadConfigurations() {
-    if (!tenant?.id) return;
+    if (!currentTenant?.id) return;
 
     try {
       const { data, error } = await supabase
         .from('voice_agent_configurations')
         .select('*')
-        .eq('tenant_id', tenant.id)
+        .eq('tenant_id', currentTenant.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -61,14 +61,14 @@ export default function VoiceAgentSetup() {
   }
 
   async function handleSave() {
-    if (!tenant?.id) return;
+    if (!currentTenant?.id) return;
 
     setSaving(true);
     setMessage(null);
 
     try {
       const configData = {
-        tenant_id: tenant.id,
+        tenant_id: currentTenant.id,
         agent_name: selectedConfig.agent_name,
         agent_type: selectedConfig.agent_type,
         telnyx_api_key_encrypted: selectedConfig.telnyx_api_key_encrypted,

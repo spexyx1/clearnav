@@ -19,7 +19,7 @@ interface CallSession {
 }
 
 export default function LiveCallDashboard() {
-  const { tenant } = useAuth();
+  const { currentTenant } = useAuth();
   const [activeCalls, setActiveCalls] = useState<CallSession[]>([]);
   const [stats, setStats] = useState({
     totalActiveCalls: 0,
@@ -30,21 +30,21 @@ export default function LiveCallDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (tenant?.id) {
+    if (currentTenant?.id) {
       loadActiveCalls();
       const interval = setInterval(loadActiveCalls, 5000);
       return () => clearInterval(interval);
     }
-  }, [tenant?.id]);
+  }, [currentTenant?.id]);
 
   async function loadActiveCalls() {
-    if (!tenant?.id) return;
+    if (!currentTenant?.id) return;
 
     try {
       const { data, error } = await supabase
         .from('voice_call_sessions')
         .select('*')
-        .eq('tenant_id', tenant.id)
+        .eq('tenant_id', currentTenant.id)
         .in('status', ['ringing', 'answered', 'in_progress'])
         .order('initiated_at', { ascending: false });
 

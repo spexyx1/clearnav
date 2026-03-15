@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
 export default function VoiceAgentAnalytics() {
-  const { tenant } = useAuth();
+  const { currentTenant } = useAuth();
   const [stats, setStats] = useState({
     totalCalls: 0,
     avgDuration: 0,
@@ -14,19 +14,19 @@ export default function VoiceAgentAnalytics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (tenant?.id) {
+    if (currentTenant?.id) {
       loadAnalytics();
     }
-  }, [tenant?.id]);
+  }, [currentTenant?.id]);
 
   async function loadAnalytics() {
-    if (!tenant?.id) return;
+    if (!currentTenant?.id) return;
 
     try {
       const { data, error } = await supabase
         .from('voice_agent_analytics')
         .select('*')
-        .eq('tenant_id', tenant.id)
+        .eq('tenant_id', currentTenant.id)
         .gte('date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
 
       if (error) throw error;
