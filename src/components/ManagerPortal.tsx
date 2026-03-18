@@ -45,6 +45,8 @@ import { BlogManager } from './manager/BlogManager';
 import { TestimonialsManager } from './manager/TestimonialsManager';
 import { FAQManager } from './manager/FAQManager';
 import { FormBuilder } from './manager/FormBuilder';
+import { ContentScheduler } from './manager/ContentScheduler';
+import { NewsletterSubscribers } from './manager/NewsletterSubscribers';
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
@@ -163,6 +165,8 @@ export default function ManagerPortal() {
               {activeTab === 'testimonials' && <TestimonialsManager />}
               {activeTab === 'faq' && <FAQManager />}
               {activeTab === 'forms' && <FormBuilder />}
+              {activeTab === 'scheduler' && <ContentScheduler />}
+              {activeTab === 'subscribers' && <NewsletterSubscribers />}
               {activeTab === 'account_settings' && <AccountSettings />}
             </div>
           </div>
