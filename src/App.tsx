@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from './lib/auth';
 import LandingPage from './components/LandingPage';
 import ClearNavLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
+import { PublicWebsite } from './components/public/PublicWebsite';
+import { resolveTenantFromDomain } from './lib/tenantResolver';
 
 const ClientPortal = lazy(() => import('./components/ClientPortal'));
 const ManagerPortal = lazy(() => import('./components/ManagerPortal'));
@@ -15,6 +17,8 @@ const SalesSheet = lazy(() => import('./components/SalesSheet'));
 function AppContent() {
   const { user, loading, roleCategory, isPlatformAdmin, currentTenant } = useAuth();
   const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug' | 'sales-sheet'>('landing');
+  const [publicTenant, setPublicTenant] = useState<{ id: string; slug: string } | null>(null);
+  const [tenantLoading, setTenantLoading] = useState(true);
 
   useEffect(() => {
     const checkRoute = () => {
@@ -40,6 +44,28 @@ function AppContent() {
     window.addEventListener('popstate', handleUrlChange);
     return () => window.removeEventListener('popstate', handleUrlChange);
   }, []);
+
+  useEffect(() => {
+    async function resolveTenant() {
+      try {
+        setTenantLoading(true);
+        const result = await resolveTenantFromDomain(window.location.hostname);
+        if (result.tenant) {
+          setPublicTenant({ id: result.tenant.id, slug: result.tenant.slug });
+        }
+      } catch (error) {
+        console.error('Error resolving tenant:', error);
+      } finally {
+        setTenantLoading(false);
+      }
+    }
+
+    if (!user) {
+      resolveTenant();
+    } else {
+      setTenantLoading(false);
+    }
+  }, [user]);
 
   if (loading) {
     return (
@@ -139,6 +165,18 @@ function AppContent() {
     return <LoginPage onBack={() => setView('landing')} />;
   }
 
+  if (tenantLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (publicTenant) {
+    return <PublicWebsite tenantId={publicTenant.id} tenantSlug={publicTenant.slug} />;
+  }
+
   if (!currentTenant) {
     return <ClearNavLandingPage onLoginClick={() => setView('login')} />;
   }
@@ -157,7 +195,7 @@ function App() {
 
     // If not in special modes and no tenant param, redirect immediately
     if (!isDebug && !isSignup && !tenantParam) {
-      const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?tenant=greyalpha`;
+      const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?tenant=arkline`;
       window.location.replace(newUrl);
       // Return loading state while redirecting
       return (
