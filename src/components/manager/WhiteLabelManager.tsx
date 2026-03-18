@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { Globe, Palette, FileText, Rocket, Mail } from 'lucide-react';
+import { Globe, Palette, FileText, Rocket, Mail, Search, Code, Settings } from 'lucide-react';
 import DomainManagement from './whitelabel/DomainManagement';
 import SiteDesignEditor from './whitelabel/SiteDesignEditor';
-import PageContentBuilder from './whitelabel/PageContentBuilder';
+import VisualPageBuilder from './whitelabel/VisualPageBuilder';
 import DeploymentManager from './whitelabel/DeploymentManager';
 import { TenantEmailClaiming } from './whitelabel/TenantEmailClaiming';
+import { SEOManager } from './whitelabel/SEOManager';
+import { CustomCSSEditor } from './whitelabel/CustomCSSEditor';
+import { AdvancedSettings } from './whitelabel/AdvancedSettings';
 
-type TabType = 'domains' | 'design' | 'content' | 'deploy' | 'email';
+type TabType = 'domains' | 'design' | 'content' | 'seo' | 'css' | 'settings' | 'deploy' | 'email';
 
 export default function WhiteLabelManager() {
   const [activeTab, setActiveTab] = useState<TabType>('domains');
@@ -16,6 +19,9 @@ export default function WhiteLabelManager() {
     { id: 'email' as TabType, label: 'Email Address', icon: Mail },
     { id: 'design' as TabType, label: 'Site Design', icon: Palette },
     { id: 'content' as TabType, label: 'Page Content', icon: FileText },
+    { id: 'seo' as TabType, label: 'SEO', icon: Search },
+    { id: 'css' as TabType, label: 'Custom CSS', icon: Code },
+    { id: 'settings' as TabType, label: 'Advanced', icon: Settings },
     { id: 'deploy' as TabType, label: 'Deployment', icon: Rocket },
   ];
 
@@ -28,7 +34,13 @@ export default function WhiteLabelManager() {
       case 'design':
         return <SiteDesignEditor />;
       case 'content':
-        return <PageContentBuilder />;
+        return <VisualPageBuilder />;
+      case 'seo':
+        return <SEOManager />;
+      case 'css':
+        return <CustomCSSEditor />;
+      case 'settings':
+        return <AdvancedSettings />;
       case 'deploy':
         return <DeploymentManager />;
       default:
