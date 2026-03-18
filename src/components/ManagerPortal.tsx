@@ -41,6 +41,10 @@ import LiveCallDashboard from './manager/LiveCallDashboard';
 import VoiceAgentDialer from './manager/VoiceAgentDialer';
 import VoiceAgentAnalytics from './manager/VoiceAgentAnalytics';
 import AccountSettings from './manager/AccountSettings';
+import { BlogManager } from './manager/BlogManager';
+import { TestimonialsManager } from './manager/TestimonialsManager';
+import { FAQManager } from './manager/FAQManager';
+import { FormBuilder } from './manager/FormBuilder';
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
@@ -155,6 +159,10 @@ export default function ManagerPortal() {
               {activeTab === 'compliance' && <ComplianceCenter />}
               {activeTab === 'users' && <UserManagement />}
               {activeTab === 'staff' && <StaffManagement />}
+              {activeTab === 'blog' && <BlogManager />}
+              {activeTab === 'testimonials' && <TestimonialsManager />}
+              {activeTab === 'faq' && <FAQManager />}
+              {activeTab === 'forms' && <FormBuilder />}
               {activeTab === 'account_settings' && <AccountSettings />}
             </div>
           </div>

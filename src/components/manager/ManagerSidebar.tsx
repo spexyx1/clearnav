@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart, Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe, CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Video as LucideIcon, Bot, Phone, PhoneCall, BarChart2, CreditCard } from 'lucide-react';
+import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart, Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe, CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Video as LucideIcon, Bot, Phone, PhoneCall, BarChart2, CreditCard, BookOpen, Star, HelpCircle, FileText } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
-export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'account_settings';
+export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'account_settings';
 
 interface NavItem {
   id: TabType;
@@ -162,13 +162,22 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
       ],
     },
     {
+      label: 'Website',
+      items: [
+        ...(isTenantAdmin ? [
+          { id: 'whitelabel' as TabType, label: 'White Label', icon: Globe },
+        ] : []),
+        { id: 'blog' as TabType, label: 'Blog', icon: BookOpen },
+        { id: 'testimonials' as TabType, label: 'Testimonials', icon: Star },
+        { id: 'faq' as TabType, label: 'FAQ', icon: HelpCircle },
+        { id: 'forms' as TabType, label: 'Forms', icon: FileText },
+      ],
+    },
+    {
       label: 'Admin',
       items: [
         ...(isTenantAdmin || userRole === 'general_manager' ? [
           { id: 'users' as TabType, label: 'Users', icon: UserCog },
-        ] : []),
-        ...(isTenantAdmin ? [
-          { id: 'whitelabel' as TabType, label: 'White Label', icon: Globe },
         ] : []),
         ...(userRole === 'general_manager' || userRole === 'compliance_manager' || userRole === 'legal_counsel' ? [
           { id: 'compliance' as TabType, label: 'Compliance', icon: Shield },
