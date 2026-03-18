@@ -3,8 +3,8 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { Database } from '../types/database';
 
-type UserRole = 'general_manager' | 'compliance_manager' | 'accountant' | 'cfo' | 'legal_counsel' | 'admin' | 'client' | 'platform_admin';
-type RoleCategory = 'superadmin' | 'tenant_admin' | 'client' | 'staff_user';
+type UserRole = 'general_manager' | 'compliance_manager' | 'accountant' | 'cfo' | 'legal_counsel' | 'admin' | 'client' | 'platform_admin' | 'auditor';
+type RoleCategory = 'superadmin' | 'tenant_admin' | 'client' | 'staff_user' | 'auditor';
 type Tenant = Database['public']['Tables']['platform_tenants']['Row'];
 type PlatformAdminUser = Database['public']['Tables']['platform_admin_users']['Row'];
 type TenantUser = Database['public']['Tables']['tenant_users']['Row'];
@@ -20,6 +20,18 @@ interface StaffAccount {
   tenant_id?: string;
 }
 
+interface AuditorProfile {
+  id: string;
+  user_id: string;
+  firm_name: string;
+  bio: string | null;
+  specializations: any;
+  certification_status: string;
+  is_publicly_listed: boolean;
+  total_audits_completed: number;
+  average_rating: number;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -30,7 +42,9 @@ interface AuthContextType {
   isStaff: boolean;
   isTenantAdmin: boolean;
   isClient: boolean;
+  isAuditor: boolean;
   staffAccount: StaffAccount | null;
+  auditorProfile: AuditorProfile | null;
   isPlatformAdmin: boolean;
   platformAdminUser: PlatformAdminUser | null;
   currentTenant: Tenant | null;
@@ -54,7 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isStaff, setIsStaff] = useState(false);
   const [isTenantAdmin, setIsTenantAdmin] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [isAuditor, setIsAuditor] = useState(false);
   const [staffAccount, setStaffAccount] = useState<StaffAccount | null>(null);
+  const [auditorProfile, setAuditorProfile] = useState<AuditorProfile | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [platformAdminUser, setPlatformAdminUser] = useState<PlatformAdminUser | null>(null);
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
@@ -111,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsStaff(false);
         setIsTenantAdmin(false);
         setIsClient(false);
+        setIsAuditor(false);
         setUserRole('platform_admin');
 
         // Fetch platform admin details
@@ -122,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPlatformAdminUser(adminData);
         setStaffAccount(null);
         setTenantUser(null);
+        setAuditorProfile(null);
         break;
 
       case 'tenant_admin':
@@ -129,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsPlatformAdmin(false);
         setIsStaff(false);
         setIsClient(false);
+        setIsAuditor(false);
         setUserRole('admin');
 
         // Fetch tenant user details
@@ -143,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setPlatformAdminUser(null);
         setStaffAccount(null);
+        setAuditorProfile(null);
         break;
 
       case 'staff_user':
@@ -150,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsPlatformAdmin(false);
         setIsTenantAdmin(false);
         setIsClient(false);
+        setIsAuditor(false);
         setUserRole(userRoleData.role_detail as UserRole);
 
         // Fetch staff account details
@@ -162,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStaffAccount(staffData);
         setPlatformAdminUser(null);
         setTenantUser(null);
+        setAuditorProfile(null);
         break;
 
       case 'client':
@@ -169,7 +191,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsPlatformAdmin(false);
         setIsStaff(false);
         setIsTenantAdmin(false);
+        setIsAuditor(false);
         setUserRole('client');
+        setPlatformAdminUser(null);
+        setStaffAccount(null);
+        setTenantUser(null);
+        setAuditorProfile(null);
+        break;
+
+      case 'auditor':
+        setIsAuditor(true);
+        setIsPlatformAdmin(false);
+        setIsStaff(false);
+        setIsTenantAdmin(false);
+        setIsClient(false);
+        setUserRole('auditor');
+
+        // Fetch auditor profile details
+        const { data: auditorData } = await supabase
+          .from('auditor_profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+        setAuditorProfile(auditorData);
         setPlatformAdminUser(null);
         setStaffAccount(null);
         setTenantUser(null);
@@ -187,7 +231,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsStaff(false);
     setIsTenantAdmin(false);
     setIsClient(false);
+    setIsAuditor(false);
     setStaffAccount(null);
+    setAuditorProfile(null);
     setIsPlatformAdmin(false);
     setPlatformAdminUser(null);
     setTenantUser(null);
@@ -260,7 +306,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isStaff,
       isTenantAdmin,
       isClient,
+      isAuditor,
       staffAccount,
+      auditorProfile,
       isPlatformAdmin,
       platformAdminUser,
       currentTenant,
@@ -283,3 +331,5 @@ export function useAuth() {
   }
   return context;
 }
+
+export type { UserRole, RoleCategory, AuditorProfile };
