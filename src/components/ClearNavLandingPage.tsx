@@ -1,5 +1,6 @@
 import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCircle, LineChart, CreditCard, Calculator, FileCheck, Bell, Lock, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare, Database, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
+import LanguageSelector from './shared/LanguageSelector';
 
 interface ClearNavLandingPageProps {
   onLoginClick: () => void;
@@ -337,6 +338,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
               </span>
             </div>
             <div className="flex items-center space-x-6">
+              <LanguageSelector variant="compact" theme="dark" />
               <a
                 href="/sales-sheet"
                 onClick={(e) => {
