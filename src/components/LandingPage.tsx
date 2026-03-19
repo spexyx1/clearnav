@@ -569,6 +569,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             )}
           </div>
           <div className="flex items-center space-x-6">
+            <LanguageSelector variant="compact" theme="dark" />
             <a
               href="/sales-sheet"
               onClick={(e) => {
@@ -584,7 +585,6 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             <div className="text-sm text-slate-500">
               © {new Date().getFullYear()} {branding.company_name}. All rights reserved.
             </div>
-            <LanguageSelector variant="compact" theme="dark" />
           </div>
         </div>
       </footer>
