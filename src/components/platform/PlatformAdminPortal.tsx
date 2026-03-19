@@ -9,7 +9,9 @@ import {
   MessageSquare,
   LogOut,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../lib/auth';
+import LanguageSelector from '../shared/LanguageSelector';
 import TenantManagement from './TenantManagement';
 import BillingOverview from './BillingOverview';
 import PlatformAnalytics from './PlatformAnalytics';
@@ -22,16 +24,17 @@ type Tab = 'tenants' | 'users' | 'discounts' | 'billing' | 'analytics' | 'suppor
 
 export default function PlatformAdminPortal() {
   const { signOut } = useAuth();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>('tenants');
 
   const tabs = [
-    { id: 'tenants', label: 'Tenants', icon: Building2 },
-    { id: 'users', label: 'Users', icon: Users },
-    { id: 'discounts', label: 'Discounts', icon: Percent },
-    { id: 'billing', label: 'Billing', icon: DollarSign },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'support', label: 'Support', icon: MessageSquare },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'tenants', label: t('platformAdmin.tenants'), icon: Building2 },
+    { id: 'users', label: t('platformAdmin.users'), icon: Users },
+    { id: 'discounts', label: t('platformAdmin.discounts'), icon: Percent },
+    { id: 'billing', label: t('platformAdmin.billing'), icon: DollarSign },
+    { id: 'analytics', label: t('platformAdmin.analytics'), icon: BarChart3 },
+    { id: 'support', label: t('platformAdmin.support'), icon: MessageSquare },
+    { id: 'settings', label: t('platformAdmin.settings'), icon: Settings },
   ];
 
   return (
@@ -44,17 +47,20 @@ export default function PlatformAdminPortal() {
                 <Users className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900">Platform Admin</h1>
-                <p className="text-sm text-slate-600">Multi-Tenant Management</p>
+                <h1 className="text-xl font-bold text-slate-900">{t('platformAdmin.title')}</h1>
+                <p className="text-sm text-slate-600">{t('platformAdmin.subtitle')}</p>
               </div>
             </div>
-            <button
-              onClick={() => signOut()}
-              className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Sign Out</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <LanguageSelector variant="compact" />
+              <button
+                onClick={() => signOut()}
+                className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>{t('nav.signOut')}</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>

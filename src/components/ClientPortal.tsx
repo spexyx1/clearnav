@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { LogOut, LayoutDashboard, TrendingUp, FileText, ArrowDownCircle, Receipt, Activity, Settings, ShoppingCart, Globe } from 'lucide-react';
+import { LogOut, LayoutDashboard, TrendingUp, FileText, ArrowDownCircle, Receipt, Activity, Settings as SettingsIcon, ShoppingCart, Globe } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
+import LanguageSelector from './shared/LanguageSelector';
 import Dashboard from './portal/Dashboard';
 import Returns from './portal/Returns';
 import Documents from './portal/Documents';
 import Redemptions from './portal/Redemptions';
 import TaxDocuments from './portal/TaxDocuments';
 import RiskMetrics from './portal/RiskMetrics';
-import IBKRSettings from './portal/IBKRSettings';
+import Settings from './portal/Settings';
 import Exchange from './portal/Exchange';
 import CommunityHub from './community/CommunityHub';
 
@@ -28,6 +30,7 @@ interface TenantBranding {
 
 export default function ClientPortal() {
   const { user, signOut, currentTenant } = useAuth();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [profile, setProfile] = useState<any>(null);
   const [branding, setBranding] = useState<TenantBranding>({
@@ -79,15 +82,15 @@ export default function ClientPortal() {
   };
 
   const tabs = [
-    { id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'returns' as TabType, label: 'Returns', icon: TrendingUp },
-    { id: 'risk' as TabType, label: 'Risk Analytics', icon: Activity },
-    { id: 'documents' as TabType, label: 'Documents', icon: FileText },
-    { id: 'redemptions' as TabType, label: 'Redemptions', icon: ArrowDownCircle },
-    { id: 'tax' as TabType, label: 'Tax Documents', icon: Receipt },
-    { id: 'exchange' as TabType, label: 'Exchange', icon: ShoppingCart },
-    { id: 'community' as TabType, label: 'Community', icon: Globe },
-    { id: 'settings' as TabType, label: 'IBKR Settings', icon: Settings },
+    { id: 'dashboard' as TabType, label: t('nav.dashboard'), icon: LayoutDashboard },
+    { id: 'returns' as TabType, label: t('clientPortal.returns'), icon: TrendingUp },
+    { id: 'risk' as TabType, label: t('clientPortal.risk'), icon: Activity },
+    { id: 'documents' as TabType, label: t('clientPortal.documents'), icon: FileText },
+    { id: 'redemptions' as TabType, label: t('clientPortal.redemptions'), icon: ArrowDownCircle },
+    { id: 'tax' as TabType, label: t('clientPortal.tax'), icon: Receipt },
+    { id: 'exchange' as TabType, label: t('clientPortal.exchange'), icon: ShoppingCart },
+    { id: 'community' as TabType, label: t('clientPortal.community'), icon: Globe },
+    { id: 'settings' as TabType, label: t('clientPortal.settings'), icon: SettingsIcon },
   ];
 
   return (
@@ -113,8 +116,9 @@ export default function ClientPortal() {
               )}
             </div>
             <div className="flex items-center space-x-6">
+              <LanguageSelector variant="compact" />
               <div className="text-right">
-                <div className="text-sm text-slate-400">Welcome back,</div>
+                <div className="text-sm text-slate-400">{t('clientPortal.welcome')},</div>
                 <div className="text-white font-medium">{profile?.full_name || 'Client'}</div>
               </div>
               <button
@@ -122,7 +126,7 @@ export default function ClientPortal() {
                 className="flex items-center space-x-2 px-4 py-2 text-slate-300 hover:text-white transition-colors"
               >
                 <LogOut className="w-4 h-4" />
-                <span className="text-sm">Sign Out</span>
+                <span className="text-sm">{t('nav.signOut')}</span>
               </button>
             </div>
           </div>
@@ -159,7 +163,7 @@ export default function ClientPortal() {
           {activeTab === 'tax' && <TaxDocuments />}
           {activeTab === 'exchange' && <Exchange profile={profile} />}
           {activeTab === 'community' && <CommunityHub />}
-          {activeTab === 'settings' && <IBKRSettings />}
+          {activeTab === 'settings' && <Settings />}
         </div>
       </div>
     </div>

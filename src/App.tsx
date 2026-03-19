@@ -1,10 +1,12 @@
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
+import { LanguageProvider } from './lib/LanguageContext';
 import LandingPage from './components/LandingPage';
 import ClearNavLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
 import { PublicWebsite } from './components/public/PublicWebsite';
 import { resolveTenantFromDomain } from './lib/tenantResolver';
+import './i18n/config';
 
 const ClientPortal = lazy(() => import('./components/ClientPortal'));
 const ManagerPortal = lazy(() => import('./components/ManagerPortal'));
@@ -211,7 +213,9 @@ function App() {
 
   return (
     <AuthProvider>
-      <AppContent />
+      <LanguageProvider>
+        <AppContent />
+      </LanguageProvider>
     </AuthProvider>
   );
 }

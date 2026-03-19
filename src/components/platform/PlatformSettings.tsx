@@ -1,15 +1,31 @@
 import React from 'react';
-import { Settings, Shield, Bell, Database, Globe } from 'lucide-react';
+import { Settings, Shield, Bell, Database, Globe, Languages } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import LanguageSelector from '../shared/LanguageSelector';
 
 export default function PlatformSettings() {
+  const { t } = useTranslation();
+
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-slate-900">Platform Settings</h2>
+        <h2 className="text-2xl font-bold text-slate-900">{t('platformAdmin.settings')}</h2>
         <p className="text-slate-600 mt-1">Configure platform-wide settings and preferences</p>
       </div>
 
       <div className="space-y-6">
+        <div className="bg-white border border-slate-200 rounded-lg p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+              <Languages className="w-5 h-5 text-cyan-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">{t('settings.languagePreferences')}</h3>
+              <p className="text-sm text-slate-600">{t('settings.chooseLanguage')}</p>
+            </div>
+          </div>
+          <LanguageSelector />
+        </div>
         <div className="bg-white border border-slate-200 rounded-lg p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">

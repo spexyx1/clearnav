@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart, Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe, CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Video as LucideIcon, Bot, Phone, PhoneCall, BarChart2, CreditCard, BookOpen, Star, HelpCircle, FileText, Calendar, UserPlus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
 export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'scheduler' | 'subscribers' | 'account_settings';
@@ -28,6 +29,7 @@ const STORAGE_KEY = 'clearnav-sidebar-collapsed';
 const SECTIONS_KEY = 'clearnav-sidebar-sections';
 
 export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, userRole, primaryColor, tenantId }: ManagerSidebarProps) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(STORAGE_KEY) === 'true';
@@ -97,96 +99,96 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
 
   const navGroups: NavGroup[] = [
     {
-      label: 'Portfolio',
+      label: t('navGroups.portfolio'),
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-        { id: 'funds', label: 'Funds', icon: Building2 },
-        { id: 'classes', label: 'Share Classes', icon: Layers },
-        { id: 'accounts', label: 'Capital Accounts', icon: Wallet },
-        { id: 'nav', label: 'NAV', icon: TrendingUp },
-        { id: 'transactions', label: 'Transactions', icon: ArrowRightLeft },
+        { id: 'dashboard', label: t('nav.dashboard'), icon: BarChart3 },
+        { id: 'funds', label: t('nav.funds'), icon: Building2 },
+        { id: 'classes', label: t('nav.classes'), icon: Layers },
+        { id: 'accounts', label: t('nav.accounts'), icon: Wallet },
+        { id: 'nav', label: t('nav.nav'), icon: TrendingUp },
+        { id: 'transactions', label: t('nav.transactions'), icon: ArrowRightLeft },
       ],
     },
     {
-      label: 'Operations',
+      label: t('navGroups.operations'),
       items: [
-        { id: 'capital_calls', label: 'Capital Calls', icon: Bell },
-        { id: 'distributions', label: 'Distributions', icon: DollarSign },
-        { id: 'redemptions', label: 'Redemptions', icon: ArrowUpCircle },
-        { id: 'fees', label: 'Fees', icon: Percent },
-        { id: 'exchange', label: 'Exchange', icon: ShoppingCart },
+        { id: 'capital_calls', label: t('nav.capitalCalls'), icon: Bell },
+        { id: 'distributions', label: t('nav.distributions'), icon: DollarSign },
+        { id: 'redemptions', label: t('nav.redemptions'), icon: ArrowUpCircle },
+        { id: 'fees', label: t('nav.fees'), icon: Percent },
+        { id: 'exchange', label: t('nav.exchange'), icon: ShoppingCart },
       ],
     },
     {
-      label: 'Reporting',
+      label: t('navGroups.reporting'),
       items: [
-        { id: 'statements', label: 'Statements', icon: Receipt },
-        { id: 'performance', label: 'Performance', icon: PieChart },
-        { id: 'reports', label: 'Reports', icon: FolderOpen },
-        { id: 'tax_docs', label: 'Tax Docs', icon: FileCheck },
+        { id: 'statements', label: t('nav.statements'), icon: Receipt },
+        { id: 'performance', label: t('nav.performance'), icon: PieChart },
+        { id: 'reports', label: t('nav.reports'), icon: FolderOpen },
+        { id: 'tax_docs', label: t('nav.taxDocs'), icon: FileCheck },
       ],
     },
     {
-      label: 'Advanced',
+      label: t('navGroups.advanced'),
       items: [
-        { id: 'waterfall', label: 'Waterfall', icon: Calculator },
-        { id: 'carried_interest', label: 'Carried Interest', icon: Coins },
-        { id: 'side_pockets', label: 'Side Pockets', icon: Package },
+        { id: 'waterfall', label: t('nav.waterfall'), icon: Calculator },
+        { id: 'carried_interest', label: t('nav.carriedInterest'), icon: Coins },
+        { id: 'side_pockets', label: t('nav.sidePockets'), icon: Package },
       ],
     },
     {
-      label: 'CRM',
+      label: t('navGroups.crm'),
       items: [
-        { id: 'contacts', label: 'Contacts', icon: Contact },
-        { id: 'onboarding', label: 'Onboarding', icon: UserCheck },
-        { id: 'clients', label: 'Clients', icon: Users },
+        { id: 'contacts', label: t('nav.contacts'), icon: Contact },
+        { id: 'onboarding', label: t('nav.onboarding'), icon: UserCheck },
+        { id: 'clients', label: t('nav.clients'), icon: Users },
       ],
     },
     {
-      label: 'Communications',
+      label: t('navGroups.communications'),
       items: [
-        { id: 'email', label: 'Email', icon: Inbox },
-        { id: 'newsletters', label: 'Newsletters', icon: Mail },
-        { id: 'communications', label: 'Messaging', icon: MessageSquare },
-        { id: 'community', label: 'Community', icon: Globe },
+        { id: 'email', label: t('nav.email'), icon: Inbox },
+        { id: 'newsletters', label: t('nav.newsletters'), icon: Mail },
+        { id: 'communications', label: t('nav.communications'), icon: MessageSquare },
+        { id: 'community', label: t('nav.community'), icon: Globe },
       ],
     },
     {
-      label: 'Agents',
+      label: t('navGroups.agents'),
       items: [
-        { id: 'ai_agents', label: 'AI Agents', icon: Bot },
-        { id: 'voice_setup', label: 'Voice Setup', icon: Settings },
-        { id: 'voice_live', label: 'Live Calls', icon: Phone },
-        { id: 'voice_dialer', label: 'Dialer', icon: PhoneCall },
-        { id: 'voice_analytics', label: 'Voice Analytics', icon: BarChart2 },
+        { id: 'ai_agents', label: t('nav.aiAgents'), icon: Bot },
+        { id: 'voice_setup', label: t('nav.voiceSetup'), icon: Settings },
+        { id: 'voice_live', label: t('nav.voiceLive'), icon: Phone },
+        { id: 'voice_dialer', label: t('nav.voiceDialer'), icon: PhoneCall },
+        { id: 'voice_analytics', label: t('nav.voiceAnalytics'), icon: BarChart2 },
       ],
     },
     {
-      label: 'Website',
+      label: t('navGroups.website'),
       items: [
         ...(isTenantAdmin ? [
-          { id: 'whitelabel' as TabType, label: 'White Label', icon: Globe },
+          { id: 'whitelabel' as TabType, label: t('nav.whitelabel'), icon: Globe },
         ] : []),
-        { id: 'blog' as TabType, label: 'Blog', icon: BookOpen },
-        { id: 'testimonials' as TabType, label: 'Testimonials', icon: Star },
-        { id: 'faq' as TabType, label: 'FAQ', icon: HelpCircle },
-        { id: 'forms' as TabType, label: 'Forms', icon: FileText },
-        { id: 'scheduler' as TabType, label: 'Scheduler', icon: Calendar },
-        { id: 'subscribers' as TabType, label: 'Subscribers', icon: UserPlus },
+        { id: 'blog' as TabType, label: t('nav.blog'), icon: BookOpen },
+        { id: 'testimonials' as TabType, label: t('nav.testimonials'), icon: Star },
+        { id: 'faq' as TabType, label: t('nav.faq'), icon: HelpCircle },
+        { id: 'forms' as TabType, label: t('nav.forms'), icon: FileText },
+        { id: 'scheduler' as TabType, label: t('nav.scheduler'), icon: Calendar },
+        { id: 'subscribers' as TabType, label: t('nav.subscribers'), icon: UserPlus },
       ],
     },
     {
-      label: 'Admin',
+      label: t('navGroups.admin'),
       items: [
         ...(isTenantAdmin || userRole === 'general_manager' ? [
-          { id: 'users' as TabType, label: 'Users', icon: UserCog },
+          { id: 'users' as TabType, label: t('nav.users'), icon: UserCog },
         ] : []),
         ...(userRole === 'general_manager' || userRole === 'compliance_manager' || userRole === 'legal_counsel' ? [
-          { id: 'compliance' as TabType, label: 'Compliance', icon: Shield },
+          { id: 'compliance' as TabType, label: t('nav.compliance'), icon: Shield },
         ] : []),
-        { id: 'tasks' as TabType, label: 'Tasks', icon: CheckSquare },
-        { id: 'analytics' as TabType, label: 'Analytics', icon: Briefcase },
-        { id: 'account_settings' as TabType, label: 'Account', icon: CreditCard },
+        { id: 'tasks' as TabType, label: t('nav.tasks'), icon: CheckSquare },
+        { id: 'analytics' as TabType, label: t('nav.analytics'), icon: Briefcase },
+        { id: 'account_settings' as TabType, label: t('nav.accountSettings'), icon: CreditCard },
       ],
     },
   ].filter(g => g.items.length > 0);

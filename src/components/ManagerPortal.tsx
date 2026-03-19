@@ -3,6 +3,7 @@ import { LogOut, Search, Bell } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { useTenantBranding } from '../lib/hooks';
+import LanguageSelector from './shared/LanguageSelector';
 import ManagerSidebar, { TabType } from './manager/ManagerSidebar';
 import CRMDashboard from './manager/CRMDashboard';
 import ContactList from './manager/ContactList';
@@ -75,6 +76,7 @@ export default function ManagerPortal() {
             </div>
 
             <div className="flex items-center gap-3">
+              <LanguageSelector variant="compact" />
               <div className="relative group">
                 <div
                   onClick={() => setShowUserMenu(!showUserMenu)}
