@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, Zap, Shield, ChevronRight, Mail, Building2, FileText, BarChart3, Lock, Globe, Users, Bell, FileCheck, CreditCard, LineChart, Calculator, BookOpen, HelpCircle, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare, ShieldCheck, Award, Clock } from 'lucide-react';
 import InquiryForm from './InquiryForm';
+import LanguageSelector from './shared/LanguageSelector';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import * as LucideIcons from 'lucide-react';
