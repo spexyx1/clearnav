@@ -76,7 +76,7 @@ export default function ManagerPortal() {
             </div>
 
             <div className="flex items-center gap-3">
-              <LanguageSelector variant="compact" />
+              <LanguageSelector variant="compact" theme="dark" />
               <div className="relative group">
                 <div
                   onClick={() => setShowUserMenu(!showUserMenu)}

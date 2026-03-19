@@ -116,7 +116,7 @@ export default function ClientPortal() {
               )}
             </div>
             <div className="flex items-center space-x-6">
-              <LanguageSelector variant="compact" />
+              <LanguageSelector variant="compact" theme="dark" />
               <div className="text-right">
                 <div className="text-sm text-slate-400">{t('clientPortal.welcome')},</div>
                 <div className="text-white font-medium">{profile?.full_name || 'Client'}</div>

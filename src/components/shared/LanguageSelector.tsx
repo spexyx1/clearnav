@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next';
 
 interface LanguageSelectorProps {
   variant?: 'full' | 'compact';
+  theme?: 'dark' | 'light';
 }
 
-export default function LanguageSelector({ variant = 'full' }: LanguageSelectorProps) {
+export default function LanguageSelector({ variant = 'full', theme = 'dark' }: LanguageSelectorProps) {
   const { language: currentLanguage, setLanguage, languages } = useLanguage();
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -51,27 +52,54 @@ export default function LanguageSelector({ variant = 'full' }: LanguageSelectorP
   const currentLang = languages.find(lang => lang.code === currentLanguage);
 
   if (variant === 'compact') {
+    const isDark = theme === 'dark';
+
+    const buttonClasses = isDark
+      ? "flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 transition-colors border border-slate-700/50 hover:border-slate-600"
+      : "flex items-center gap-2 px-3 py-2 rounded-lg bg-white hover:bg-slate-50 transition-colors border border-slate-300 hover:border-slate-400 shadow-sm";
+
+    const iconClasses = isDark ? "w-5 h-5 text-cyan-400" : "w-5 h-5 text-slate-700";
+    const textClasses = isDark ? "text-sm font-medium uppercase text-white" : "text-sm font-medium uppercase text-slate-900";
+
+    const dropdownClasses = isDark
+      ? "absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden"
+      : "absolute right-0 top-full mt-2 w-80 bg-white border border-slate-300 rounded-lg shadow-xl z-50 overflow-hidden";
+
+    const searchWrapperClasses = isDark ? "p-3 border-b border-slate-800" : "p-3 border-b border-slate-200";
+    const searchInputClasses = isDark
+      ? "w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+      : "w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 placeholder-slate-500 focus:outline-none focus:border-cyan-500";
+
+    const itemClasses = isDark
+      ? "w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-800 transition-colors"
+      : "w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition-colors";
+
+    const itemActiveClasses = isDark ? "bg-slate-800/50" : "bg-slate-100";
+    const itemTextClasses = isDark ? "text-white" : "text-slate-900";
+    const itemSubtextClasses = isDark ? "text-slate-400" : "text-slate-600";
+
     return (
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-800/60 transition-colors text-slate-300 hover:text-white"
+          className={buttonClasses}
+          title="Select Language"
         >
-          <Globe className="w-4 h-4" />
-          <span className="text-sm font-medium uppercase">{currentLanguage}</span>
+          <Globe className={iconClasses} />
+          <span className={`${textClasses} hidden sm:inline`}>{currentLanguage}</span>
         </button>
 
         {isOpen && (
-          <div className="absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
-            <div className="p-3 border-b border-slate-800">
+          <div className={dropdownClasses}>
+            <div className={searchWrapperClasses}>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t('settings.searchLanguages')}
-                  className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className={searchInputClasses}
                   autoFocus
                 />
               </div>
@@ -83,13 +111,11 @@ export default function LanguageSelector({ variant = 'full' }: LanguageSelectorP
                   key={lang.code}
                   onClick={() => handleLanguageSelect(lang.code)}
                   disabled={saving}
-                  className={`w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-800 transition-colors ${
-                    lang.code === currentLanguage ? 'bg-slate-800/50' : ''
-                  }`}
+                  className={`${itemClasses} ${lang.code === currentLanguage ? itemActiveClasses : ''}`}
                 >
                   <div className="flex flex-col items-start">
-                    <span className="text-white font-medium">{lang.nativeName}</span>
-                    <span className="text-xs text-slate-400">{lang.name}</span>
+                    <span className={`${itemTextClasses} font-medium`}>{lang.nativeName}</span>
+                    <span className={`text-xs ${itemSubtextClasses}`}>{lang.name}</span>
                   </div>
                   {lang.code === currentLanguage && (
                     <Check className="w-5 h-5 text-cyan-500" />
