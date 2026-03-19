@@ -52,7 +52,6 @@ export default function PlatformAdminPortal() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <LanguageSelector variant="compact" theme="light" />
               <button
                 onClick={() => signOut()}
                 className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
@@ -95,6 +94,15 @@ export default function PlatformAdminPortal() {
           {activeTab === 'support' && <SupportTools />}
           {activeTab === 'settings' && <PlatformSettings />}
         </div>
+
+        <footer className="border-t border-slate-200 bg-slate-50 py-4 mt-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+            <p className="text-sm text-slate-600">
+              © {new Date().getFullYear()} Platform Admin. All rights reserved.
+            </p>
+            <LanguageSelector variant="compact" theme="light" />
+          </div>
+        </footer>
       </div>
     </div>
   );

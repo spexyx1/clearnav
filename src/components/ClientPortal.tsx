@@ -116,7 +116,6 @@ export default function ClientPortal() {
               )}
             </div>
             <div className="flex items-center space-x-6">
-              <LanguageSelector variant="compact" theme="dark" />
               <div className="text-right">
                 <div className="text-sm text-slate-400">{t('clientPortal.welcome')},</div>
                 <div className="text-white font-medium">{profile?.full_name || 'Client'}</div>
@@ -165,6 +164,15 @@ export default function ClientPortal() {
           {activeTab === 'community' && <CommunityHub />}
           {activeTab === 'settings' && <Settings />}
         </div>
+
+        <footer className="border-t border-slate-800 bg-slate-950/50 py-4 mt-8">
+          <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
+            <p className="text-sm text-slate-500">
+              © {new Date().getFullYear()} {branding.company_name}. All rights reserved.
+            </p>
+            <LanguageSelector variant="compact" theme="dark" />
+          </div>
+        </footer>
       </div>
     </div>
   );

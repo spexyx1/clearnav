@@ -55,11 +55,11 @@ export default function LanguageSelector({ variant = 'full', theme = 'dark' }: L
     const isDark = theme === 'dark';
 
     const buttonClasses = isDark
-      ? "flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 transition-colors border border-slate-700/50 hover:border-slate-600"
-      : "flex items-center gap-2 px-3 py-2 rounded-lg bg-white hover:bg-slate-50 transition-colors border border-slate-300 hover:border-slate-400 shadow-sm";
+      ? "flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors border border-slate-700/30 hover:border-slate-600"
+      : "flex items-center gap-2 px-3 py-2 rounded-lg bg-transparent hover:bg-slate-100 transition-colors border border-slate-300 hover:border-slate-400";
 
-    const iconClasses = isDark ? "w-5 h-5 text-cyan-400" : "w-5 h-5 text-slate-700";
-    const textClasses = isDark ? "text-sm font-medium uppercase text-white" : "text-sm font-medium uppercase text-slate-900";
+    const iconClasses = isDark ? "w-5 h-5 text-slate-500" : "w-5 h-5 text-slate-600";
+    const textClasses = isDark ? "text-sm font-medium uppercase text-slate-500" : "text-sm font-medium uppercase text-slate-600";
 
     const dropdownClasses = isDark
       ? "absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden"
