@@ -48,6 +48,8 @@ import { FAQManager } from './manager/FAQManager';
 import { FormBuilder } from './manager/FormBuilder';
 import { ContentScheduler } from './manager/ContentScheduler';
 import { NewsletterSubscribers } from './manager/NewsletterSubscribers';
+import InvitationTemplateManager from './manager/InvitationTemplateManager';
+import EmailTemplateManager from './manager/EmailTemplateManager';
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
@@ -168,6 +170,8 @@ export default function ManagerPortal() {
               {activeTab === 'forms' && <FormBuilder />}
               {activeTab === 'scheduler' && <ContentScheduler />}
               {activeTab === 'subscribers' && <NewsletterSubscribers />}
+              {activeTab === 'invitation_templates' && <InvitationTemplateManager />}
+              {activeTab === 'email_templates' && <EmailTemplateManager />}
               {activeTab === 'account_settings' && <AccountSettings />}
             </div>
           </div>

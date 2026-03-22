@@ -74,26 +74,73 @@ export default function ClientInvitationManager() {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      const { error: insertError } = await supabase.from('client_invitations').insert({
+      const { data: insertData, error: insertError } = await supabase.from('client_invitations').insert({
         tenant_id: tenantId,
         email: newInvite.email,
         first_name: newInvite.first_name || null,
         last_name: newInvite.last_name || null,
         custom_message: newInvite.custom_message || null,
         invitation_token: token,
-        status: 'sent',
-        sent_at: new Date().toISOString(),
+        status: 'pending',
         expires_at: expiresAt.toISOString(),
         invited_by: user?.id,
-      });
+      }).select();
 
       if (insertError) throw insertError;
 
-      setSuccess('Invitation sent successfully!');
+      const { data: tenantData } = await supabase
+        .from('platform_tenants')
+        .select('name, company_name')
+        .eq('id', tenantId)
+        .single();
+
+      const tenantName = tenantData?.company_name || tenantData?.name || 'ClearNav';
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Authentication required');
+      }
+
+      const emailResult = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invitation-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: newInvite.email,
+            token,
+            role: 'client',
+            userType: 'client',
+            tenantName,
+            tenantId,
+            customMessage: newInvite.custom_message || undefined,
+          }),
+        }
+      );
+
+      const emailResponse = await emailResult.json();
+
+      if (emailResponse.success && emailResponse.sent) {
+        await supabase
+          .from('client_invitations')
+          .update({
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+          })
+          .eq('invitation_token', token);
+
+        setSuccess('Invitation email sent successfully!');
+      } else {
+        setSuccess(`Invitation created. Share this link: ${emailResponse.inviteUrl}`);
+      }
+
       setNewInvite({ email: '', first_name: '', last_name: '', custom_message: '' });
       setShowAddInvite(false);
       loadInvitations();
-      setTimeout(() => setSuccess(null), 3000);
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
       setError(err.message);
     }
@@ -144,18 +191,69 @@ export default function ClientInvitationManager() {
   const resendInvitation = async (id: string) => {
     try {
       setError(null);
-      const { error } = await supabase
-        .from('client_invitations')
-        .update({
-          status: 'sent',
-          sent_at: new Date().toISOString(),
-          reminder_count: supabase.sql`reminder_count + 1`,
-          last_reminder_sent_at: new Date().toISOString(),
-        })
-        .eq('id', id);
 
-      if (error) throw error;
-      setSuccess('Invitation resent successfully!');
+      const { data: invitation } = await supabase
+        .from('client_invitations')
+        .select('email, invitation_token, custom_message')
+        .eq('id', id)
+        .single();
+
+      if (!invitation) {
+        throw new Error('Invitation not found');
+      }
+
+      const { data: tenantData } = await supabase
+        .from('platform_tenants')
+        .select('name, company_name')
+        .eq('id', tenantId)
+        .single();
+
+      const tenantName = tenantData?.company_name || tenantData?.name || 'ClearNav';
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Authentication required');
+      }
+
+      const emailResult = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invitation-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: invitation.email,
+            token: invitation.invitation_token,
+            role: 'client',
+            userType: 'client',
+            tenantName,
+            tenantId,
+            customMessage: invitation.custom_message || undefined,
+          }),
+        }
+      );
+
+      const emailResponse = await emailResult.json();
+
+      if (emailResponse.success) {
+        const { error } = await supabase
+          .from('client_invitations')
+          .update({
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            reminder_count: supabase.sql`reminder_count + 1`,
+            last_reminder_sent_at: new Date().toISOString(),
+          })
+          .eq('id', id);
+
+        if (error) throw error;
+        setSuccess('Invitation resent successfully!');
+      } else {
+        throw new Error(emailResponse.error || 'Failed to send email');
+      }
+
       loadInvitations();
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {

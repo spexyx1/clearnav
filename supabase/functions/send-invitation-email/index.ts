@@ -15,6 +15,45 @@ interface InvitationRequest {
   tenantName: string;
   tenantId?: string;
   customMessage?: string;
+  templateId?: string;
+  recipientName?: string;
+}
+
+interface InvitationTemplate {
+  id: string;
+  subject_line: string;
+  preview_text: string;
+  header_text: string;
+  greeting_text: string;
+  body_text: string;
+  cta_text: string;
+  footer_text: string;
+  design_config: {
+    header_bg_color: string;
+    header_text_color: string;
+    body_bg_color: string;
+    body_text_color: string;
+    accent_color: string;
+    button_bg_color: string;
+    button_text_color: string;
+    font_family: string;
+    font_size: number;
+  };
+}
+
+function replaceVariables(text: string, variables: Record<string, string>): string {
+  let result = text;
+  for (const [key, value] of Object.entries(variables)) {
+    const regex = new RegExp(`{{${key}}}`, 'g');
+    result = result.replace(regex, value || '');
+  }
+
+  const ifRegex = /{{#if\s+(\w+)}}([\s\S]*?){{\/if}}/g;
+  result = result.replace(ifRegex, (match, variable, content) => {
+    return variables[variable] ? content : '';
+  });
+
+  return result;
 }
 
 Deno.serve(async (req: Request) => {
@@ -88,13 +127,14 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { email, token, role, userType, tenantName, tenantId, customMessage }: InvitationRequest = await req.json();
+    const { email, token, role, userType, tenantName, tenantId, customMessage, templateId, recipientName }: InvitationRequest = await req.json();
+
+    const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     let tenantEmail: string | null = null;
     let tenantCompanyName: string | null = null;
 
     if (tenantId) {
-      const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { data: tenantData } = await serviceClient
         .from("platform_tenants")
         .select("tenant_email_address, email_verified, company_name, name")
@@ -124,159 +164,301 @@ Deno.serve(async (req: Request) => {
     const siteUrl = Deno.env.get("SITE_URL") || supabaseUrl.replace(".supabase.co", ".vercel.app");
     const inviteUrl = `${siteUrl}/accept-invite?token=${token}`;
 
-    const emailSubject = `You're invited to join ${tenantName || 'ClearNav'}`;
     const roleDisplay = role.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
     const typeDisplay = userType === 'staff' ? 'team member' : 'investor client';
 
-    const emailHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 0;
-            background-color: #f8fafc;
-          }
-          .header {
-            background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
-            padding: 32px;
-            text-align: center;
-          }
-          .header h1 {
-            color: white;
-            margin: 0;
-            font-size: 24px;
-            font-weight: 300;
-            letter-spacing: 2px;
-          }
-          .header .brand {
-            font-weight: 600;
-          }
-          .content {
-            background: #ffffff;
-            padding: 40px 32px;
-          }
-          .content h2 {
-            color: #0f172a;
-            margin-top: 0;
-          }
-          .button-container {
-            text-align: center;
-            margin: 28px 0;
-          }
-          .button {
-            display: inline-block;
-            padding: 14px 36px;
-            background: #0891b2;
-            color: #ffffff !important;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 16px;
-          }
-          .info-box {
-            background: #f1f5f9;
-            border-left: 4px solid #0891b2;
-            padding: 16px;
-            margin: 20px 0;
-            border-radius: 0 6px 6px 0;
-          }
-          .custom-message {
-            background: #f0fdfa;
-            border-left: 4px solid #14b8a6;
-            padding: 16px;
-            margin: 20px 0;
-            border-radius: 0 6px 6px 0;
-            font-style: italic;
-            color: #475569;
-          }
-          .footer {
-            text-align: center;
-            padding: 24px 32px;
-            color: #64748b;
-            font-size: 13px;
-            background: #f8fafc;
-          }
-          .footer a {
-            color: #0891b2;
-            text-decoration: none;
-          }
-          .link-fallback {
-            font-size: 12px;
-            color: #94a3b8;
-            word-break: break-all;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>CLEAR<span class="brand">NAV</span></h1>
-        </div>
-        <div class="content">
-          <h2>You're Invited!</h2>
-          <p>Hello,</p>
-          <p>You've been invited to join <strong>${tenantName || 'ClearNav'}</strong> as a <strong>${typeDisplay}</strong>.</p>
+    let template: InvitationTemplate | null = null;
+    const templateType = userType === 'staff' ? 'staff_invitation' : 'client_invitation';
 
-          ${customMessage ? `
-          <div class="custom-message">
-            "${customMessage}"
-          </div>
-          ` : ''}
+    if (templateId) {
+      const { data: customTemplate } = await serviceClient
+        .from("invitation_templates")
+        .select("*")
+        .eq("id", templateId)
+        .eq("status", "active")
+        .maybeSingle();
 
-          <div class="info-box">
-            <strong>Your Role:</strong> ${roleDisplay}<br>
-            <strong>Invitation Type:</strong> ${typeDisplay === 'team member' ? 'Staff Member' : 'Investor Client'}
-          </div>
+      template = customTemplate;
+    }
 
-          <p>Click the button below to accept your invitation and create your account:</p>
+    if (!template && tenantId) {
+      const { data: tenantTemplate } = await serviceClient
+        .from("invitation_templates")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("template_type", templateType)
+        .eq("is_default", true)
+        .eq("status", "active")
+        .maybeSingle();
 
-          <div class="button-container">
-            <a href="${inviteUrl}" class="button">Accept Invitation</a>
-          </div>
+      template = tenantTemplate;
+    }
 
-          <p class="link-fallback">Or copy and paste this link into your browser:<br>${inviteUrl}</p>
+    if (!template) {
+      const { data: systemTemplate } = await serviceClient
+        .from("invitation_templates")
+        .select("*")
+        .is("tenant_id", null)
+        .eq("template_type", templateType)
+        .eq("is_default", true)
+        .eq("status", "active")
+        .maybeSingle();
 
-          <p style="margin-top: 28px;"><strong>Important:</strong> This invitation will expire in 7 days. If you didn't expect this invitation, you can safely ignore this email.</p>
+      template = systemTemplate;
+    }
 
-          ${userType === 'client' ? `
-          <div class="info-box">
-            <strong>What you'll be able to do:</strong>
-            <ul style="margin: 10px 0; padding-left: 20px;">
-              <li>View your portfolio and investment performance</li>
-              <li>Access important documents and reports</li>
-              <li>Track your returns and risk metrics</li>
-              <li>Submit redemption requests</li>
-            </ul>
-          </div>
-          ` : `
-          <div class="info-box">
-            <strong>What you'll be able to do:</strong>
-            <ul style="margin: 10px 0; padding-left: 20px;">
-              <li>Access the management portal</li>
-              <li>Manage client accounts and contacts</li>
-              <li>Track onboarding workflows</li>
-              <li>View analytics and reports</li>
-            </ul>
-          </div>
-          `}
+    const templateVariables = {
+      tenant_name: tenantName || 'ClearNav',
+      recipient_name: recipientName || 'there',
+      role: roleDisplay,
+      custom_message: customMessage || '',
+      sender_name: tenantCompanyName || tenantName || 'ClearNav',
+      invite_url: inviteUrl,
+    };
 
-          <p>Best regards,<br>
-          <strong>The ${tenantName || 'ClearNav'} Team</strong></p>
-        </div>
-        <div class="footer">
-          <p>This email was sent by ${tenantName || 'ClearNav'}</p>
-          <p>&copy; ${new Date().getFullYear()} All rights reserved.</p>
-        </div>
-      </body>
-      </html>
-    `;
+    let emailSubject: string;
+    let emailHTML: string;
+
+    if (template) {
+      const design = template.design_config;
+
+      emailSubject = replaceVariables(template.subject_line, templateVariables);
+      const previewText = replaceVariables(template.preview_text || '', templateVariables);
+      const headerText = replaceVariables(template.header_text, templateVariables);
+      const greetingText = replaceVariables(template.greeting_text, templateVariables);
+      const bodyText = replaceVariables(template.body_text, templateVariables);
+      const ctaText = replaceVariables(template.cta_text, templateVariables);
+      const footerText = replaceVariables(template.footer_text || '', templateVariables);
+
+      emailHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  ${previewText ? `<meta name="description" content="${previewText}">` : ''}
+  <style>
+    body {
+      font-family: ${design.font_family};
+      line-height: 1.6;
+      color: ${design.body_text_color};
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 0;
+      background-color: #f8fafc;
+    }
+    .header {
+      background: ${design.header_bg_color};
+      padding: 32px;
+      text-align: center;
+      color: ${design.header_text_color};
+    }
+    .header h1 {
+      color: ${design.header_text_color};
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    .content {
+      background: ${design.body_bg_color};
+      padding: 40px 32px;
+      color: ${design.body_text_color};
+      font-size: ${design.font_size}px;
+    }
+    .button-container {
+      text-align: center;
+      margin: 28px 0;
+    }
+    .button {
+      display: inline-block;
+      padding: 14px 36px;
+      background: ${design.button_bg_color};
+      color: ${design.button_text_color} !important;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 16px;
+    }
+    .footer {
+      text-align: center;
+      padding: 24px 32px;
+      color: #64748b;
+      font-size: 13px;
+      background: #f8fafc;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${headerText}</h1>
+  </div>
+  <div class="content">
+    <p>${greetingText}</p>
+    ${bodyText}
+    <div class="button-container">
+      <a href="${inviteUrl}" class="button">${ctaText}</a>
+    </div>
+    <p style="font-size: 12px; color: #94a3b8; word-break: break-all;">
+      Or copy and paste this link: ${inviteUrl}
+    </p>
+    ${footerText}
+  </div>
+  <div class="footer">
+    <p>&copy; ${new Date().getFullYear()} ${tenantName || 'ClearNav'}. All rights reserved.</p>
+  </div>
+</body>
+</html>`;
+    } else {
+      emailSubject = `You're invited to join ${tenantName || 'ClearNav'}`;
+      emailHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 0;
+      background-color: #f8fafc;
+    }
+    .header {
+      background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+      padding: 32px;
+      text-align: center;
+    }
+    .header h1 {
+      color: white;
+      margin: 0;
+      font-size: 24px;
+      font-weight: 300;
+      letter-spacing: 2px;
+    }
+    .header .brand {
+      font-weight: 600;
+    }
+    .content {
+      background: #ffffff;
+      padding: 40px 32px;
+    }
+    .content h2 {
+      color: #0f172a;
+      margin-top: 0;
+    }
+    .button-container {
+      text-align: center;
+      margin: 28px 0;
+    }
+    .button {
+      display: inline-block;
+      padding: 14px 36px;
+      background: #0891b2;
+      color: #ffffff !important;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 16px;
+    }
+    .info-box {
+      background: #f1f5f9;
+      border-left: 4px solid #0891b2;
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .custom-message {
+      background: #f0fdfa;
+      border-left: 4px solid #14b8a6;
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 0 6px 6px 0;
+      font-style: italic;
+      color: #475569;
+    }
+    .footer {
+      text-align: center;
+      padding: 24px 32px;
+      color: #64748b;
+      font-size: 13px;
+      background: #f8fafc;
+    }
+    .footer a {
+      color: #0891b2;
+      text-decoration: none;
+    }
+    .link-fallback {
+      font-size: 12px;
+      color: #94a3b8;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>CLEAR<span class="brand">NAV</span></h1>
+  </div>
+  <div class="content">
+    <h2>You're Invited!</h2>
+    <p>Hello,</p>
+    <p>You've been invited to join <strong>${tenantName || 'ClearNav'}</strong> as a <strong>${typeDisplay}</strong>.</p>
+
+    ${customMessage ? `
+    <div class="custom-message">
+      "${customMessage}"
+    </div>
+    ` : ''}
+
+    <div class="info-box">
+      <strong>Your Role:</strong> ${roleDisplay}<br>
+      <strong>Invitation Type:</strong> ${typeDisplay === 'team member' ? 'Staff Member' : 'Investor Client'}
+    </div>
+
+    <p>Click the button below to accept your invitation and create your account:</p>
+
+    <div class="button-container">
+      <a href="${inviteUrl}" class="button">Accept Invitation</a>
+    </div>
+
+    <p class="link-fallback">Or copy and paste this link into your browser:<br>${inviteUrl}</p>
+
+    <p style="margin-top: 28px;"><strong>Important:</strong> This invitation will expire in 7 days. If you didn't expect this invitation, you can safely ignore this email.</p>
+
+    ${userType === 'client' ? `
+    <div class="info-box">
+      <strong>What you'll be able to do:</strong>
+      <ul style="margin: 10px 0; padding-left: 20px;">
+        <li>View your portfolio and investment performance</li>
+        <li>Access important documents and reports</li>
+        <li>Track your returns and risk metrics</li>
+        <li>Submit redemption requests</li>
+      </ul>
+    </div>
+    ` : `
+    <div class="info-box">
+      <strong>What you'll be able to do:</strong>
+      <ul style="margin: 10px 0; padding-left: 20px;">
+        <li>Access the management portal</li>
+        <li>Manage client accounts and contacts</li>
+        <li>Track onboarding workflows</li>
+        <li>View analytics and reports</li>
+      </ul>
+    </div>
+    `}
+
+    <p>Best regards,<br>
+    <strong>The ${tenantName || 'ClearNav'} Team</strong></p>
+  </div>
+  <div class="footer">
+    <p>This email was sent by ${tenantName || 'ClearNav'}</p>
+    <p>&copy; ${new Date().getFullYear()} All rights reserved.</p>
+  </div>
+</body>
+</html>`;
+    }
 
     let resendApiKey = Deno.env.get("RESEND_API_KEY") || null;
 
