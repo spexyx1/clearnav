@@ -15,10 +15,12 @@ const AcceptInvitation = lazy(() => import('./components/AcceptInvitation'));
 const ClientSignup = lazy(() => import('./components/ClientSignup'));
 const DebugLogin = lazy(() => import('./components/DebugLogin'));
 const SalesSheet = lazy(() => import('./components/SalesSheet'));
+const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
+const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
 
 function AppContent() {
   const { user, loading, roleCategory, isPlatformAdmin, currentTenant } = useAuth();
-  const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug' | 'sales-sheet'>('landing');
+  const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug' | 'sales-sheet' | 'terms' | 'privacy'>('landing');
   const [publicTenant, setPublicTenant] = useState<{ id: string; slug: string } | null>(null);
   const [tenantLoading, setTenantLoading] = useState(true);
 
@@ -34,6 +36,10 @@ function AppContent() {
         setView('debug');
       } else if (window.location.pathname === '/sales-sheet') {
         setView('sales-sheet');
+      } else if (window.location.pathname === '/terms') {
+        setView('terms');
+      } else if (window.location.pathname === '/privacy') {
+        setView('privacy');
       }
     };
 
@@ -111,6 +117,22 @@ function AppContent() {
     return (
       <Suspense fallback={<LoadingSpinner />}>
         <ClientSignup onBack={() => setView('landing')} />
+      </Suspense>
+    );
+  }
+
+  if (view === 'terms') {
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        <TermsOfService tenantId={currentTenant?.id || publicTenant?.id || null} onBack={() => setView('landing')} />
+      </Suspense>
+    );
+  }
+
+  if (view === 'privacy') {
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        <PrivacyPolicy tenantId={currentTenant?.id || publicTenant?.id || null} onBack={() => setView('landing')} />
       </Suspense>
     );
   }
@@ -194,9 +216,11 @@ function App() {
     const tenantParam = params.get('tenant');
     const isDebug = window.location.pathname === '/debug';
     const isSignup = window.location.pathname === '/signup';
+    const isTerms = window.location.pathname === '/terms';
+    const isPrivacy = window.location.pathname === '/privacy';
 
     // If not in special modes and no tenant param, redirect immediately
-    if (!isDebug && !isSignup && !tenantParam) {
+    if (!isDebug && !isSignup && !isTerms && !isPrivacy && !tenantParam) {
       const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?tenant=arkline`;
       window.location.replace(newUrl);
       // Return loading state while redirecting

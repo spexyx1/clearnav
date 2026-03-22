@@ -17,6 +17,8 @@ export default function ClientSignup({ onBack }: ClientSignupProps) {
     requestedSlug: '',
     password: '',
     confirmPassword: '',
+    acceptedTerms: false,
+    acceptedPrivacy: false,
   });
 
   const [isSlugValid, setIsSlugValid] = useState(false);
@@ -56,6 +58,11 @@ export default function ClientSignup({ onBack }: ClientSignupProps) {
 
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters');
+      return;
+    }
+
+    if (!formData.acceptedTerms || !formData.acceptedPrivacy) {
+      setError('You must accept the Terms of Service and Privacy Policy to continue');
       return;
     }
 
@@ -359,10 +366,62 @@ export default function ClientSignup({ onBack }: ClientSignupProps) {
               </div>
             </div>
 
+            <div className="space-y-4 pt-6 border-t-2 border-slate-100">
+              <h2 className="text-2xl font-bold text-slate-900">Legal Agreement</h2>
+
+              <div className="space-y-3">
+                <label className="flex items-start space-x-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={formData.acceptedTerms}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, acceptedTerms: e.target.checked }))
+                    }
+                    required
+                    className="mt-1 w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-slate-700">
+                    I have read and agree to the{' '}
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-700 font-medium underline"
+                    >
+                      Terms of Service
+                    </a>
+                  </span>
+                </label>
+
+                <label className="flex items-start space-x-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={formData.acceptedPrivacy}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, acceptedPrivacy: e.target.checked }))
+                    }
+                    required
+                    className="mt-1 w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-slate-700">
+                    I have read and agree to the{' '}
+                    <a
+                      href="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-700 font-medium underline"
+                    >
+                      Privacy Policy
+                    </a>
+                  </span>
+                </label>
+              </div>
+            </div>
+
             <div className="pt-6">
               <button
                 type="submit"
-                disabled={isLoading || !isSlugValid}
+                disabled={isLoading || !isSlugValid || !formData.acceptedTerms || !formData.acceptedPrivacy}
                 className="w-full py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-lg font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
                 {isLoading ? (
@@ -388,11 +447,6 @@ export default function ClientSignup({ onBack }: ClientSignupProps) {
           </form>
         </div>
 
-        <div className="mt-8 text-center text-sm text-slate-500">
-          <p>
-            By signing up, you agree to our Terms of Service and Privacy Policy
-          </p>
-        </div>
       </div>
     </div>
   );

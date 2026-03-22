@@ -330,30 +330,70 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-slate-800">
         <div className="max-w-7xl mx-auto">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-teal-500 rounded-sm"></div>
-              <span className="text-xl font-light tracking-wider text-white">
-                Clear<span className="font-semibold">Nav</span>
-              </span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            <div>
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-teal-500 rounded-sm"></div>
+                <span className="text-xl font-light tracking-wider text-white">
+                  Clear<span className="font-semibold">Nav</span>
+                </span>
+              </div>
+              <p className="text-slate-400 text-sm">
+                Enterprise fund operations platform for investment managers and administrators.
+              </p>
             </div>
-            <div className="flex items-center space-x-6">
-              <LanguageSelector variant="compact" theme="dark" />
-              <a
-                href="/sales-sheet"
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.history.pushState({}, '', '/sales-sheet');
-                  window.dispatchEvent(new PopStateEvent('popstate'));
-                }}
-                className="text-sm text-slate-400 hover:text-teal-400 transition-colors"
-              >
-                View Sales Sheet
-              </a>
-              <div className="text-slate-400">
-                © 2026 ClearNav. All rights reserved.
+
+            <div>
+              <h4 className="text-white font-semibold mb-4">Resources</h4>
+              <div className="space-y-2">
+                <a
+                  href="/sales-sheet"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.history.pushState({}, '', '/sales-sheet');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  className="block text-sm text-slate-400 hover:text-teal-400 transition-colors"
+                >
+                  View Sales Sheet
+                </a>
               </div>
             </div>
+
+            <div>
+              <h4 className="text-white font-semibold mb-4">Legal</h4>
+              <div className="space-y-2">
+                <a
+                  href="/terms"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.history.pushState({}, '', '/terms');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  className="block text-sm text-slate-400 hover:text-teal-400 transition-colors"
+                >
+                  Terms of Service
+                </a>
+                <a
+                  href="/privacy"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.history.pushState({}, '', '/privacy');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  className="block text-sm text-slate-400 hover:text-teal-400 transition-colors"
+                >
+                  Privacy Policy
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-8 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">
+            <div className="text-slate-400 text-sm">
+              © 2026 ClearNav. All rights reserved.
+            </div>
+            <LanguageSelector variant="compact" theme="dark" />
           </div>
         </div>
       </footer>
