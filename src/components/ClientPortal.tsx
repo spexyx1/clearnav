@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, LayoutDashboard, TrendingUp, FileText, ArrowDownCircle, Receipt, Activity, Settings as SettingsIcon, ShoppingCart, Globe } from 'lucide-react';
+import { LogOut, LayoutDashboard, TrendingUp, FileText, ArrowDownCircle, Receipt, Activity, Settings as SettingsIcon, ShoppingCart, Globe, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
@@ -13,8 +13,9 @@ import RiskMetrics from './portal/RiskMetrics';
 import Settings from './portal/Settings';
 import Exchange from './portal/Exchange';
 import CommunityHub from './community/CommunityHub';
+import KYCVerification from './portal/KYCVerification';
 
-type TabType = 'dashboard' | 'returns' | 'risk' | 'documents' | 'redemptions' | 'tax' | 'exchange' | 'community' | 'settings';
+type TabType = 'dashboard' | 'returns' | 'risk' | 'documents' | 'redemptions' | 'tax' | 'exchange' | 'community' | 'kyc' | 'settings';
 
 interface TenantBranding {
   logo_url: string;
@@ -90,6 +91,7 @@ export default function ClientPortal() {
     { id: 'tax' as TabType, label: t('clientPortal.tax'), icon: Receipt },
     { id: 'exchange' as TabType, label: t('clientPortal.exchange'), icon: ShoppingCart },
     { id: 'community' as TabType, label: t('clientPortal.community'), icon: Globe },
+    { id: 'kyc' as TabType, label: 'Verification', icon: Shield },
     { id: 'settings' as TabType, label: t('clientPortal.settings'), icon: SettingsIcon },
   ];
 
@@ -162,6 +164,7 @@ export default function ClientPortal() {
           {activeTab === 'tax' && <TaxDocuments />}
           {activeTab === 'exchange' && <Exchange profile={profile} />}
           {activeTab === 'community' && <CommunityHub />}
+          {activeTab === 'kyc' && <KYCVerification />}
           {activeTab === 'settings' && <Settings />}
         </div>
 

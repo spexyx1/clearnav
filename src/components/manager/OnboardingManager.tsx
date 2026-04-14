@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, Clock, XCircle, AlertTriangle, FileCheck } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, AlertTriangle, FileCheck, Shield, ExternalLink } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 export default function OnboardingManager() {
@@ -13,7 +13,7 @@ export default function OnboardingManager() {
   const loadWorkflows = async () => {
     const { data } = await supabase
       .from('onboarding_workflows')
-      .select('*, crm_contacts(full_name, email)')
+      .select('*, crm_contacts(full_name, email, kyc_aml_records(didit_session_status, didit_session_url))')
       .order('started_at', { ascending: false });
     setWorkflows(data || []);
     setLoading(false);
@@ -127,10 +127,25 @@ export default function OnboardingManager() {
                   <div className="flex items-center space-x-2">
                     {workflow.kyc_aml_completed ? (
                       <CheckCircle className="w-4 h-4 text-green-400" />
+                    ) : workflow.crm_contacts?.kyc_aml_records?.[0]?.didit_session_status === 'In Review' ? (
+                      <Shield className="w-4 h-4 text-amber-400" />
+                    ) : workflow.crm_contacts?.kyc_aml_records?.[0]?.didit_session_status === 'In Progress' ? (
+                      <Shield className="w-4 h-4 text-cyan-400" />
                     ) : (
                       <Clock className="w-4 h-4 text-slate-500" />
                     )}
                     <span className="text-sm text-slate-300">KYC/AML</span>
+                    {workflow.crm_contacts?.kyc_aml_records?.[0]?.didit_session_url && !workflow.kyc_aml_completed && (
+                      <a
+                        href={workflow.crm_contacts.kyc_aml_records[0].didit_session_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-1 text-cyan-500 hover:text-cyan-400"
+                        title="Open Didit verification"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
                   </div>
                   <div className="flex items-center space-x-2">
                     {workflow.fatca_completed ? (
