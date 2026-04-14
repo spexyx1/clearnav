@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Shield, CheckCircle, XCircle, Clock, AlertTriangle, ExternalLink,
-  RefreshCw, Send, Search, Filter, Eye, ChevronDown, ChevronUp,
-  User, FileText, X, Copy, Check
+  RefreshCw, Send, Search, Filter, Eye, X, Copy, Check,
+  User, Play, ChevronLeft, Loader2, Camera, FileCheck2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -31,13 +31,13 @@ interface ContactWithoutKYC {
   email: string;
 }
 
-const DIDIT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  'Not Started': { label: 'Not Started', color: 'text-slate-400', bg: 'bg-slate-800/50', border: 'border-slate-700' },
-  'In Progress': { label: 'In Progress', color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30' },
-  'Approved': { label: 'Approved', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
-  'Declined': { label: 'Declined', color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30' },
-  'In Review': { label: 'Under Review', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30' },
-  'Abandoned': { label: 'Abandoned', color: 'text-slate-500', bg: 'bg-slate-800/30', border: 'border-slate-700/50' },
+const DIDIT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ElementType }> = {
+  'Not Started': { label: 'Not Started', color: 'text-slate-400', bg: 'bg-slate-800/50', border: 'border-slate-700', icon: Clock },
+  'In Progress': { label: 'In Progress', color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', icon: RefreshCw },
+  'Approved': { label: 'Approved', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', icon: CheckCircle },
+  'Declined': { label: 'Declined', color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30', icon: XCircle },
+  'In Review': { label: 'Under Review', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', icon: Eye },
+  'Abandoned': { label: 'Abandoned', color: 'text-slate-500', bg: 'bg-slate-800/30', border: 'border-slate-700/50', icon: XCircle },
 };
 
 function statusConfig(s: string | null) {
@@ -61,6 +61,7 @@ function DetailModal({ record, onClose }: DetailModalProps) {
   };
 
   const sc = statusConfig(record.didit_session_status);
+  const StatusIcon = sc.icon;
   const name = record.crm_contacts?.full_name || record.full_legal_name || 'Unknown';
   const amlHits = Array.isArray(record.didit_aml_hits) ? record.didit_aml_hits : [];
 
@@ -79,7 +80,7 @@ function DetailModal({ record, onClose }: DetailModalProps) {
 
         <div className="p-5 space-y-5">
           <div className={`flex items-center gap-3 p-4 rounded-lg border ${sc.bg} ${sc.border}`}>
-            <Shield className={`w-5 h-5 ${sc.color}`} />
+            <StatusIcon className={`w-5 h-5 ${sc.color}`} />
             <div>
               <p className={`font-semibold ${sc.color}`}>{sc.label}</p>
               {record.verification_initiated_at && (
@@ -151,6 +152,257 @@ function DetailModal({ record, onClose }: DetailModalProps) {
   );
 }
 
+interface InlineVerificationPanelProps {
+  contact: ContactWithoutKYC | { id: string; full_name: string; email: string };
+  tenantId: string;
+  onClose: () => void;
+  onComplete: () => void;
+}
+
+function InlineVerificationPanel({ contact, tenantId, onClose, onComplete }: InlineVerificationPanelProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sdkRef = useRef<{ destroy?: () => void } | null>(null);
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'running' | 'done' | 'error'>('loading');
+  const [sessionUrl, setSessionUrl] = useState<string | null>(null);
+  const [finalStatus, setFinalStatus] = useState<'Approved' | 'Declined' | 'Pending' | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [sdkState, setSdkState] = useState<string>('idle');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const createSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/didit-create-session`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session?.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contact_id: contact.id,
+              client_name: contact.full_name,
+              client_email: contact.email,
+              tenant_id: tenantId,
+            }),
+          }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok || !data.verification_url) {
+          throw new Error(data.error || 'Failed to create verification session');
+        }
+
+        if (!cancelled) {
+          setSessionUrl(data.verification_url);
+          setPhase('ready');
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setErrorMsg(err instanceof Error ? err.message : 'Unknown error');
+          setPhase('error');
+        }
+      }
+    };
+
+    createSession();
+    return () => { cancelled = true; };
+  }, [contact.id, contact.full_name, contact.email, tenantId]);
+
+  useEffect(() => {
+    if (phase !== 'running' || !sessionUrl || !containerRef.current) return;
+
+    let sdk: { destroy?: () => void; onComplete?: (result: unknown) => void; onStateChange?: (state: string) => void; startVerification?: (opts: unknown) => void } | null = null;
+
+    const initSdk = async () => {
+      try {
+        const { DiditSdk } = await import('@didit-protocol/sdk-web');
+        sdk = DiditSdk.shared;
+        sdkRef.current = sdk;
+
+        sdk.onStateChange = (state: string) => {
+          setSdkState(state);
+        };
+
+        sdk.onComplete = (result: unknown) => {
+          const r = result as { type: string; session?: { status: string } };
+          if (r.type === 'completed' && r.session) {
+            setFinalStatus(r.session.status as 'Approved' | 'Declined' | 'Pending');
+          } else if (r.type === 'cancelled') {
+            setFinalStatus('Pending');
+          }
+          setPhase('done');
+          onComplete();
+        };
+
+        sdk.startVerification({
+          url: sessionUrl,
+          configuration: {
+            embedded: true,
+            embeddedContainerId: 'didit-embed-container',
+            loggingEnabled: false,
+            showCloseButton: false,
+            showExitConfirmation: false,
+            closeModalOnComplete: true,
+          },
+        });
+      } catch {
+        setErrorMsg('Failed to load verification SDK');
+        setPhase('error');
+      }
+    };
+
+    initSdk();
+
+    return () => {
+      if (sdk?.destroy) sdk.destroy();
+    };
+  }, [phase, sessionUrl, onComplete]);
+
+  const handleStart = () => setPhase('running');
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-2xl flex flex-col" style={{ maxHeight: '92vh' }}>
+        <div className="flex items-center justify-between p-4 border-b border-slate-800 shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors">
+              <ChevronLeft className="w-4 h-4 text-slate-400" />
+            </button>
+            <div>
+              <h2 className="text-base font-semibold text-white">KYC / AML Verification</h2>
+              <p className="text-xs text-slate-400">{contact.full_name} &middot; {contact.email}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg transition-colors">
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {phase === 'loading' && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-4 p-10">
+              <Loader2 className="w-10 h-10 text-cyan-500 animate-spin" />
+              <p className="text-slate-400 text-sm">Creating secure verification session...</p>
+            </div>
+          )}
+
+          {phase === 'error' && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-4 p-10 text-center">
+              <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center">
+                <XCircle className="w-7 h-7 text-red-400" />
+              </div>
+              <div>
+                <p className="text-white font-semibold mb-1">Session Error</p>
+                <p className="text-slate-400 text-sm max-w-xs">{errorMsg}</p>
+              </div>
+              <button onClick={onClose} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors">
+                Close
+              </button>
+            </div>
+          )}
+
+          {phase === 'ready' && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8 text-center">
+              <div className="w-16 h-16 bg-cyan-500/10 border border-cyan-500/20 rounded-full flex items-center justify-center">
+                <Camera className="w-8 h-8 text-cyan-400" />
+              </div>
+              <div className="max-w-sm">
+                <h3 className="text-white font-semibold text-lg mb-2">Ready to Verify</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  The verification session has been created for <span className="text-white">{contact.full_name}</span>.
+                  The investor will be guided through ID capture, liveness check, and AML screening directly in this window.
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
+                {[
+                  { icon: FileCheck2, label: 'ID Document' },
+                  { icon: Camera, label: 'Liveness Check' },
+                  { icon: Shield, label: 'AML Screening' },
+                ].map(({ icon: Icon, label }) => (
+                  <div key={label} className="flex flex-col items-center gap-1.5 p-3 bg-slate-800/60 rounded-lg border border-slate-700/50">
+                    <Icon className="w-4 h-4 text-cyan-400" />
+                    <span className="text-xs text-slate-400 text-center leading-tight">{label}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={handleStart}
+                className="flex items-center gap-2 px-6 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <Play className="w-4 h-4" />
+                Begin Verification
+              </button>
+            </div>
+          )}
+
+          {phase === 'running' && (
+            <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+              {sdkState === 'loading' && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 rounded-b-xl">
+                  <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+                </div>
+              )}
+              <div
+                id="didit-embed-container"
+                ref={containerRef}
+                className="flex-1 rounded-b-xl overflow-hidden bg-white"
+                style={{ minHeight: '500px' }}
+              />
+            </div>
+          )}
+
+          {phase === 'done' && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8 text-center">
+              {finalStatus === 'Approved' ? (
+                <>
+                  <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-8 h-8 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-emerald-400 font-semibold text-lg mb-1">Verification Approved</h3>
+                    <p className="text-slate-400 text-sm">Identity and AML checks passed successfully.</p>
+                  </div>
+                </>
+              ) : finalStatus === 'Declined' ? (
+                <>
+                  <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center">
+                    <XCircle className="w-8 h-8 text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-red-400 font-semibold text-lg mb-1">Verification Declined</h3>
+                    <p className="text-slate-400 text-sm">The verification could not be completed.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center">
+                    <Clock className="w-8 h-8 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-amber-400 font-semibold text-lg mb-1">Under Review</h3>
+                    <p className="text-slate-400 text-sm">The submission is being reviewed. Results will update automatically.</p>
+                  </div>
+                </>
+              )}
+              <button
+                onClick={onClose}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Back to KYC Dashboard
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function KYCManagement() {
   const { currentTenant } = useAuth();
   const [records, setRecords] = useState<KYCRecord[]>([]);
@@ -159,6 +411,7 @@ export default function KYCManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedRecord, setSelectedRecord] = useState<KYCRecord | null>(null);
+  const [verifyingContact, setVerifyingContact] = useState<{ id: string; full_name: string; email: string } | null>(null);
   const [sendingTo, setSendingTo] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -206,7 +459,6 @@ export default function KYCManagement() {
   const handleSendVerification = async (contactId: string, contactName: string, contactEmail: string) => {
     if (!currentTenant) return;
     setSendingTo(contactId);
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
       await fetch(
@@ -266,7 +518,6 @@ export default function KYCManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label: 'Total', value: stats.total, color: 'text-white' },
@@ -282,7 +533,6 @@ export default function KYCManagement() {
         ))}
       </div>
 
-      {/* Contacts without KYC */}
       {unverifiedContacts.length > 0 && (
         <div className="bg-slate-900/50 border border-slate-800/50 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -296,49 +546,60 @@ export default function KYCManagement() {
                   <p className="text-sm font-medium text-white">{contact.full_name}</p>
                   <p className="text-xs text-slate-400">{contact.email}</p>
                 </div>
-                <button
-                  onClick={() => handleSendVerification(contact.id, contact.full_name, contact.email)}
-                  disabled={sendingTo === contact.id}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 disabled:opacity-50 text-cyan-400 border border-cyan-500/30 rounded-lg text-xs font-medium transition-colors"
-                >
-                  {sendingTo === contact.id ? (
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Send className="w-3 h-3" />
-                  )}
-                  Create Session
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setVerifyingContact(contact)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white border border-cyan-500 rounded-lg text-xs font-medium transition-colors"
+                  >
+                    <Play className="w-3 h-3" />
+                    Run Verification
+                  </button>
+                  <button
+                    onClick={() => handleSendVerification(contact.id, contact.full_name, contact.email)}
+                    disabled={sendingTo === contact.id}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/60 hover:bg-slate-700 disabled:opacity-50 text-slate-300 border border-slate-600 rounded-lg text-xs font-medium transition-colors"
+                    title="Create session link to send to investor"
+                  >
+                    {sendingTo === contact.id ? (
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Send className="w-3 h-3" />
+                    )}
+                    Send Link
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* KYC Records Table */}
       <div className="bg-slate-900/50 border border-slate-800/50 rounded-xl">
-        <div className="p-5 border-b border-slate-800 flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-            />
-          </div>
-          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="pl-9 pr-8 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-cyan-500 appearance-none"
-            >
-              <option value="all">All Statuses</option>
-              {Object.keys(DIDIT_STATUS_CONFIG).map(s => (
-                <option key={s} value={s}>{DIDIT_STATUS_CONFIG[s].label}</option>
-              ))}
-            </select>
+        <div className="p-5 border-b border-slate-800 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+          <div className="flex gap-3 flex-1 w-full sm:w-auto">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              />
+            </div>
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                className="pl-9 pr-8 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-cyan-500 appearance-none"
+              >
+                <option value="all">All Statuses</option>
+                {Object.keys(DIDIT_STATUS_CONFIG).map(s => (
+                  <option key={s} value={s}>{DIDIT_STATUS_CONFIG[s].label}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -379,7 +640,21 @@ export default function KYCManagement() {
                         {sc.label}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      {record.contact_id && record.crm_contacts && (
+                        <button
+                          onClick={() => setVerifyingContact({
+                            id: record.contact_id!,
+                            full_name: name,
+                            email,
+                          })}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-400 border border-cyan-500/30 rounded-lg text-xs font-medium transition-colors"
+                          title="Run verification in dashboard"
+                        >
+                          <Play className="w-3 h-3" />
+                          Run
+                        </button>
+                      )}
                       {record.didit_session_url && (
                         <button
                           onClick={() => copyVerificationLink(record)}
@@ -410,19 +685,6 @@ export default function KYCManagement() {
                       >
                         <Eye className="w-4 h-4 text-slate-400" />
                       </button>
-                      {record.contact_id && record.crm_contacts && (
-                        <button
-                          onClick={() => handleSendVerification(record.contact_id!, name, email)}
-                          disabled={sendingTo === record.contact_id}
-                          className="p-1.5 hover:bg-slate-700 disabled:opacity-50 rounded transition-colors"
-                          title="Re-send verification"
-                        >
-                          {sendingTo === record.contact_id
-                            ? <RefreshCw className="w-4 h-4 text-slate-400 animate-spin" />
-                            : <Send className="w-4 h-4 text-slate-400" />
-                          }
-                        </button>
-                      )}
                     </div>
                   </div>
                   {record.verification_initiated_at && (
@@ -440,6 +702,17 @@ export default function KYCManagement() {
 
       {selectedRecord && (
         <DetailModal record={selectedRecord} onClose={() => setSelectedRecord(null)} />
+      )}
+
+      {verifyingContact && currentTenant && (
+        <InlineVerificationPanel
+          contact={verifyingContact}
+          tenantId={currentTenant.id}
+          onClose={() => setVerifyingContact(null)}
+          onComplete={() => {
+            loadData();
+          }}
+        />
       )}
     </div>
   );
