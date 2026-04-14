@@ -216,12 +216,42 @@ function InlineVerificationPanel({ contact, tenantId, onClose, onComplete }: Inl
   useEffect(() => {
     if (phase !== 'running' || !sessionUrl || !containerRef.current) return;
 
-    let sdk: { destroy?: () => void; onComplete?: (result: unknown) => void; onStateChange?: (state: string) => void; startVerification?: (opts: unknown) => void } | null = null;
+    type DiditSdkType = {
+      shared: {
+        destroy?: () => void;
+        onComplete?: (result: unknown) => void;
+        onStateChange?: (state: string) => void;
+        startVerification: (opts: unknown) => void;
+      };
+    };
+
+    let sdk: DiditSdkType['shared'] | null = null;
+
+    const loadSdkScript = (): Promise<DiditSdkType> => {
+      return new Promise((resolve, reject) => {
+        const existing = document.getElementById('didit-sdk-script');
+        const win = window as unknown as Record<string, unknown>;
+        if (existing && win['DiditSDK']) {
+          resolve(win['DiditSDK'] as DiditSdkType);
+          return;
+        }
+        const script = document.createElement('script');
+        script.id = 'didit-sdk-script';
+        script.src = 'https://unpkg.com/@didit-protocol/sdk-web/dist/didit-sdk.umd.min.js';
+        script.onload = () => {
+          const loaded = win['DiditSDK'] as DiditSdkType | undefined;
+          if (loaded) resolve(loaded);
+          else reject(new Error('DiditSDK not found on window after load'));
+        };
+        script.onerror = () => reject(new Error('Failed to load Didit SDK script'));
+        document.head.appendChild(script);
+      });
+    };
 
     const initSdk = async () => {
       try {
-        const { DiditSdk } = await import('@didit-protocol/sdk-web');
-        sdk = DiditSdk.shared;
+        const DiditSDK = await loadSdkScript();
+        sdk = DiditSDK.DiditSdk.shared;
         sdkRef.current = sdk;
 
         sdk.onStateChange = (state: string) => {
