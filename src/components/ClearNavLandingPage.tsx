@@ -330,15 +330,15 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-slate-800">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+            <div className="md:col-span-2">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-teal-500 rounded-sm"></div>
                 <span className="text-xl font-light tracking-wider text-white">
                   Clear<span className="font-semibold">Nav</span>
                 </span>
               </div>
-              <p className="text-slate-400 text-sm">
+              <p className="text-slate-400 text-sm max-w-xs">
                 Enterprise fund operations platform for investment managers and administrators.
               </p>
             </div>
