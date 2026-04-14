@@ -1,6 +1,5 @@
 import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCircle, LineChart, CreditCard, Calculator, FileCheck, Bell, Lock, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare, Database, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
-import LanguageSelector from './shared/LanguageSelector';
 
 interface ClearNavLandingPageProps {
   onLoginClick: () => void;
@@ -389,8 +388,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
             </div>
           </div>
 
-          <div className="pt-8 border-t border-slate-800 flex flex-col items-center gap-3">
-            <LanguageSelector variant="compact" theme="dark" />
+          <div className="pt-8 border-t border-slate-800 flex items-center justify-center">
             <div className="text-slate-400 text-sm">
               © 2026 ClearNav. All rights reserved.
             </div>

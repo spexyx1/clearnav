@@ -3,7 +3,6 @@ import { LogOut, LayoutDashboard, TrendingUp, FileText, ArrowDownCircle, Receipt
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
-import LanguageSelector from './shared/LanguageSelector';
 import Dashboard from './portal/Dashboard';
 import Returns from './portal/Returns';
 import Documents from './portal/Documents';
@@ -169,8 +168,7 @@ export default function ClientPortal() {
         </div>
 
         <footer className="border-t border-slate-800 bg-slate-950/50 py-6 mt-8">
-          <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-3">
-            <LanguageSelector variant="compact" theme="dark" />
+          <div className="max-w-7xl mx-auto px-6 flex items-center justify-center">
             <p className="text-sm text-slate-500">
               © {new Date().getFullYear()} {branding.company_name}. All rights reserved.
             </p>

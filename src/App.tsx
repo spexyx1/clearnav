@@ -6,6 +6,7 @@ import ClearNavLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
 import { PublicWebsite } from './components/public/PublicWebsite';
 import { resolveTenantFromDomain } from './lib/tenantResolver';
+import BottomLeftLanguageFooter from './components/shared/BottomLeftLanguageFooter';
 import './i18n/config';
 
 const ClientPortal = lazy(() => import('./components/ClientPortal'));
@@ -239,6 +240,7 @@ function App() {
     <AuthProvider>
       <LanguageProvider>
         <AppContent />
+        <BottomLeftLanguageFooter />
       </LanguageProvider>
     </AuthProvider>
   );

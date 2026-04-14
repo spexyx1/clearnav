@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './auth';
 import { supabase } from './supabase';
-import { languages, Language } from '../i18n/languages';
+import { languages, Language, SUPPORTED_LANGUAGES } from '../i18n/languages';
 import i18n from '../i18n/config';
 
 interface LanguageContextType {
@@ -73,8 +73,18 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = async (code: string) => {
     try {
+      if (!SUPPORTED_LANGUAGES.includes(code as any)) {
+        console.error(`Unsupported language: ${code}. Supported languages: ${SUPPORTED_LANGUAGES.join(', ')}`);
+        throw new Error(`Language "${code}" is not supported`);
+      }
+
       setLanguageState(code);
-      await i18n.changeLanguage(code);
+      const result = await i18n.changeLanguage(code);
+
+      if (!result) {
+        throw new Error(`i18n failed to change language to ${code}`);
+      }
+
       localStorage.setItem('language', code);
 
       if (user) {
@@ -91,6 +101,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Error setting language:', error);
+      setLanguageState('en');
+      await i18n.changeLanguage('en');
       throw error;
     }
   };

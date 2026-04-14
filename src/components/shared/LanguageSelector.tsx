@@ -44,6 +44,7 @@ export default function LanguageSelector({ variant = 'full', theme = 'dark' }: L
       setSearchQuery('');
     } catch (error) {
       console.error('Failed to update language:', error);
+      alert(`Failed to change language: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setSaving(false);
     }

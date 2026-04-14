@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, Zap, Shield, ChevronRight, Mail, Building2, FileText, BarChart3, Lock, Globe, Users, Bell, FileCheck, CreditCard, LineChart, Calculator, BookOpen, HelpCircle, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare, ShieldCheck, Award, Clock } from 'lucide-react';
 import InquiryForm from './InquiryForm';
-import LanguageSelector from './shared/LanguageSelector';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import * as LucideIcons from 'lucide-react';
@@ -569,24 +568,21 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               </>
             )}
           </div>
-          <div className="flex flex-col items-center gap-3">
-            <LanguageSelector variant="compact" theme="dark" />
-            <div className="flex items-center gap-6">
-              <a
-                href="/sales-sheet"
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.history.pushState({}, '', '/sales-sheet');
-                  window.dispatchEvent(new PopStateEvent('popstate'));
-                }}
-                className="text-sm text-slate-400 hover:text-white transition-colors"
-                style={{ color: branding.colors.primary }}
-              >
-                View Sales Sheet
-              </a>
-              <div className="text-sm text-slate-500">
-                © {new Date().getFullYear()} {branding.company_name}. All rights reserved.
-              </div>
+          <div className="flex items-center gap-6 justify-center">
+            <a
+              href="/sales-sheet"
+              onClick={(e) => {
+                e.preventDefault();
+                window.history.pushState({}, '', '/sales-sheet');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="text-sm text-slate-400 hover:text-white transition-colors"
+              style={{ color: branding.colors.primary }}
+            >
+              View Sales Sheet
+            </a>
+            <div className="text-sm text-slate-500">
+              © {new Date().getFullYear()} {branding.company_name}. All rights reserved.
             </div>
           </div>
         </div>
