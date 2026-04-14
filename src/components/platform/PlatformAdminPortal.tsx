@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../lib/auth';
+import PageFooter from '../shared/PageFooter';
 import TenantManagement from './TenantManagement';
 import BillingOverview from './BillingOverview';
 import PlatformAnalytics from './PlatformAnalytics';
@@ -94,13 +95,7 @@ export default function PlatformAdminPortal() {
           {activeTab === 'settings' && <PlatformSettings />}
         </div>
 
-        <footer className="border-t border-slate-200 bg-slate-50 py-6 mt-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-center">
-            <p className="text-sm text-slate-600">
-              © {new Date().getFullYear()} Platform Admin. All rights reserved.
-            </p>
-          </div>
-        </footer>
+        <PageFooter companyName="Platform Admin" theme="light" />
       </div>
     </div>
   );

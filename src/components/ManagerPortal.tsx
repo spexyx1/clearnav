@@ -3,6 +3,7 @@ import { LogOut, Search, Bell } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { useTenantBranding } from '../lib/hooks';
+import PageFooter from './shared/PageFooter';
 import ManagerSidebar, { TabType } from './manager/ManagerSidebar';
 import CRMDashboard from './manager/CRMDashboard';
 import ContactList from './manager/ContactList';
@@ -176,13 +177,7 @@ export default function ManagerPortal() {
           </div>
         </main>
 
-        <footer className="border-t border-slate-800 bg-slate-950/50 py-6 mt-8">
-          <div className="max-w-7xl mx-auto px-6 flex items-center justify-center">
-            <p className="text-sm text-slate-500">
-              © {new Date().getFullYear()} {branding.company_name}. All rights reserved.
-            </p>
-          </div>
-        </footer>
+        <PageFooter companyName={branding.company_name} theme="dark" />
       </div>
     </div>
   );

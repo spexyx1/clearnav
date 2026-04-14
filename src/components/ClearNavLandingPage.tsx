@@ -1,5 +1,6 @@
 import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCircle, LineChart, CreditCard, Calculator, FileCheck, Bell, Lock, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare, Database, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
+import PageFooter from './shared/PageFooter';
 
 interface ClearNavLandingPageProps {
   onLoginClick: () => void;
@@ -387,14 +388,10 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
               </div>
             </div>
           </div>
-
-          <div className="pt-8 border-t border-slate-800 flex items-center justify-center">
-            <div className="text-slate-400 text-sm">
-              © 2026 ClearNav. All rights reserved.
-            </div>
-          </div>
         </div>
       </footer>
+
+      <PageFooter companyName="ClearNav" theme="dark" />
 
       {showFAQ && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center z-50 p-6">

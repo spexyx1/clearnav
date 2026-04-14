@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, Zap, Shield, ChevronRight, Mail, Building2, FileText, BarChart3, Lock, Globe, Users, Bell, FileCheck, CreditCard, LineChart, Calculator, BookOpen, HelpCircle, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare, ShieldCheck, Award, Clock } from 'lucide-react';
 import InquiryForm from './InquiryForm';
+import PageFooter from './shared/PageFooter';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import * as LucideIcons from 'lucide-react';
@@ -568,25 +569,10 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               </>
             )}
           </div>
-          <div className="flex items-center gap-6 justify-center">
-            <a
-              href="/sales-sheet"
-              onClick={(e) => {
-                e.preventDefault();
-                window.history.pushState({}, '', '/sales-sheet');
-                window.dispatchEvent(new PopStateEvent('popstate'));
-              }}
-              className="text-sm text-slate-400 hover:text-white transition-colors"
-              style={{ color: branding.colors.primary }}
-            >
-              View Sales Sheet
-            </a>
-            <div className="text-sm text-slate-500">
-              © {new Date().getFullYear()} {branding.company_name}. All rights reserved.
-            </div>
-          </div>
         </div>
       </footer>
+
+      <PageFooter companyName={branding.company_name} theme="dark" />
 
       {showInquiryForm && <InquiryForm onClose={() => setShowInquiryForm(false)} />}
       {showFAQ && (

@@ -63,8 +63,8 @@ export default function LanguageSelector({ variant = 'full', theme = 'dark' }: L
     const textClasses = isDark ? "text-sm font-medium uppercase text-slate-500" : "text-sm font-medium uppercase text-slate-600";
 
     const dropdownClasses = isDark
-      ? "absolute right-0 bottom-full mb-2 w-80 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden"
-      : "absolute right-0 bottom-full mb-2 w-80 bg-white border border-slate-300 rounded-lg shadow-xl z-50 overflow-hidden";
+      ? "absolute right-0 bottom-full mb-2 w-64 sm:w-80 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden max-h-96 overflow-y-auto"
+      : "absolute right-0 bottom-full mb-2 w-64 sm:w-80 bg-white border border-slate-300 rounded-lg shadow-xl z-50 overflow-hidden max-h-96 overflow-y-auto";
 
     const searchWrapperClasses = isDark ? "p-3 border-b border-slate-800" : "p-3 border-b border-slate-200";
     const searchInputClasses = isDark
