@@ -3,7 +3,6 @@ import { LogOut, Search, Bell } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { useTenantBranding } from '../lib/hooks';
-import PageFooter from './shared/PageFooter';
 import ManagerSidebar, { TabType } from './manager/ManagerSidebar';
 import CRMDashboard from './manager/CRMDashboard';
 import ContactList from './manager/ContactList';
@@ -177,7 +176,6 @@ export default function ManagerPortal() {
           </div>
         </main>
 
-        <PageFooter companyName={branding.company_name} theme="dark" />
       </div>
     </div>
   );
