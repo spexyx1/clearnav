@@ -72,7 +72,7 @@ export default function PageFooter({
               title="Select Language"
             >
               <Globe className={`w-3 h-3 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`} />
-              <span className="hidden sm:inline">{currentLanguage.toUpperCase()}</span>
+              <span className="hidden sm:inline">{(currentLanguage ?? 'en').toUpperCase()}</span>
             </button>
 
             {isOpen && (
