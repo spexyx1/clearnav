@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, Clock, XCircle, AlertTriangle, FileCheck, Shield, ExternalLink } from 'lucide-react';
+import { CheckCircle, Clock, FileCheck, Shield, ExternalLink } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import KYCManagement from './KYCManagement';
+
+type OnboardingTab = 'workflows' | 'kyc';
 
 export default function OnboardingManager() {
+  const [activeTab, setActiveTab] = useState<OnboardingTab>('workflows');
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,13 +49,12 @@ export default function OnboardingManager() {
     return (completed / steps.length) * 100;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
-      </div>
-    );
-  }
+  const kycPendingCount = workflows.filter(w => !w.kyc_aml_completed).length;
+
+  const tabs: { id: OnboardingTab; label: string; badge?: number }[] = [
+    { id: 'workflows', label: 'Workflows' },
+    { id: 'kyc', label: 'KYC / AML Screening', badge: kycPendingCount > 0 ? kycPendingCount : undefined },
+  ];
 
   return (
     <div className="space-y-6">
@@ -62,6 +65,37 @@ export default function OnboardingManager() {
         <p className="text-slate-400">Track KYC/AML, accreditation verification, and compliance</p>
       </div>
 
+      <div className="flex gap-1 border-b border-slate-800">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === tab.id
+                ? 'border-cyan-500 text-cyan-400'
+                : 'border-transparent text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            {tab.label}
+            {tab.badge !== undefined && (
+              <span className="px-1.5 py-0.5 text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded-full">
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'kyc' && <KYCManagement />}
+
+      {activeTab === 'workflows' && loading && (
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full" />
+        </div>
+      )}
+
+      {activeTab === 'workflows' && !loading && (
+      <>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-4">
           <div className="text-2xl font-bold text-white">{workflows.filter(w => w.status === 'in_progress').length}</div>
@@ -169,6 +203,8 @@ export default function OnboardingManager() {
           })
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

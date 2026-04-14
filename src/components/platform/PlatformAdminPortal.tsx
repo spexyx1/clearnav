@@ -95,12 +95,12 @@ export default function PlatformAdminPortal() {
           {activeTab === 'settings' && <PlatformSettings />}
         </div>
 
-        <footer className="border-t border-slate-200 bg-slate-50 py-4 mt-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+        <footer className="border-t border-slate-200 bg-slate-50 py-6 mt-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center gap-3">
+            <LanguageSelector variant="compact" theme="light" />
             <p className="text-sm text-slate-600">
               © {new Date().getFullYear()} Platform Admin. All rights reserved.
             </p>
-            <LanguageSelector variant="compact" theme="light" />
           </div>
         </footer>
       </div>

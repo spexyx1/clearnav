@@ -389,11 +389,11 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
             </div>
           </div>
 
-          <div className="pt-8 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">
+          <div className="pt-8 border-t border-slate-800 flex flex-col items-center gap-3">
+            <LanguageSelector variant="compact" theme="dark" />
             <div className="text-slate-400 text-sm">
               © 2026 ClearNav. All rights reserved.
             </div>
-            <LanguageSelector variant="compact" theme="dark" />
           </div>
         </div>
       </footer>

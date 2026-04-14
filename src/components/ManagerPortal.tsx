@@ -177,12 +177,12 @@ export default function ManagerPortal() {
           </div>
         </main>
 
-        <footer className="border-t border-slate-800 bg-slate-950/50 py-4 mt-8">
-          <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
+        <footer className="border-t border-slate-800 bg-slate-950/50 py-6 mt-8">
+          <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-3">
+            <LanguageSelector variant="compact" theme="dark" />
             <p className="text-sm text-slate-500">
               © {new Date().getFullYear()} {branding.company_name}. All rights reserved.
             </p>
-            <LanguageSelector variant="compact" theme="dark" />
           </div>
         </footer>
       </div>
