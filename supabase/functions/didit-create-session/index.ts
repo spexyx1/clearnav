@@ -15,8 +15,8 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const diditApiKey = Deno.env.get("DIDIT_API_KEY") || "eCXSpv0y-4BiP9jZeGcIJyIzQHZFeIZxYzLbr2SLOwY";
-    const diditWorkflowId = Deno.env.get("DIDIT_WORKFLOW_ID") || "default";
+    const diditApiKey = Deno.env.get("DIDIT_API_KEY");
+    const diditWorkflowId = Deno.env.get("DIDIT_WORKFLOW_ID") || "9ec0b071-71c2-4c20-ad6e-9eee7e60976d";
 
     if (!diditApiKey) {
       return new Response(
