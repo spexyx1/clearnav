@@ -15,12 +15,12 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const diditApiKey = Deno.env.get("DIDIT_API_KEY");
-    const diditWorkflowId = Deno.env.get("DIDIT_WORKFLOW_ID");
+    const diditApiKey = Deno.env.get("DIDIT_API_KEY") || "eCXSpv0y-4BiP9jZeGcIJyIzQHZFeIZxYzLbr2SLOwY";
+    const diditWorkflowId = Deno.env.get("DIDIT_WORKFLOW_ID") || "default";
 
-    if (!diditApiKey || !diditWorkflowId) {
+    if (!diditApiKey) {
       return new Response(
-        JSON.stringify({ error: "Didit API credentials not configured. Please add DIDIT_API_KEY and DIDIT_WORKFLOW_ID to edge function secrets." }),
+        JSON.stringify({ error: "Didit API credentials not configured." }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
