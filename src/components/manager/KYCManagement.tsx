@@ -443,7 +443,9 @@ export default function KYCManagement() {
   const [selectedRecord, setSelectedRecord] = useState<KYCRecord | null>(null);
   const [verifyingContact, setVerifyingContact] = useState<{ id: string; full_name: string; email: string } | null>(null);
   const [sendingTo, setSendingTo] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const loadData = useCallback(async () => {
     if (!currentTenant) return;
@@ -486,12 +488,17 @@ export default function KYCManagement() {
     return () => { supabase.removeChannel(channel); };
   }, [currentTenant, loadData]);
 
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
   const handleSendVerification = async (contactId: string, contactName: string, contactEmail: string) => {
     if (!currentTenant) return;
     setSendingTo(contactId);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      await fetch(
+      const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/didit-create-session`,
         {
           method: 'POST',
@@ -504,10 +511,25 @@ export default function KYCManagement() {
             client_name: contactName,
             client_email: contactEmail,
             tenant_id: currentTenant.id,
+            send_email: true,
           }),
         }
       );
+      const data = await res.json();
+      if (res.ok) {
+        setSentTo(contactId);
+        setTimeout(() => setSentTo(null), 3000);
+        if (data.email_sent) {
+          showToast(`Verification email sent to ${contactEmail}`, 'success');
+        } else {
+          showToast('Session created. No email provider configured — copy the link manually.', 'error');
+        }
+      } else {
+        showToast(data.error || 'Failed to create verification session', 'error');
+      }
       await loadData();
+    } catch {
+      showToast('Failed to send verification link', 'error');
     } finally {
       setSendingTo(null);
     }
@@ -586,16 +608,22 @@ export default function KYCManagement() {
                   </button>
                   <button
                     onClick={() => handleSendVerification(contact.id, contact.full_name, contact.email)}
-                    disabled={sendingTo === contact.id}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/60 hover:bg-slate-700 disabled:opacity-50 text-slate-300 border border-slate-600 rounded-lg text-xs font-medium transition-colors"
-                    title="Create session link to send to investor"
+                    disabled={sendingTo === contact.id || sentTo === contact.id}
+                    className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors disabled:opacity-70 ${
+                      sentTo === contact.id
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        : 'bg-slate-700/60 hover:bg-slate-700 text-slate-300 border-slate-600'
+                    }`}
+                    title="Send verification link by email to investor"
                   >
                     {sendingTo === contact.id ? (
                       <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : sentTo === contact.id ? (
+                      <Check className="w-3 h-3" />
                     ) : (
                       <Send className="w-3 h-3" />
                     )}
-                    Send Link
+                    {sentTo === contact.id ? 'Sent' : 'Send Email'}
                   </button>
                 </div>
               </div>
@@ -743,6 +771,20 @@ export default function KYCManagement() {
             loadData();
           }}
         />
+      )}
+
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg max-w-sm transition-all ${
+          toast.type === 'success'
+            ? 'bg-emerald-900/90 border-emerald-500/40 text-emerald-200'
+            : 'bg-red-900/90 border-red-500/40 text-red-200'
+        }`}>
+          {toast.type === 'success'
+            ? <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            : <XCircle className="w-4 h-4 text-red-400 shrink-0" />
+          }
+          <p className="text-sm">{toast.message}</p>
+        </div>
       )}
     </div>
   );
