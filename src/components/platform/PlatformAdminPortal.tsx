@@ -11,6 +11,7 @@ import {
   Mail,
   AtSign,
   LineChart,
+  Shield,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../lib/auth';
@@ -25,8 +26,9 @@ import SupportTools from './SupportTools';
 import PlatformEmailInbox from './PlatformEmailInbox';
 import TenantEmailOversight from './TenantEmailOversight';
 import PlatformFinancials from './PlatformFinancials';
+import ComplianceOfficerManager from './ComplianceOfficerManager';
 
-type Tab = 'tenants' | 'users' | 'discounts' | 'billing' | 'analytics' | 'support' | 'settings' | 'inbox' | 'email_oversight' | 'financials';
+type Tab = 'tenants' | 'users' | 'discounts' | 'billing' | 'analytics' | 'support' | 'settings' | 'inbox' | 'email_oversight' | 'financials' | 'compliance';
 
 export default function PlatformAdminPortal() {
   const { signOut } = useAuth();
@@ -43,6 +45,7 @@ export default function PlatformAdminPortal() {
     { id: 'inbox', label: 'Inbox', icon: Mail },
     { id: 'email_oversight', label: 'Tenant Emails', icon: AtSign },
     { id: 'financials', label: 'Financials', icon: LineChart },
+    { id: 'compliance', label: 'Compliance', icon: Shield },
     { id: 'settings', label: t('platformAdmin.settings'), icon: Settings },
   ];
 
@@ -104,6 +107,7 @@ export default function PlatformAdminPortal() {
           {activeTab === 'inbox' && <PlatformEmailInbox />}
           {activeTab === 'email_oversight' && <TenantEmailOversight />}
           {activeTab === 'financials' && <PlatformFinancials />}
+          {activeTab === 'compliance' && <ComplianceOfficerManager />}
           {activeTab === 'settings' && <PlatformSettings />}
         </div>
 

@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Shield, CheckCircle, XCircle, Clock, AlertTriangle, ExternalLink,
   RefreshCw, Send, Search, Filter, Eye, X, Copy, Check,
-  User, Play, ChevronLeft, Loader2, Camera, FileCheck2
+  User, Play, ChevronLeft, Loader2, Camera, FileCheck2, FileText
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import KYCLetterModal from '../documents/KYCLetterModal';
 
 interface KYCRecord {
   id: string;
@@ -441,6 +442,7 @@ export default function KYCManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedRecord, setSelectedRecord] = useState<KYCRecord | null>(null);
+  const [letterRecord, setLetterRecord] = useState<KYCRecord | null>(null);
   const [verifyingContact, setVerifyingContact] = useState<{ id: string; full_name: string; email: string } | null>(null);
   const [sendingTo, setSendingTo] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -699,6 +701,16 @@ export default function KYCManagement() {
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
+                      {record.didit_session_status === 'Approved' && (
+                        <button
+                          onClick={() => setLetterRecord(record)}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-medium transition-colors"
+                          title="Generate KYC verification letter"
+                        >
+                          <FileText className="w-3 h-3" />
+                          Letter
+                        </button>
+                      )}
                       {record.contact_id && record.crm_contacts && (
                         <button
                           onClick={() => setVerifyingContact({
@@ -760,6 +772,10 @@ export default function KYCManagement() {
 
       {selectedRecord && (
         <DetailModal record={selectedRecord} onClose={() => setSelectedRecord(null)} />
+      )}
+
+      {letterRecord && (
+        <KYCLetterModal record={letterRecord} onClose={() => setLetterRecord(null)} />
       )}
 
       {verifyingContact && currentTenant && (
