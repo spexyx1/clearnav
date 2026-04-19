@@ -13,7 +13,6 @@ export interface ResolvedTenant {
 
 export async function resolveTenantFromDomain(hostname: string): Promise<ResolvedTenant> {
   const parts = hostname.split('.');
-  const host = window.location.host;
 
   let tenant: Tenant | null = null;
   let subdomain: string | null = null;
