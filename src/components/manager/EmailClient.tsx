@@ -63,7 +63,7 @@ function formatDate(dateString: string | null) {
 }
 
 export default function EmailClient() {
-  const { user, isTenantAdmin } = useAuth();
+  const { user, isTenantAdmin, isPlatformAdmin } = useAuth();
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<EmailAccount | null>(null);
   const [messages, setMessages] = useState<EmailMessage[]>([]);
@@ -348,7 +348,7 @@ export default function EmailClient() {
                           )}
                         </button>
                       ))}
-                      {isTenantAdmin && (
+                      {(isTenantAdmin || isPlatformAdmin) && (
                         <>
                           <div className="border-t border-slate-700 my-1" />
                           <button
@@ -396,7 +396,7 @@ export default function EmailClient() {
                 <Pencil className="h-3.5 w-3.5" />
                 Compose
               </button>
-              {isTenantAdmin && (
+              {(isTenantAdmin || isPlatformAdmin) && (
                 <button
                   onClick={() => setShowSettings(true)}
                   className="p-2 hover:bg-slate-700/50 rounded-lg text-slate-400 hover:text-white transition-colors"
