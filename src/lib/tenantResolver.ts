@@ -37,7 +37,7 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
     const { data } = await supabase
       .from('tenant_domains')
       .select('*, platform_tenants(*)')
-      .eq('domain', host)
+      .eq('domain', hostname)
       .eq('is_verified', true)
       .maybeSingle();
 
