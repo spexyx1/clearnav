@@ -112,12 +112,17 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
 
   function applyTheme(theme: Theme) {
     const root = document.documentElement;
-    root.style.setProperty('--color-primary', theme.colors.primary);
-    root.style.setProperty('--color-secondary', theme.colors.secondary);
-    root.style.setProperty('--color-accent', theme.colors.accent);
-    root.style.setProperty('--color-background', theme.colors.background);
-    root.style.setProperty('--color-text', theme.colors.text);
-    root.style.setProperty('--color-text-secondary', theme.colors.textSecondary);
+    const c = theme.colors as any;
+    root.style.setProperty('--color-primary', c.primary);
+    root.style.setProperty('--color-secondary', c.secondary);
+    root.style.setProperty('--color-accent', c.accent);
+    root.style.setProperty('--color-accentLight', c.accentLight || c.accent);
+    root.style.setProperty('--color-background', c.background);
+    root.style.setProperty('--color-backgroundAlt', c.backgroundAlt || '#F8F7F4');
+    root.style.setProperty('--color-text', c.text);
+    root.style.setProperty('--color-textSecondary', c.textSecondary || c['text-secondary'] || '#4A5568');
+    root.style.setProperty('--color-textLight', c.textLight || '#718096');
+    root.style.setProperty('--color-border', c.border || '#E2E8F0');
     root.style.setProperty('--font-heading', theme.typography.headingFont);
     root.style.setProperty('--font-body', theme.typography.bodyFont);
 
@@ -197,7 +202,10 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
     <div className="public-website min-h-screen flex flex-col" style={{ backgroundColor: theme?.colors.background || '#FFFFFF' }}>
       {theme?.custom_css && <style>{theme.custom_css}</style>}
 
-      <header className="sticky top-0 z-50 bg-white shadow-sm">
+      <header
+        className="sticky top-0 z-50 shadow-md"
+        style={{ backgroundColor: theme?.colors.primary || '#0A1628' }}
+      >
         <nav className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <button
@@ -207,7 +215,13 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
               {theme?.logo_url ? (
                 <img src={theme.logo_url} alt="Logo" className="h-10" />
               ) : (
-                <span className="text-2xl font-bold" style={{ color: theme?.colors.primary || '#3B82F6', fontFamily: theme?.typography.headingFont || 'inherit' }}>
+                <span
+                  className="text-xl font-bold tracking-tight"
+                  style={{
+                    color: (theme?.colors as any)?.accent || '#C9A84C',
+                    fontFamily: theme?.typography.headingFont || 'inherit',
+                  }}
+                >
                   {tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1)}
                 </span>
               )}
@@ -218,8 +232,8 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
                 <button
                   key={index}
                   onClick={() => navigate(item.href, item.external)}
-                  className="font-medium hover:opacity-70 transition-opacity"
-                  style={{ color: theme?.colors.text || '#1F2937' }}
+                  className="text-sm font-medium tracking-wide transition-colors hover:opacity-70"
+                  style={{ color: 'rgba(255,255,255,0.88)' }}
                 >
                   {item.label}
                 </button>
@@ -229,20 +243,20 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2"
-              style={{ color: theme?.colors.text || '#1F2937' }}
+              style={{ color: 'rgba(255,255,255,0.88)' }}
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
 
           {mobileMenuOpen && (
-            <div className="md:hidden mt-4 pb-4 border-t pt-4">
+            <div className="md:hidden mt-4 pb-4 border-t pt-4" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
               {headerNav.map((item, index) => (
                 <button
                   key={index}
                   onClick={() => navigate(item.href, item.external)}
-                  className="block w-full text-left py-3 font-medium hover:opacity-70 transition-opacity"
-                  style={{ color: theme?.colors.text || '#1F2937' }}
+                  className="block w-full text-left py-3 text-sm font-medium transition-opacity hover:opacity-70"
+                  style={{ color: 'rgba(255,255,255,0.88)' }}
                 >
                   {item.label}
                 </button>
@@ -256,25 +270,39 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
         <PublicPageRouter tenantId={tenantId} path={currentPath} />
       </main>
 
-      <footer className="bg-gray-900 text-white py-12 px-6">
+      <footer
+        className="py-14 px-6"
+        style={{ backgroundColor: theme?.colors.primary || '#0A1628' }}
+      >
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-3">
-              {theme?.logo_url && (
-                <img src={theme.logo_url} alt="Logo" className="h-8 brightness-0 invert" />
+          <div className="flex flex-col md:flex-row justify-between items-start gap-8 mb-10">
+            <div>
+              {theme?.logo_url ? (
+                <img src={theme.logo_url} alt="Logo" className="h-8 brightness-0 invert mb-3" />
+              ) : (
+                <span
+                  className="text-lg font-bold tracking-tight block mb-3"
+                  style={{
+                    color: (theme?.colors as any)?.accent || '#C9A84C',
+                    fontFamily: theme?.typography.headingFont || 'inherit',
+                  }}
+                >
+                  {tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1)}
+                </span>
               )}
-              <span className="text-lg font-semibold">
-                {tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1)}
-              </span>
+              <p className="text-xs max-w-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                Institutional asset management for qualified investors.
+              </p>
             </div>
 
             {footerNav.length > 0 && (
-              <div className="flex items-center gap-6">
+              <div className="flex flex-wrap gap-x-8 gap-y-3">
                 {footerNav.map((item, index) => (
                   <button
                     key={index}
                     onClick={() => navigate(item.href, item.external)}
-                    className="text-sm hover:text-gray-300 transition-colors"
+                    className="text-sm transition-colors hover:opacity-100"
+                    style={{ color: 'rgba(255,255,255,0.60)' }}
                   >
                     {item.label}
                   </button>
@@ -283,8 +311,16 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
             )}
           </div>
 
-          <div className="mt-8 pt-8 border-t border-gray-800 text-center text-sm text-gray-400">
-            <p>&copy; {new Date().getFullYear()} {tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1)}. All rights reserved.</p>
+          <div
+            className="pt-8 border-t flex flex-col md:flex-row justify-between items-center gap-3"
+            style={{ borderColor: 'rgba(255,255,255,0.10)' }}
+          >
+            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              &copy; {new Date().getFullYear()} {tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1)}. All rights reserved.
+            </p>
+            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
+              Powered by ClearNAV
+            </p>
           </div>
         </div>
       </footer>
