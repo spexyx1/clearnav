@@ -10,6 +10,7 @@ import {
   LogOut,
   Mail,
   AtSign,
+  LineChart,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../lib/auth';
@@ -23,8 +24,9 @@ import UserManagement from './UserManagement';
 import SupportTools from './SupportTools';
 import PlatformEmailInbox from './PlatformEmailInbox';
 import TenantEmailOversight from './TenantEmailOversight';
+import PlatformFinancials from './PlatformFinancials';
 
-type Tab = 'tenants' | 'users' | 'discounts' | 'billing' | 'analytics' | 'support' | 'settings' | 'inbox' | 'email_oversight';
+type Tab = 'tenants' | 'users' | 'discounts' | 'billing' | 'analytics' | 'support' | 'settings' | 'inbox' | 'email_oversight' | 'financials';
 
 export default function PlatformAdminPortal() {
   const { signOut } = useAuth();
@@ -40,6 +42,7 @@ export default function PlatformAdminPortal() {
     { id: 'support', label: t('platformAdmin.support'), icon: MessageSquare },
     { id: 'inbox', label: 'Inbox', icon: Mail },
     { id: 'email_oversight', label: 'Tenant Emails', icon: AtSign },
+    { id: 'financials', label: 'Financials', icon: LineChart },
     { id: 'settings', label: t('platformAdmin.settings'), icon: Settings },
   ];
 
@@ -100,6 +103,7 @@ export default function PlatformAdminPortal() {
           {activeTab === 'support' && <SupportTools />}
           {activeTab === 'inbox' && <PlatformEmailInbox />}
           {activeTab === 'email_oversight' && <TenantEmailOversight />}
+          {activeTab === 'financials' && <PlatformFinancials />}
           {activeTab === 'settings' && <PlatformSettings />}
         </div>
 
