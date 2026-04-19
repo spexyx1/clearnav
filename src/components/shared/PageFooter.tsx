@@ -3,6 +3,15 @@ import { useLanguage } from '../../lib/LanguageContext';
 import { languages } from '../../i18n/languages';
 import { useState, useRef, useEffect } from 'react';
 
+interface FooterLink {
+  label: string;
+  href: string;
+}
+
+const FOOTER_LINKS: FooterLink[] = [
+  { label: 'Investors', href: '/investors' },
+];
+
 interface PageFooterProps {
   companyName?: string;
   copyright?: string;
@@ -58,13 +67,28 @@ export default function PageFooter({
     }
   }, [isOpen]);
 
+  const linkClasses = theme === 'dark'
+    ? 'text-xs text-slate-600 hover:text-slate-400 transition-colors'
+    : 'text-xs text-slate-500 hover:text-slate-700 transition-colors';
+
   return (
     <footer className={`${containerClasses} py-3 mt-8`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4">
-          <p className={`text-xs sm:text-sm ${textClasses}`}>
-            {copyrightText}
-          </p>
+          <div className="flex items-center gap-4 flex-wrap">
+            <p className={`text-xs sm:text-sm ${textClasses}`}>
+              {copyrightText}
+            </p>
+            {FOOTER_LINKS.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className={linkClasses}
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setIsOpen(!isOpen)}

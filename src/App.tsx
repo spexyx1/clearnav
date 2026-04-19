@@ -17,10 +17,11 @@ const DebugLogin = lazy(() => import('./components/DebugLogin'));
 const SalesSheet = lazy(() => import('./components/SalesSheet'));
 const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
+const InvestorPage = lazy(() => import('./components/InvestorPage'));
 
 function AppContent() {
   const { user, loading, roleCategory, isPlatformAdmin, currentTenant } = useAuth();
-  const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug' | 'sales-sheet' | 'terms' | 'privacy'>('landing');
+  const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug' | 'sales-sheet' | 'terms' | 'privacy' | 'investors'>('landing');
   const [publicTenant, setPublicTenant] = useState<{ id: string; slug: string } | null>(null);
   const [tenantLoading, setTenantLoading] = useState(true);
 
@@ -40,6 +41,8 @@ function AppContent() {
         setView('terms');
       } else if (window.location.pathname === '/privacy') {
         setView('privacy');
+      } else if (window.location.pathname === '/investors') {
+        setView('investors');
       }
     };
 
@@ -137,6 +140,17 @@ function AppContent() {
     );
   }
 
+  if (view === 'investors') {
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        <InvestorPage onBack={() => {
+          window.history.pushState({}, '', '/');
+          setView('landing');
+        }} />
+      </Suspense>
+    );
+  }
+
   if (user && roleCategory) {
     // Route based on role_category from user_roles table
     switch (roleCategory) {
@@ -218,9 +232,10 @@ function App() {
     const isSignup = window.location.pathname === '/signup';
     const isTerms = window.location.pathname === '/terms';
     const isPrivacy = window.location.pathname === '/privacy';
+    const isInvestors = window.location.pathname === '/investors';
 
     // If not in special modes and no tenant param, redirect immediately
-    if (!isDebug && !isSignup && !isTerms && !isPrivacy && !tenantParam) {
+    if (!isDebug && !isSignup && !isTerms && !isPrivacy && !isInvestors && !tenantParam) {
       const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?tenant=arkline`;
       window.location.replace(newUrl);
       // Return loading state while redirecting
