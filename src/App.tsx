@@ -31,6 +31,8 @@ function AppContent() {
 
       if (params.get('token')) {
         setView('accept-invite');
+      } else if (params.get('login')) {
+        setView('login');
       } else if (window.location.pathname === '/signup') {
         setView('signup');
       } else if (window.location.pathname === '/debug') {
@@ -200,7 +202,15 @@ function AppContent() {
   }
 
   if (view === 'login') {
-    return <LoginPage onBack={() => setView('landing')} />;
+    const handleLoginBack = () => {
+      if (publicTenant) {
+        window.history.pushState({}, '', '/');
+        setView('landing');
+      } else {
+        setView('landing');
+      }
+    };
+    return <LoginPage onBack={handleLoginBack} />;
   }
 
   if (tenantLoading) {

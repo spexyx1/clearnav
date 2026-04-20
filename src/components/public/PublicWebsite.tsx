@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { PublicPageRouter } from './PublicPageRouter';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, LogIn } from 'lucide-react';
 
 interface Theme {
   colors: {
@@ -27,6 +27,14 @@ interface NavItem {
   external?: boolean;
 }
 
+interface TenantBranding {
+  company_name?: string;
+  tagline?: string;
+  address?: string;
+  founded?: string;
+  website?: string;
+}
+
 interface PublicWebsiteProps {
   tenantId: string;
   tenantSlug: string;
@@ -34,12 +42,17 @@ interface PublicWebsiteProps {
 
 export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
   const [theme, setTheme] = useState<Theme | null>(null);
+  const [branding, setBranding] = useState<TenantBranding>({});
   const [headerNav, setHeaderNav] = useState<NavItem[]>([]);
   const [footerNav, setFooterNav] = useState<NavItem[]>([]);
   const [siteStatus, setSiteStatus] = useState<string>('live');
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const displayName = branding.company_name || (tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1));
+  const accentColor = (theme?.colors as any)?.accent || '#C9A84C';
+  const primaryColor = theme?.colors.primary || '#0A1628';
 
   useEffect(() => {
     loadSiteData();
@@ -94,6 +107,9 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
 
       if (settingsResult.data) {
         setSiteStatus(settingsResult.data.site_status || 'live');
+        if (settingsResult.data.branding) {
+          setBranding(settingsResult.data.branding as TenantBranding);
+        }
       }
 
       if (headerNavResult.data?.items) {
@@ -110,9 +126,9 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
     }
   }
 
-  function applyTheme(theme: Theme) {
+  function applyTheme(t: Theme) {
     const root = document.documentElement;
-    const c = theme.colors as any;
+    const c = t.colors as any;
     root.style.setProperty('--color-primary', c.primary);
     root.style.setProperty('--color-secondary', c.secondary);
     root.style.setProperty('--color-accent', c.accent);
@@ -123,21 +139,24 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
     root.style.setProperty('--color-textSecondary', c.textSecondary || c['text-secondary'] || '#4A5568');
     root.style.setProperty('--color-textLight', c.textLight || '#718096');
     root.style.setProperty('--color-border', c.border || '#E2E8F0');
-    root.style.setProperty('--font-heading', theme.typography.headingFont);
-    root.style.setProperty('--font-body', theme.typography.bodyFont);
+    root.style.setProperty('--font-heading', t.typography.headingFont);
+    root.style.setProperty('--font-body', t.typography.bodyFont);
 
-    if (theme.favicon_url) {
+    if (t.favicon_url) {
       let favicon = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
       if (!favicon) {
         favicon = document.createElement('link');
         favicon.rel = 'icon';
         document.head.appendChild(favicon);
       }
-      favicon.href = theme.favicon_url;
+      favicon.href = t.favicon_url;
     }
-
-    document.title = tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1);
   }
+
+  useEffect(() => {
+    const name = branding.company_name || (tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1));
+    document.title = name;
+  }, [branding, tenantSlug]);
 
   function navigate(href: string, external: boolean = false) {
     if (external) {
@@ -151,12 +170,19 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
     window.scrollTo(0, 0);
   }
 
+  function handleLoginClick() {
+    window.history.pushState({}, '', '/?login=1');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F8F7F4' }}>
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading...</p>
+          <div
+            className="w-12 h-12 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+            style={{ borderColor: `${primaryColor}40`, borderTopColor: 'transparent' }}
+          />
         </div>
       </div>
     );
@@ -164,7 +190,7 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
 
   if (siteStatus === 'coming_soon') {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: theme?.colors.primary || '#3B82F6' }}>
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: primaryColor }}>
         <div className="text-center text-white max-w-2xl">
           {theme?.logo_url && (
             <img src={theme.logo_url} alt="Logo" className="h-20 mx-auto mb-8" />
@@ -204,7 +230,7 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
 
       <header
         className="sticky top-0 z-50 shadow-md"
-        style={{ backgroundColor: theme?.colors.primary || '#0A1628' }}
+        style={{ backgroundColor: primaryColor }}
       >
         <nav className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -218,11 +244,11 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
                 <span
                   className="text-xl font-bold tracking-tight"
                   style={{
-                    color: (theme?.colors as any)?.accent || '#C9A84C',
+                    color: accentColor,
                     fontFamily: theme?.typography.headingFont || 'inherit',
                   }}
                 >
-                  {tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1)}
+                  {displayName}
                 </span>
               )}
             </button>
@@ -232,12 +258,24 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
                 <button
                   key={index}
                   onClick={() => navigate(item.href, item.external)}
-                  className="text-sm font-medium tracking-wide transition-colors hover:opacity-70"
+                  className="text-sm font-medium tracking-wide transition-opacity hover:opacity-70"
                   style={{ color: 'rgba(255,255,255,0.88)' }}
                 >
                   {item.label}
                 </button>
               ))}
+              <button
+                onClick={handleLoginClick}
+                className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded transition-all hover:opacity-90 active:scale-95"
+                style={{
+                  backgroundColor: accentColor,
+                  color: primaryColor,
+                  fontFamily: theme?.typography.bodyFont || 'inherit',
+                }}
+              >
+                <LogIn size={15} />
+                Investor Login
+              </button>
             </div>
 
             <button
@@ -261,6 +299,18 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
                   {item.label}
                 </button>
               ))}
+              <button
+                onClick={handleLoginClick}
+                className="flex items-center gap-2 mt-3 text-sm font-semibold px-4 py-2.5 rounded w-full justify-center transition-all hover:opacity-90"
+                style={{
+                  backgroundColor: accentColor,
+                  color: primaryColor,
+                  fontFamily: theme?.typography.bodyFont || 'inherit',
+                }}
+              >
+                <LogIn size={15} />
+                Investor Login
+              </button>
             </div>
           )}
         </nav>
@@ -272,7 +322,7 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
 
       <footer
         className="py-14 px-6"
-        style={{ backgroundColor: theme?.colors.primary || '#0A1628' }}
+        style={{ backgroundColor: primaryColor }}
       >
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-start gap-8 mb-10">
@@ -283,16 +333,23 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
                 <span
                   className="text-lg font-bold tracking-tight block mb-3"
                   style={{
-                    color: (theme?.colors as any)?.accent || '#C9A84C',
+                    color: accentColor,
                     fontFamily: theme?.typography.headingFont || 'inherit',
                   }}
                 >
-                  {tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1)}
+                  {displayName}
                 </span>
               )}
-              <p className="text-xs max-w-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                Institutional asset management for qualified investors.
-              </p>
+              {branding.tagline && (
+                <p className="text-xs max-w-xs leading-relaxed tracking-wide" style={{ color: 'rgba(255,255,255,0.50)' }}>
+                  {branding.tagline}
+                </p>
+              )}
+              {branding.address && (
+                <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                  {branding.address}
+                </p>
+              )}
             </div>
 
             {footerNav.length > 0 && (
@@ -316,10 +373,7 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
             style={{ borderColor: 'rgba(255,255,255,0.10)' }}
           >
             <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              &copy; {new Date().getFullYear()} {tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1)}. All rights reserved.
-            </p>
-            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
-              Powered by ClearNAV
+              &copy; {new Date().getFullYear()} {displayName}. All rights reserved.
             </p>
           </div>
         </div>
