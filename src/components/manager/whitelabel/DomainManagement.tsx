@@ -1,7 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Globe, CheckCircle, XCircle, AlertCircle, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Globe, CheckCircle, XCircle, AlertCircle, Trash2, RefreshCw, ExternalLink } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+async function callVercelDomainManager(action: string, method: string, domain: string): Promise<{ success: boolean; message?: string; configured?: boolean }> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { success: false, message: 'Not authenticated' };
+
+    const res = await fetch(
+      `${SUPABASE_URL}/functions/v1/vercel-domain-manager?action=${action}`,
+      {
+        method,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+          Apikey: SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ domain }),
+      }
+    );
+
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.configured === false) {
+        return { success: false, configured: false, message: data.message };
+      }
+      return { success: false, message: data.error || 'Vercel API error' };
+    }
+    return { success: true };
+  } catch {
+    return { success: false, message: 'Failed to contact Vercel API' };
+  }
+}
 
 interface Domain {
   id: string;
@@ -31,6 +65,7 @@ export default function DomainManagement() {
   const [selectedDomain, setSelectedDomain] = useState<Domain | null>(null);
   const [verificationRecords, setVerificationRecords] = useState<VerificationRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [vercelUnconfigured, setVercelUnconfigured] = useState(false);
 
   useEffect(() => {
     if (tenantId) {
@@ -77,11 +112,14 @@ export default function DomainManagement() {
 
     try {
       setError(null);
+      setVercelUnconfigured(false);
+      const domainName = newDomain.trim().toLowerCase();
+
       const { data, error } = await supabase
         .from('tenant_domains')
         .insert({
           tenant_id: tenantId,
-          domain: newDomain.trim().toLowerCase(),
+          domain: domainName,
           is_primary: domains.length === 0,
           is_verified: false,
           ssl_enabled: false,
@@ -96,18 +134,23 @@ export default function DomainManagement() {
         {
           domain_id: data.id,
           record_type: 'CNAME',
-          record_name: newDomain.trim().toLowerCase(),
+          record_name: domainName,
           record_value: 'cname.vercel-dns.com',
           is_verified: false,
         },
         {
           domain_id: data.id,
           record_type: 'TXT',
-          record_name: `_vercel.${newDomain.trim().toLowerCase()}`,
+          record_name: `_vercel.${domainName}`,
           record_value: `vc-domain-verify=${data.id}`,
           is_verified: false,
         },
       ]);
+
+      const vercelResult = await callVercelDomainManager('add', 'POST', domainName);
+      if (!vercelResult.success && vercelResult.configured === false) {
+        setVercelUnconfigured(true);
+      }
 
       setNewDomain('');
       setShowAddDomain(false);
@@ -120,6 +163,7 @@ export default function DomainManagement() {
   const verifyDomain = async (domainId: string) => {
     try {
       setError(null);
+      setVercelUnconfigured(false);
 
       const domain = domains.find(d => d.id === domainId);
       if (!domain) return;
@@ -140,6 +184,11 @@ export default function DomainManagement() {
         .update({ is_verified: true, verified_at: new Date().toISOString() })
         .eq('domain_id', domainId);
 
+      const vercelResult = await callVercelDomainManager('add', 'POST', domain.domain);
+      if (!vercelResult.success && vercelResult.configured === false) {
+        setVercelUnconfigured(true);
+      }
+
       loadDomains();
       if (selectedDomain?.id === domainId) {
         loadVerificationRecords(domainId);
@@ -154,12 +203,20 @@ export default function DomainManagement() {
 
     try {
       setError(null);
+
+      const domain = domains.find(d => d.id === domainId);
+
       const { error } = await supabase
         .from('tenant_domains')
         .delete()
         .eq('id', domainId);
 
       if (error) throw error;
+
+      if (domain) {
+        await callVercelDomainManager('remove', 'DELETE', domain.domain);
+      }
+
       loadDomains();
       if (selectedDomain?.id === domainId) {
         setSelectedDomain(null);
@@ -232,6 +289,35 @@ export default function DomainManagement() {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
           {error}
+        </div>
+      )}
+
+      {vercelUnconfigured && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <h4 className="font-medium text-amber-900 mb-1">Vercel API Not Configured</h4>
+              <p className="text-sm text-amber-800 mb-2">
+                The domain was saved successfully, but it needs to be manually added to your Vercel project before it will serve traffic. To automate this, add the following secrets to your Supabase Edge Functions:
+              </p>
+              <ul className="text-sm text-amber-800 space-y-1 mb-3 list-disc list-inside">
+                <li><code className="bg-amber-100 px-1 rounded">VERCEL_API_TOKEN</code> — your Vercel API token</li>
+                <li><code className="bg-amber-100 px-1 rounded">VERCEL_PROJECT_ID</code> — your Vercel project ID</li>
+              </ul>
+              <p className="text-sm text-amber-800 mb-2">
+                Until configured, add domains manually in your Vercel project dashboard under Settings &gt; Domains.
+              </p>
+              <a
+                href="https://vercel.com/account/tokens"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-amber-700 font-medium hover:text-amber-900"
+              >
+                Get Vercel API Token <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
         </div>
       )}
 
