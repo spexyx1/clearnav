@@ -79,29 +79,40 @@ export function PublicPageRouter({ tenantId, path }: PublicPageRouterProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
+      <div className="min-h-[60vh] flex items-center justify-center" style={{ backgroundColor: 'var(--color-background, #FFFFFF)' }}>
+        <div
+          className="w-10 h-10 border border-t-transparent rounded-full animate-spin"
+          style={{ borderColor: 'var(--color-border, #E0DBD4)', borderTopColor: 'transparent' }}
+        />
       </div>
     );
   }
 
   if (error || !pageData?.page) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6">
+      <div className="min-h-[70vh] flex items-center justify-center px-6" style={{ backgroundColor: 'var(--color-background, #FFFFFF)' }}>
         <div className="text-center max-w-md">
-          <h1 className="text-6xl font-bold text-gray-300 mb-4">404</h1>
-          <h2 className="text-2xl font-semibold text-gray-700 mb-2">Page Not Found</h2>
-          <p className="text-gray-600 mb-6">
-            The page you're looking for doesn't exist or hasn't been published yet.
+          <p
+            className="text-8xl font-semibold mb-4 tracking-tight"
+            style={{ fontFamily: 'var(--font-heading, Georgia, serif)', color: 'var(--color-border, #E0DBD4)' }}
+          >
+            404
+          </p>
+          <h2
+            className="text-2xl font-semibold mb-3"
+            style={{ fontFamily: 'var(--font-heading, Georgia, serif)', color: 'var(--color-text, #1A1A1A)' }}
+          >
+            Page Not Found
+          </h2>
+          <p className="mb-8 text-sm" style={{ color: 'var(--color-textSecondary, #4A4A4A)' }}>
+            The page you are looking for does not exist or has not been published yet.
           </p>
           <a
             href="/"
-            className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="inline-block px-6 py-3 text-sm font-semibold rounded-sm transition-all hover:brightness-110"
+            style={{ backgroundColor: 'var(--color-accent, #B8934A)', color: 'var(--color-primary, #1B3A2D)' }}
           >
-            Go Home
+            Return Home
           </a>
         </div>
       </div>

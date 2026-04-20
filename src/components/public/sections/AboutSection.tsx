@@ -14,6 +14,9 @@ interface AboutSectionProps {
   };
 }
 
+const FALLBACK_IMAGE =
+  'https://images.pexels.com/photos/1546912/pexels-photo-1546912.jpeg?auto=compress&cs=tinysrgb&w=1200';
+
 export function AboutSection({ content }: AboutSectionProps) {
   const {
     heading,
@@ -33,13 +36,10 @@ export function AboutSection({ content }: AboutSectionProps) {
 
   const bgColor =
     background === 'alt'
-      ? 'var(--color-backgroundAlt, #F8F7F4)'
+      ? 'var(--color-backgroundAlt, #F5F2EE)'
       : 'var(--color-background, #FFFFFF)';
 
   const paragraphs = displayBody.split('\n\n').filter(Boolean);
-
-  const stockImage =
-    'https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=1200';
 
   return (
     <section className="py-24 px-6" style={{ backgroundColor: bgColor }}>
@@ -51,10 +51,10 @@ export function AboutSection({ content }: AboutSectionProps) {
         >
           <div>
             <h2
-              className="text-4xl md:text-5xl font-bold mb-4"
+              className="text-4xl md:text-5xl font-semibold leading-tight mb-4 tracking-tight"
               style={{
-                fontFamily: 'var(--font-heading, Georgia, serif)',
-                color: 'var(--color-text, #0A1628)',
+                fontFamily: 'var(--font-heading, Cormorant Garamond, Georgia, serif)',
+                color: 'var(--color-text, #1A1A1A)',
               }}
             >
               {displayTitle}
@@ -62,19 +62,19 @@ export function AboutSection({ content }: AboutSectionProps) {
 
             {show_divider && (
               <div
-                className="w-16 h-0.5 mb-6"
-                style={{ backgroundColor: 'var(--color-accent, #C9A84C)' }}
+                className="w-10 h-px mb-7"
+                style={{ backgroundColor: 'var(--color-accent, #B8934A)' }}
               />
             )}
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               {paragraphs.map((para, i) => (
                 <p
                   key={i}
-                  className="text-base leading-relaxed"
+                  className="text-base leading-[1.85] font-light"
                   style={{
-                    fontFamily: 'var(--font-body, Inter, sans-serif)',
-                    color: 'var(--color-textSecondary, #4A5568)',
+                    fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+                    color: 'var(--color-textSecondary, #4A4A4A)',
                   }}
                 >
                   {para}
@@ -84,11 +84,11 @@ export function AboutSection({ content }: AboutSectionProps) {
           </div>
 
           <div
-            className="rounded-lg overflow-hidden shadow-xl"
+            className="rounded-sm overflow-hidden shadow-2xl"
             style={{ aspectRatio: '4/3' }}
           >
             <img
-              src={image || stockImage}
+              src={image || FALLBACK_IMAGE}
               alt={displayTitle}
               className="w-full h-full object-cover"
               loading="lazy"

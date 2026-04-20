@@ -17,37 +17,41 @@ export function StatsSection({ content }: StatsSectionProps) {
 
   if (stats.length === 0) return null;
 
-  const isDark = background === 'dark' || background === 'accent';
+  const isDark = background === 'dark';
+  const isAccent = background === 'accent';
 
   const bgStyle =
-    background === 'accent'
-      ? { backgroundColor: 'var(--color-accent, #C9A84C)' }
-      : background === 'dark'
-      ? { backgroundColor: 'var(--color-primary, #0A1628)' }
-      : { backgroundColor: 'var(--color-backgroundAlt, #F8F7F4)' };
+    isAccent
+      ? { backgroundColor: 'var(--color-backgroundAlt, #F5F2EE)' }
+      : isDark
+      ? { backgroundColor: 'var(--color-primary, #1B3A2D)' }
+      : { backgroundColor: 'var(--color-background, #FFFFFF)' };
 
   return (
-    <section className="py-14 px-6" style={bgStyle}>
+    <section className="py-16 px-6" style={bgStyle}>
       <div className="max-w-7xl mx-auto">
-        <div className={`grid grid-cols-2 md:grid-cols-4 gap-8 divide-x ${isDark ? 'divide-white/20' : 'divide-slate-200'}`}>
+        <div
+          className={`grid grid-cols-2 md:grid-cols-4 gap-0 divide-x ${
+            isDark ? 'divide-white/15' : 'divide-[var(--color-border,#E0DBD4)]'
+          }`}
+        >
           {stats.map((stat, i) => (
-            <div key={i} className={`text-center ${i > 0 ? 'pl-8' : ''}`}>
+            <div key={i} className={`text-center ${i > 0 ? 'pl-8' : ''} px-6 py-4`}>
               <p
-                className="text-3xl md:text-4xl font-bold mb-1"
+                className="text-3xl md:text-4xl font-semibold mb-1.5 tracking-tight"
                 style={{
-                  fontFamily: 'var(--font-heading, Georgia, serif)',
-                  color: background === 'accent' ? 'var(--color-primary, #0A1628)' : '#FFFFFF',
+                  fontFamily: 'var(--font-heading, Cormorant Garamond, Georgia, serif)',
+                  color: isDark ? '#FFFFFF' : 'var(--color-primary, #1B3A2D)',
                 }}
               >
                 {stat.value}
               </p>
               <p
-                className="text-xs font-semibold uppercase tracking-widest"
+                className="text-[10px] font-semibold uppercase tracking-[0.14em]"
                 style={{
-                  color:
-                    background === 'accent'
-                      ? 'rgba(10,22,40,0.65)'
-                      : 'rgba(255,255,255,0.65)',
+                  color: isDark
+                    ? 'rgba(255,255,255,0.55)'
+                    : 'var(--color-textLight, #7A7A7A)',
                 }}
               >
                 {stat.label}

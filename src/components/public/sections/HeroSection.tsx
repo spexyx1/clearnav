@@ -39,42 +39,66 @@ export function HeroSection({ content }: HeroSectionProps) {
   const effectiveCtaText = cta_text || ctaText;
   const effectiveCtaHref = cta_href || ctaLink || '#contact';
 
-  const alignClass = alignment === 'left' ? 'text-left items-start' : alignment === 'right' ? 'text-right items-end' : 'text-center items-center';
+  const alignClass =
+    alignment === 'left'
+      ? 'text-left items-start'
+      : alignment === 'right'
+      ? 'text-right items-end'
+      : 'text-center items-center';
+
   const isDark = background_style === 'dark' || background_style === 'image';
 
   const bgStyle: React.CSSProperties = background_image
     ? {
-        backgroundImage: `linear-gradient(rgba(10,22,40,0.82), rgba(10,22,40,0.88)), url(${background_image})`,
+        backgroundImage: `linear-gradient(rgba(27,58,45,0.86), rgba(27,58,45,0.92)), url(${background_image})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }
     : isDark
-    ? { backgroundColor: 'var(--color-primary, #0A1628)' }
-    : { backgroundColor: 'var(--color-backgroundAlt, #F8F7F4)' };
+    ? { backgroundColor: 'var(--color-primary, #1B3A2D)' }
+    : { backgroundColor: 'var(--color-backgroundAlt, #F5F2EE)' };
 
   return (
     <section
-      className="relative min-h-[640px] flex items-center justify-center px-6 py-28 overflow-hidden"
+      className="relative min-h-[680px] flex items-center justify-center px-6 py-32 overflow-hidden"
       style={bgStyle}
     >
       {isDark && !background_image && (
-        <div
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage:
-              'radial-gradient(ellipse at 70% 50%, var(--color-accent, #C9A84C) 0%, transparent 60%)',
-          }}
-        />
+        <>
+          <div
+            className="absolute inset-0 opacity-[0.07]"
+            style={{
+              backgroundImage:
+                'radial-gradient(ellipse at 75% 45%, var(--color-accent, #B8934A) 0%, transparent 55%)',
+            }}
+          />
+          <div
+            className="absolute inset-0 opacity-[0.04]"
+            style={{
+              backgroundImage:
+                'radial-gradient(ellipse at 20% 70%, var(--color-accentLight, #D4A85C) 0%, transparent 45%)',
+            }}
+          />
+          <div
+            className="absolute top-0 left-0 right-0 h-px opacity-20"
+            style={{ backgroundColor: 'var(--color-accent, #B8934A)' }}
+          />
+          <div
+            className="absolute bottom-0 left-0 right-0 h-px opacity-10"
+            style={{ backgroundColor: 'var(--color-accent, #B8934A)' }}
+          />
+        </>
       )}
 
-      <div className={`relative max-w-4xl mx-auto flex flex-col gap-6 ${alignClass}`}>
+      <div className={`relative max-w-4xl mx-auto flex flex-col gap-7 ${alignClass}`}>
         {badge && (
           <span
-            className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-widest uppercase border"
+            className="inline-flex items-center px-4 py-1.5 rounded-sm text-xs font-semibold tracking-[0.18em] uppercase border"
             style={{
-              color: 'var(--color-accent, #C9A84C)',
-              borderColor: 'var(--color-accent, #C9A84C)',
-              backgroundColor: 'rgba(201,168,76,0.08)',
+              color: 'var(--color-accent, #B8934A)',
+              borderColor: 'var(--color-accent, #B8934A)',
+              backgroundColor: 'rgba(184,147,74,0.08)',
+              fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
             }}
           >
             {badge}
@@ -82,10 +106,11 @@ export function HeroSection({ content }: HeroSectionProps) {
         )}
 
         <h1
-          className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight"
+          className="text-5xl md:text-6xl lg:text-[4.5rem] font-semibold leading-[1.1] tracking-tight"
           style={{
-            fontFamily: 'var(--font-heading, Georgia, serif)',
-            color: isDark ? '#FFFFFF' : 'var(--color-text, #0A1628)',
+            fontFamily: 'var(--font-heading, Cormorant Garamond, Georgia, serif)',
+            color: isDark ? '#FFFFFF' : 'var(--color-text, #1A1A1A)',
+            fontStyle: 'normal',
           }}
         >
           {headline}
@@ -93,17 +118,17 @@ export function HeroSection({ content }: HeroSectionProps) {
 
         {show_divider && (
           <div
-            className="w-16 h-0.5 flex-shrink-0"
-            style={{ backgroundColor: 'var(--color-accent, #C9A84C)' }}
+            className="w-12 h-px flex-shrink-0"
+            style={{ backgroundColor: 'var(--color-accent, #B8934A)' }}
           />
         )}
 
         {subheadline && (
           <p
-            className="text-lg md:text-xl leading-relaxed max-w-2xl"
+            className="text-lg md:text-xl leading-[1.75] max-w-2xl font-light"
             style={{
-              fontFamily: 'var(--font-body, Inter, sans-serif)',
-              color: isDark ? 'rgba(255,255,255,0.82)' : 'var(--color-textSecondary, #4A5568)',
+              fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+              color: isDark ? 'rgba(255,255,255,0.78)' : 'var(--color-textSecondary, #4A4A4A)',
             }}
           >
             {subheadline}
@@ -111,27 +136,29 @@ export function HeroSection({ content }: HeroSectionProps) {
         )}
 
         {(effectiveCtaText || secondary_cta_text) && (
-          <div className={`flex flex-wrap gap-4 mt-2 ${alignment === 'center' ? 'justify-center' : ''}`}>
+          <div className={`flex flex-wrap gap-4 mt-3 ${alignment === 'center' ? 'justify-center' : ''}`}>
             {effectiveCtaText && (
               <a
                 href={effectiveCtaHref}
-                className="inline-flex items-center gap-2 px-8 py-4 text-sm font-semibold tracking-wide rounded transition-all hover:brightness-110 hover:shadow-lg"
+                className="inline-flex items-center gap-2.5 px-8 py-3.5 text-sm font-semibold tracking-wide rounded-sm transition-all duration-200 hover:brightness-110 hover:shadow-lg active:scale-95"
                 style={{
-                  backgroundColor: 'var(--color-accent, #C9A84C)',
-                  color: 'var(--color-primary, #0A1628)',
+                  backgroundColor: 'var(--color-accent, #B8934A)',
+                  color: 'var(--color-primary, #1B3A2D)',
+                  fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
                 }}
               >
                 {effectiveCtaText}
-                <ArrowRight size={16} />
+                <ArrowRight size={15} />
               </a>
             )}
             {secondary_cta_text && (
               <a
                 href={secondary_cta_href}
-                className="inline-flex items-center gap-2 px-8 py-4 text-sm font-semibold tracking-wide rounded border transition-all hover:bg-white/10"
+                className="inline-flex items-center gap-2 px-8 py-3.5 text-sm font-semibold tracking-wide rounded-sm border transition-all duration-200 hover:bg-white/8"
                 style={{
-                  borderColor: isDark ? 'rgba(255,255,255,0.35)' : 'var(--color-primary, #0A1628)',
-                  color: isDark ? '#FFFFFF' : 'var(--color-primary, #0A1628)',
+                  borderColor: isDark ? 'rgba(255,255,255,0.30)' : 'var(--color-primary, #1B3A2D)',
+                  color: isDark ? 'rgba(255,255,255,0.88)' : 'var(--color-primary, #1B3A2D)',
+                  fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
                 }}
               >
                 {secondary_cta_text}
