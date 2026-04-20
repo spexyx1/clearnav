@@ -32,10 +32,17 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
 
     tenant = data;
   } else {
+    const lookupDomains = [hostname];
+    if (hostname.startsWith('www.')) {
+      lookupDomains.push(hostname.slice(4));
+    } else {
+      lookupDomains.push(`www.${hostname}`);
+    }
+
     const { data: domainData } = await supabase
       .from('tenant_domains')
       .select('tenant_id')
-      .eq('domain', hostname)
+      .in('domain', lookupDomains)
       .eq('is_verified', true)
       .maybeSingle();
 

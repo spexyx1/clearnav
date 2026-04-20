@@ -59,6 +59,8 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    if (loading) return;
+
     async function resolveTenant() {
       try {
         setTenantLoading(true);
@@ -78,7 +80,7 @@ function AppContent() {
     } else {
       setTenantLoading(false);
     }
-  }, [user]);
+  }, [user, loading]);
 
   if (loading) {
     return (
