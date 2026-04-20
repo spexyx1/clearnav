@@ -3,7 +3,6 @@ import { Database } from '../types/database';
 import { isLocalHost, extractSubdomain } from './hostUtils';
 
 type Tenant = Database['public']['Tables']['platform_tenants']['Row'];
-type TenantDomain = Database['public']['Tables']['tenant_domains']['Row'];
 
 export interface ResolvedTenant {
   tenant: Tenant | null;
@@ -33,17 +32,28 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
 
     tenant = data;
   } else {
-    const { data } = await supabase
+    const { data: domainData } = await supabase
       .from('tenant_domains')
-      .select('*, platform_tenants(*)')
+      .select('tenant_id')
       .eq('domain', hostname)
       .eq('is_verified', true)
       .maybeSingle();
 
-    if (data && data.platform_tenants) {
-      tenant = data.platform_tenants as Tenant;
-      subdomain = (tenant as Tenant).slug;
-    } else if (parts.length >= 3 && parts[0] !== 'www') {
+    if (domainData?.tenant_id) {
+      const { data: tenantData } = await supabase
+        .from('platform_tenants')
+        .select('*')
+        .eq('id', domainData.tenant_id)
+        .in('status', ['active', 'trial'])
+        .maybeSingle();
+
+      if (tenantData) {
+        tenant = tenantData;
+        subdomain = tenantData.slug;
+      }
+    }
+
+    if (!tenant && parts.length >= 3 && parts[0] !== 'www') {
       subdomain = parts[0];
       const { data: subdomainData } = await supabase
         .from('platform_tenants')
