@@ -33,6 +33,7 @@ interface TenantBranding {
   address?: string;
   founded?: string;
   website?: string;
+  legal_disclaimer?: string;
 }
 
 interface PublicWebsiteProps {
@@ -372,9 +373,11 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
             className="pt-8 border-t"
             style={{ borderColor: 'rgba(255,255,255,0.10)' }}
           >
-            <p className="text-[10px] leading-relaxed mb-5 max-w-4xl" style={{ color: 'rgba(255,255,255,0.28)' }}>
-              Arkline Trust holds an Australian Financial Services Licence (AFSL) issued by the Australian Securities and Investments Commission (ASIC). Access to Arkline Trust funds is restricted to wholesale investors as defined under section 761G of the Corporations Act 2001 (Cth). Investment in our funds involves risk, including potential loss of capital. Past performance is not indicative of future results. This website does not constitute an offer to sell or a solicitation to acquire any financial product and is intended only for wholesale investors located in Australia.
-            </p>
+            {branding.legal_disclaimer && (
+              <p className="text-[10px] leading-relaxed mb-5 max-w-4xl" style={{ color: 'rgba(255,255,255,0.28)' }}>
+                {branding.legal_disclaimer}
+              </p>
+            )}
             <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.30)' }}>
               &copy; {new Date().getFullYear()} {displayName}. All rights reserved.
             </p>
