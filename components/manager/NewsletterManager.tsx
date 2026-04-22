@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, Plus, Edit, Eye, Send, Save, Trash2, Calendar, Users, BarChart3, FileText, X } from 'lucide-react';
+import { Mail, Plus, CreditCard as Edit, Eye, Send, Save, Trash2, Calendar, Users, BarChart3, FileText, X } from 'lucide-react';
 import { createClient as _mkClient } from '@/lib/supabase/client';
 const supabase = _mkClient();;
 import { useAuth } from '@/lib/auth';

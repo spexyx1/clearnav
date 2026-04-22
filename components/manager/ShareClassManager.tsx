@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Layers, DollarSign, Percent } from 'lucide-react';
+import { Plus, CreditCard as Edit, Trash2, Layers, DollarSign, Percent } from 'lucide-react';
 import { createClient as _mkClient } from '@/lib/supabase/client';
 const supabase = _mkClient();;
 import { useAuth } from '@/lib/auth';

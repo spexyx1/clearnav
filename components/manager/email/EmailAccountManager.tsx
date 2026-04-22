@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, Plus, Edit2, Trash2, Users, Settings, X, RefreshCw, Check, AlertCircle, HardDrive, Key, Globe, UserPlus, ChevronDown } from 'lucide-react';
+import { Mail, Plus, CreditCard as Edit2, Trash2, Users, Settings, X, RefreshCw, Check, AlertCircle, HardDrive, Key, Globe, UserPlus, ChevronDown } from 'lucide-react';
 import { createClient as _mkClient } from '@/lib/supabase/client';
 const supabase = _mkClient();;
 import { useAuth } from '@/lib/auth';

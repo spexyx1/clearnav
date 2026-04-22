@@ -1,17 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Percent,
-  Plus,
-  Search,
-  Edit,
-  Trash2,
-  Copy,
-  CheckCircle,
-  XCircle,
-  Calendar,
-  TrendingUp,
-  Filter,
-} from 'lucide-react';
+import { Percent, Plus, Search, CreditCard as Edit, Trash2, Copy, CheckCircle, XCircle, Calendar, TrendingUp, Filter } from 'lucide-react';
 import { createClient as _mkClient } from '@/lib/supabase/client';
 const supabase = _mkClient();;
 
