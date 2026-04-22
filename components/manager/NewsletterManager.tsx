@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, Plus, Edit, Eye, Send, Save, Trash2, Calendar, Users, BarChart3, FileText, X } from 'lucide-react';
+import { Mail, Plus, CreditCard as Edit, Eye, Send, Save, Trash2, Calendar, Users, BarChart3, FileText, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth';
 

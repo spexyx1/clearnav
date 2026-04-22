@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react';
-import {
-  ArrowLeft, CheckCircle, XCircle, Edit3, Plus, Trash2,
-  Loader2, AlertTriangle, Sparkles, User, Building2,
-  DollarSign, LayersIcon, Send, TrendingUp, ChevronRight
-} from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, CreditCard as Edit3, Plus, Trash2, Loader2, AlertTriangle, Sparkles, User, Building2, DollarSign, Layers as LayersIcon, Send, TrendingUp, ChevronRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth';
 

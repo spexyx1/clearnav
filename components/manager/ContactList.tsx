@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Mail, Phone, Edit, Trash2, Filter, Download } from 'lucide-react';
+import { Search, Plus, Mail, Phone, CreditCard as Edit, Trash2, Filter, Download } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth';
 

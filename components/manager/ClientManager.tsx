@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, DollarSign, TrendingUp, Search, Plus, Edit, Eye, X, ArrowRight, Receipt, ArrowRightLeft } from 'lucide-react';
+import { Users, DollarSign, TrendingUp, Search, Plus, CreditCard as Edit, Eye, X, ArrowRight, Receipt, ArrowRightLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth';
 
