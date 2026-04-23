@@ -6,6 +6,7 @@ import ClearNAVLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
 import { PublicWebsite } from './components/public/PublicWebsite';
 import { resolveTenantFromDomain } from './lib/tenantResolver';
+import { isPlatformRootDomain } from './lib/hostUtils';
 import { FullPageLoader } from './components/shared/Spinner';
 import { useRoute } from './lib/useRoute';
 import './i18n/config';
@@ -25,10 +26,16 @@ function AppContent() {
   const { user, loading, roleCategory, currentTenant } = useAuth();
   const [route, navigate] = useRoute();
   const [publicTenant, setPublicTenant] = useState<{ id: string; slug: string } | null>(null);
-  const [tenantLoading, setTenantLoading] = useState(true);
+
+  // On the platform root (clearnav.cv, vercel previews, localhost without ?tenant),
+  // there is never a public tenant — skip the network lookup entirely.
+  const isPlatformRoot = isPlatformRootDomain(window.location.hostname);
+  const [tenantLoading, setTenantLoading] = useState(!isPlatformRoot);
 
   useEffect(() => {
     if (loading) return;
+    // Platform root never has a tenant — no lookup needed
+    if (isPlatformRoot) return;
 
     async function resolveTenant() {
       try {
@@ -49,9 +56,11 @@ function AppContent() {
     } else {
       setTenantLoading(false);
     }
-  }, [user, loading]);
+  }, [user, loading, isPlatformRoot]);
 
-  if (loading) return <FullPageLoader />;
+  // On the platform root, don't block on auth loading for unauthenticated visitors —
+  // ClearNAVLandingPage doesn't need auth and can paint immediately.
+  if (loading && !isPlatformRoot) return <FullPageLoader />;
 
   const Fallback = () => <FullPageLoader />;
 

@@ -94,6 +94,10 @@
         var tenant = domain && TENANT_MAP[domain];
         if (!tenant) return; // platform root — nothing to prime
 
+        // ─── Show pre-shell skeleton (hidden by default, only for tenants) ──
+        var shell = document.getElementById('pre-shell');
+        if (shell) shell.style.display = 'flex';
+
         // ─── Apply CSS variables synchronously ─────────────────────────────
         var r = document.documentElement;
         r.style.setProperty('--color-primary',        tenant.primary);
@@ -164,18 +168,17 @@
     <!--
       PHASE 2 — Inline skeleton shell.
 
-      Shown immediately on first-ever cold load (no cache, bootstrap still
-      in-flight). Uses the CSS variables already set above, so colours match
-      the real site. Replaced atomically by React when it mounts — no layout
-      shift, no visible transition.
+      Hidden by default. The priming script above sets display:flex only for
+      known tenant domains so clearnav.cv gets no flash. Uses CSS variables
+      already set above so colours match the real site. React hides it
+      atomically when it mounts — no layout shift.
     -->
     <style>
       html, body { margin: 0; padding: 0; }
       #root { min-height: 100vh; }
 
-      /* Skeleton is only visible before React hydrates */
-      #pre-shell { display: flex; flex-direction: column; min-height: 100vh; }
-      #root:not(:empty) ~ * { display: none !important; }
+      /* Pre-shell starts hidden; priming script shows it for tenant domains */
+      #pre-shell { display: none; flex-direction: column; min-height: 100vh; }
 
       @keyframes shimmer {
         0%   { background-position: -600px 0; }

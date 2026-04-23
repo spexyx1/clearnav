@@ -36,11 +36,11 @@ export function FullPageLoader({ message }: { message?: string }) {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center gap-4"
-      style={{ backgroundColor: '#F5F2EE' }}
+      style={{ backgroundColor: '#0A1628' }}
       aria-busy="true"
     >
-      <Spinner size="lg" colorClass="border-amber-600" />
-      {message && <p className="text-sm text-stone-500">{message}</p>}
+      <Spinner size="lg" colorClass="border-cyan-400" />
+      {message && <p className="text-sm" style={{ color: '#94a3b8' }}>{message}</p>}
     </div>
   );
 }
