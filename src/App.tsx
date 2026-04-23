@@ -84,15 +84,15 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F2EE' }}>
+        <div className="animate-spin w-10 h-10 border-2 border-t-transparent rounded-full" style={{ borderColor: '#D4C4A8', borderTopColor: 'transparent' }}></div>
       </div>
     );
   }
 
   const LoadingSpinner = () => (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-      <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F2EE' }}>
+      <div className="animate-spin w-10 h-10 border-2 border-t-transparent rounded-full" style={{ borderColor: '#D4C4A8', borderTopColor: 'transparent' }}></div>
     </div>
   );
 
@@ -193,9 +193,9 @@ function AppContent() {
       default:
         // Unknown role - show error
         return (
-          <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-            <div className="text-center text-slate-300 max-w-md">
-              <h1 className="text-2xl font-bold mb-4">Invalid Role</h1>
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center text-gray-600 max-w-md">
+              <h1 className="text-2xl font-bold mb-4 text-gray-800">Invalid Role</h1>
               <p>Your account does not have a valid role assigned. Please contact support.</p>
             </div>
           </div>
@@ -217,8 +217,8 @@ function AppContent() {
 
   if (tenantLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F2EE' }}>
+        <div className="animate-spin w-10 h-10 border-2 border-t-transparent rounded-full" style={{ borderColor: '#D4C4A8', borderTopColor: 'transparent' }}></div>
       </div>
     );
   }
@@ -252,11 +252,8 @@ function App() {
       window.location.replace(newUrl);
       // Return loading state while redirecting
       return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-slate-400">Loading tenant...</p>
-          </div>
+        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F2EE' }}>
+          <div className="animate-spin w-10 h-10 border-2 border-t-transparent rounded-full" style={{ borderColor: '#D4C4A8', borderTopColor: 'transparent' }}></div>
         </div>
       );
     }

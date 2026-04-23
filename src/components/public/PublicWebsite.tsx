@@ -178,13 +178,11 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F8F7F4' }}>
-        <div className="text-center">
-          <div
-            className="w-12 h-12 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-4"
-            style={{ borderColor: `${primaryColor}40`, borderTopColor: 'transparent' }}
-          />
-        </div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F2EE' }}>
+        <div
+          className="w-10 h-10 border-2 border-t-transparent rounded-full animate-spin"
+          style={{ borderColor: '#D4C4A8', borderTopColor: 'transparent' }}
+        />
       </div>
     );
   }
