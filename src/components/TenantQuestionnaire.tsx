@@ -86,6 +86,14 @@ export default function TenantQuestionnaire({ tenantId, onComplete, onSkip }: Te
 
       if (saveError) throw saveError;
 
+      // Sync questionnaire values into tenant_settings branding so the
+      // RPC-seeded defaults (empty strings) are replaced with real data.
+      await supabase.rpc('update_tenant_branding_fields', {
+        p_tenant_id: tenantId,
+        p_primary_use_case: formData.organizationType,
+        p_aum_range: formData.aumRange,
+      }).maybeSingle();
+
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await supabase

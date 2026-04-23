@@ -129,8 +129,8 @@ export async function provisionTenant(data: SignupData): Promise<ProvisioningRes
       p_contact_name: data.contactName,
       p_contact_email: data.contactEmail,
       p_contact_phone: data.phone || null,
-      p_primary_use_case: 'hedge_fund',
-      p_aum_range: 'under_10m'
+      p_primary_use_case: '',
+      p_aum_range: ''
     });
 
     if (provisionError) {
