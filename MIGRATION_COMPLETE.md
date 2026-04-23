@@ -35,8 +35,12 @@ All migrations successfully applied to xiel Supabase project:
 ## Current State
 
 **Database:** xiel (https://xielqbwkiibeaajljamo.supabase.co)  
+**Schema:** 248 tables, 633 RLS policies, fully indexed  
 **Users:** 0 (migration pending; see USER_MIGRATION.md)  
-**Tenants:** 1 seed tenant (Arkline Trust — fully configured with branding)  
+**Tenants:** 2 seed tenants
+  - ClearNav Platform (default)
+  - Arkline Trust (fully configured with Australian branding, custom domains arklinetrust.com and www.arklinetrust.com)
+**Build:** ✓ Production build successful (1772 modules, 10.11s)
 **Status:** Ready for production use
 
 ## User Data Status
