@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Mail, Plus, CreditCard as Edit2, Copy, Trash2, Eye, TrendingUp, Save, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useTenantInfo } from '../../lib/hooks';
+import { sanitizeHtml } from '../../lib/sanitize';
 
 interface EmailTemplate {
   id: string;
@@ -548,7 +549,7 @@ export default function EmailTemplateManager() {
                     fontSize: `${formData.font_size}px`,
                   }}
                 >
-                  <div dangerouslySetInnerHTML={{ __html: formData.html_content.replace(/\n/g, '<br />') }} />
+                  <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(formData.html_content.replace(/\n/g, '<br />')) }} />
 
                   {formData.has_cta && (
                     <div className="mt-6">

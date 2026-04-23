@@ -96,7 +96,7 @@ function AppContent() {
     </div>
   );
 
-  if (view === 'debug') {
+  if (view === 'debug' && import.meta.env.DEV) {
     return (
       <Suspense fallback={<LoadingSpinner />}>
         <DebugLogin />

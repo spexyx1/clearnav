@@ -97,13 +97,10 @@ export default function SupportTools() {
   const loadNotes = async () => {
     try {
       setLoading(true);
+      // Join platform_tenants only; creator email resolved via platform_admin_users
       const { data, error } = await supabase
         .from('tenant_notes')
-        .select(`
-          *,
-          platform_tenants(name),
-          auth.users(email)
-        `)
+        .select(`*, platform_tenants(name), platform_admin_users!created_by(email)`)
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -112,7 +109,7 @@ export default function SupportTools() {
       const notesWithDetails = (data || []).map((note: any) => ({
         ...note,
         tenant_name: note.platform_tenants?.name || 'Unknown',
-        creator_email: note['auth.users']?.email || 'Unknown',
+        creator_email: note.platform_admin_users?.email || 'Unknown',
       }));
 
       setNotes(notesWithDetails);
@@ -126,28 +123,19 @@ export default function SupportTools() {
   const loadAuditLogs = async () => {
     try {
       setLoading(true);
+      // Join platform_admin_users to get email — avoids direct auth.users access
       const { data, error } = await supabase
         .from('platform_admin_audit_logs')
-        .select('*')
+        .select(`*, platform_admin_users!admin_user_id(email)`)
         .order('created_at', { ascending: false })
         .limit(100);
 
       if (error) throw error;
 
-      const logsWithEmail = await Promise.all(
-        (data || []).map(async (log: any) => {
-          const { data: userData } = await supabase
-            .from('auth.users')
-            .select('email')
-            .eq('id', log.admin_user_id)
-            .maybeSingle();
-
-          return {
-            ...log,
-            admin_email: userData?.email || 'Unknown',
-          };
-        })
-      );
+      const logsWithEmail = (data || []).map((log: any) => ({
+        ...log,
+        admin_email: log.platform_admin_users?.email || 'Unknown',
+      }));
 
       setAuditLogs(logsWithEmail);
     } catch (error) {

@@ -238,12 +238,18 @@ export default function ClientInvitationManager() {
       const emailResponse = await emailResult.json();
 
       if (emailResponse.success) {
+        // Fetch current reminder_count first to avoid using non-existent supabase.sql
+        const { data: current } = await supabase
+          .from('client_invitations')
+          .select('reminder_count')
+          .eq('id', id)
+          .maybeSingle();
         const { error } = await supabase
           .from('client_invitations')
           .update({
             status: 'sent',
             sent_at: new Date().toISOString(),
-            reminder_count: supabase.sql`reminder_count + 1`,
+            reminder_count: (current?.reminder_count ?? 0) + 1,
             last_reminder_sent_at: new Date().toISOString(),
           })
           .eq('id', id);

@@ -42,39 +42,14 @@ export default function UserManagement() {
     try {
       setLoading(true);
 
-      const { data: authUsers, error: authError } = await supabase
-        .from('auth.users')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (authError) {
-        const { data: rawData, error: rawError } = await supabase.rpc(
-          'get_all_platform_users'
-        );
-        if (!rawError && rawData) {
-          setUsers(rawData);
-        }
-      } else {
-        const usersWithTenants = await Promise.all(
-          (authUsers || []).map(async (user) => {
-            const { data: tenantData } = await supabase
-              .from('tenant_users')
-              .select('tenant_id, role, platform_tenants(name)')
-              .eq('user_id', user.id);
-
-            return {
-              ...user,
-              tenant_connections:
-                tenantData?.map((t: any) => ({
-                  tenant_id: t.tenant_id,
-                  role: t.role,
-                  tenant_name: t.platform_tenants?.name || 'Unknown',
-                })) || [],
-            };
-          })
-        );
-        setUsers(usersWithTenants);
+      // Use a single RPC that joins auth.users + tenant_users server-side.
+      // auth.users is not accessible via PostgREST; the RPC runs with SECURITY DEFINER.
+      const { data, error } = await supabase.rpc('get_all_platform_users');
+      if (error) {
+        console.error('Error loading users:', error);
+        return;
       }
+      setUsers((data as User[]) ?? []);
     } catch (error) {
       console.error('Error loading users:', error);
     } finally {

@@ -1,54 +1,65 @@
-import { useState, useEffect } from 'react';
-import { LogOut, Search, Bell } from 'lucide-react';
+import { useState, lazy, Suspense } from 'react';
+import { LogOut } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { supabase } from '../lib/supabase';
 import { useTenantBranding } from '../lib/hooks';
 import ManagerSidebar, { TabType } from './manager/ManagerSidebar';
-import CRMDashboard from './manager/CRMDashboard';
-import ContactList from './manager/ContactList';
-import OnboardingManager from './manager/OnboardingManager';
-import Communications from './manager/Communications';
-import TaskManager from './manager/TaskManager';
-import Analytics from './manager/Analytics';
-import StaffManagement from './manager/StaffManagement';
-import ComplianceCenter from './manager/ComplianceCenter';
-import ClientManager from './manager/ClientManager';
-import UserManagement from './manager/UserManagement';
-import NAVDashboard from './manager/NAVDashboard';
-import FundManagement from './manager/FundManagement';
-import ShareClassManager from './manager/ShareClassManager';
-import CapitalAccountManager from './manager/CapitalAccountManager';
-import TransactionManager from './manager/TransactionManager';
-import CapitalCallManager from './manager/CapitalCallManager';
-import DistributionManager from './manager/DistributionManager';
-import RedemptionManager from './manager/RedemptionManager';
-import FeeManager from './manager/FeeManager';
-import InvestorStatements from './manager/InvestorStatements';
-import PerformanceReports from './manager/PerformanceReports';
-import ReportLibrary from './manager/ReportLibrary';
-import WaterfallCalculator from './manager/WaterfallCalculator';
-import TaxDocumentManager from './manager/TaxDocumentManager';
-import CarriedInterestTracker from './manager/CarriedInterestTracker';
-import SidePocketManager from './manager/SidePocketManager';
-import ExchangeManagement from './manager/ExchangeManagement';
-import NewsletterManager from './manager/NewsletterManager';
-import EmailClient from './manager/EmailClient';
-import CommunityHub from './community/CommunityHub';
-import WhiteLabelManager from './manager/WhiteLabelManager';
-import AIAgentManagement from './manager/AIAgentManagement';
-import VoiceAgentSetup from './manager/VoiceAgentSetup';
-import LiveCallDashboard from './manager/LiveCallDashboard';
-import VoiceAgentDialer from './manager/VoiceAgentDialer';
-import VoiceAgentAnalytics from './manager/VoiceAgentAnalytics';
-import AccountSettings from './manager/AccountSettings';
-import { BlogManager } from './manager/BlogManager';
-import { TestimonialsManager } from './manager/TestimonialsManager';
-import { FAQManager } from './manager/FAQManager';
-import { FormBuilder } from './manager/FormBuilder';
-import { ContentScheduler } from './manager/ContentScheduler';
-import { NewsletterSubscribers } from './manager/NewsletterSubscribers';
-import InvitationTemplateManager from './manager/InvitationTemplateManager';
-import EmailTemplateManager from './manager/EmailTemplateManager';
+
+// Lazy-load every tab so only the active tab's code is downloaded.
+// Heavy portfolio/reporting tabs (which account for most of the bundle)
+// will not be parsed until first use.
+const CRMDashboard = lazy(() => import('./manager/CRMDashboard'));
+const ContactList = lazy(() => import('./manager/ContactList'));
+const OnboardingManager = lazy(() => import('./manager/OnboardingManager'));
+const Communications = lazy(() => import('./manager/Communications'));
+const TaskManager = lazy(() => import('./manager/TaskManager'));
+const Analytics = lazy(() => import('./manager/Analytics'));
+const StaffManagement = lazy(() => import('./manager/StaffManagement'));
+const ComplianceCenter = lazy(() => import('./manager/ComplianceCenter'));
+const ClientManager = lazy(() => import('./manager/ClientManager'));
+const UserManagement = lazy(() => import('./manager/UserManagement'));
+const NAVDashboard = lazy(() => import('./manager/NAVDashboard'));
+const FundManagement = lazy(() => import('./manager/FundManagement'));
+const ShareClassManager = lazy(() => import('./manager/ShareClassManager'));
+const CapitalAccountManager = lazy(() => import('./manager/CapitalAccountManager'));
+const TransactionManager = lazy(() => import('./manager/TransactionManager'));
+const CapitalCallManager = lazy(() => import('./manager/CapitalCallManager'));
+const DistributionManager = lazy(() => import('./manager/DistributionManager'));
+const RedemptionManager = lazy(() => import('./manager/RedemptionManager'));
+const FeeManager = lazy(() => import('./manager/FeeManager'));
+const InvestorStatements = lazy(() => import('./manager/InvestorStatements'));
+const PerformanceReports = lazy(() => import('./manager/PerformanceReports'));
+const ReportLibrary = lazy(() => import('./manager/ReportLibrary'));
+const WaterfallCalculator = lazy(() => import('./manager/WaterfallCalculator'));
+const TaxDocumentManager = lazy(() => import('./manager/TaxDocumentManager'));
+const CarriedInterestTracker = lazy(() => import('./manager/CarriedInterestTracker'));
+const SidePocketManager = lazy(() => import('./manager/SidePocketManager'));
+const ExchangeManagement = lazy(() => import('./manager/ExchangeManagement'));
+const NewsletterManager = lazy(() => import('./manager/NewsletterManager'));
+const EmailClient = lazy(() => import('./manager/EmailClient'));
+const CommunityHub = lazy(() => import('./community/CommunityHub'));
+const WhiteLabelManager = lazy(() => import('./manager/WhiteLabelManager'));
+const AIAgentManagement = lazy(() => import('./manager/AIAgentManagement'));
+const VoiceAgentSetup = lazy(() => import('./manager/VoiceAgentSetup'));
+const LiveCallDashboard = lazy(() => import('./manager/LiveCallDashboard'));
+const VoiceAgentDialer = lazy(() => import('./manager/VoiceAgentDialer'));
+const VoiceAgentAnalytics = lazy(() => import('./manager/VoiceAgentAnalytics'));
+const AccountSettings = lazy(() => import('./manager/AccountSettings'));
+const BlogManager = lazy(() => import('./manager/BlogManager').then(m => ({ default: m.BlogManager })));
+const TestimonialsManager = lazy(() => import('./manager/TestimonialsManager').then(m => ({ default: m.TestimonialsManager })));
+const FAQManager = lazy(() => import('./manager/FAQManager').then(m => ({ default: m.FAQManager })));
+const FormBuilder = lazy(() => import('./manager/FormBuilder').then(m => ({ default: m.FormBuilder })));
+const ContentScheduler = lazy(() => import('./manager/ContentScheduler').then(m => ({ default: m.ContentScheduler })));
+const NewsletterSubscribers = lazy(() => import('./manager/NewsletterSubscribers').then(m => ({ default: m.NewsletterSubscribers })));
+const InvitationTemplateManager = lazy(() => import('./manager/InvitationTemplateManager'));
+const EmailTemplateManager = lazy(() => import('./manager/EmailTemplateManager'));
+
+function TabFallback() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full" />
+    </div>
+  );
+}
 
 export default function ManagerPortal() {
   const { staffAccount, userRole, signOut, currentTenant, user, isTenantAdmin } = useAuth();
@@ -101,6 +112,7 @@ export default function ManagerPortal() {
                       <button
                         onClick={() => { setShowUserMenu(false); signOut(); }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                        aria-label="Sign out"
                       >
                         <LogOut className="w-4 h-4" />
                         Sign Out
@@ -127,55 +139,56 @@ export default function ManagerPortal() {
         <main className="flex-1 overflow-y-auto scrollbar-thin bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
           <div className="max-w-[1600px] mx-auto px-6 py-6">
             <div className="animate-fadeIn">
-              {activeTab === 'dashboard' && <CRMDashboard onNavigate={setActiveTab} />}
-              {activeTab === 'funds' && <FundManagement />}
-              {activeTab === 'classes' && <ShareClassManager />}
-              {activeTab === 'accounts' && <CapitalAccountManager />}
-              {activeTab === 'nav' && <NAVDashboard />}
-              {activeTab === 'transactions' && <TransactionManager />}
-              {activeTab === 'capital_calls' && <CapitalCallManager />}
-              {activeTab === 'distributions' && <DistributionManager />}
-              {activeTab === 'redemptions' && <RedemptionManager />}
-              {activeTab === 'fees' && <FeeManager />}
-              {activeTab === 'statements' && <InvestorStatements />}
-              {activeTab === 'performance' && <PerformanceReports />}
-              {activeTab === 'reports' && <ReportLibrary />}
-              {activeTab === 'waterfall' && <WaterfallCalculator />}
-              {activeTab === 'carried_interest' && <CarriedInterestTracker />}
-              {activeTab === 'side_pockets' && <SidePocketManager />}
-              {activeTab === 'tax_docs' && <TaxDocumentManager />}
-              {activeTab === 'exchange' && <ExchangeManagement />}
-              {activeTab === 'contacts' && <ContactList />}
-              {activeTab === 'onboarding' && <OnboardingManager />}
-              {activeTab === 'clients' && <ClientManager />}
-              {activeTab === 'communications' && <Communications />}
-              {activeTab === 'newsletters' && <NewsletterManager />}
-              {activeTab === 'email' && <EmailClient />}
-              {activeTab === 'community' && <CommunityHub />}
-              {activeTab === 'whitelabel' && <WhiteLabelManager />}
-              {activeTab === 'ai_agents' && <AIAgentManagement />}
-              {activeTab === 'voice_setup' && <VoiceAgentSetup />}
-              {activeTab === 'voice_live' && <LiveCallDashboard />}
-              {activeTab === 'voice_dialer' && <VoiceAgentDialer />}
-              {activeTab === 'voice_analytics' && <VoiceAgentAnalytics />}
-              {activeTab === 'tasks' && <TaskManager />}
-              {activeTab === 'analytics' && <Analytics />}
-              {activeTab === 'compliance' && <ComplianceCenter />}
-              {activeTab === 'users' && <UserManagement />}
-              {activeTab === 'staff' && <StaffManagement />}
-              {activeTab === 'blog' && <BlogManager />}
-              {activeTab === 'testimonials' && <TestimonialsManager />}
-              {activeTab === 'faq' && <FAQManager />}
-              {activeTab === 'forms' && <FormBuilder />}
-              {activeTab === 'scheduler' && <ContentScheduler />}
-              {activeTab === 'subscribers' && <NewsletterSubscribers />}
-              {activeTab === 'invitation_templates' && <InvitationTemplateManager />}
-              {activeTab === 'email_templates' && <EmailTemplateManager />}
-              {activeTab === 'account_settings' && <AccountSettings />}
+              <Suspense fallback={<TabFallback />}>
+                {activeTab === 'dashboard' && <CRMDashboard onNavigate={(tab) => setActiveTab(tab as TabType)} />}
+                {activeTab === 'funds' && <FundManagement />}
+                {activeTab === 'classes' && <ShareClassManager />}
+                {activeTab === 'accounts' && <CapitalAccountManager />}
+                {activeTab === 'nav' && <NAVDashboard />}
+                {activeTab === 'transactions' && <TransactionManager />}
+                {activeTab === 'capital_calls' && <CapitalCallManager />}
+                {activeTab === 'distributions' && <DistributionManager />}
+                {activeTab === 'redemptions' && <RedemptionManager />}
+                {activeTab === 'fees' && <FeeManager />}
+                {activeTab === 'statements' && <InvestorStatements />}
+                {activeTab === 'performance' && <PerformanceReports />}
+                {activeTab === 'reports' && <ReportLibrary />}
+                {activeTab === 'waterfall' && <WaterfallCalculator />}
+                {activeTab === 'carried_interest' && <CarriedInterestTracker />}
+                {activeTab === 'side_pockets' && <SidePocketManager />}
+                {activeTab === 'tax_docs' && <TaxDocumentManager />}
+                {activeTab === 'exchange' && <ExchangeManagement />}
+                {activeTab === 'contacts' && <ContactList />}
+                {activeTab === 'onboarding' && <OnboardingManager />}
+                {activeTab === 'clients' && <ClientManager />}
+                {activeTab === 'communications' && <Communications />}
+                {activeTab === 'newsletters' && <NewsletterManager />}
+                {activeTab === 'email' && <EmailClient />}
+                {activeTab === 'community' && <CommunityHub />}
+                {activeTab === 'whitelabel' && <WhiteLabelManager />}
+                {activeTab === 'ai_agents' && <AIAgentManagement />}
+                {activeTab === 'voice_setup' && <VoiceAgentSetup />}
+                {activeTab === 'voice_live' && <LiveCallDashboard />}
+                {activeTab === 'voice_dialer' && <VoiceAgentDialer />}
+                {activeTab === 'voice_analytics' && <VoiceAgentAnalytics />}
+                {activeTab === 'tasks' && <TaskManager />}
+                {activeTab === 'analytics' && <Analytics />}
+                {activeTab === 'compliance' && <ComplianceCenter />}
+                {activeTab === 'users' && <UserManagement />}
+                {activeTab === 'staff' && <StaffManagement />}
+                {activeTab === 'blog' && <BlogManager />}
+                {activeTab === 'testimonials' && <TestimonialsManager />}
+                {activeTab === 'faq' && <FAQManager />}
+                {activeTab === 'forms' && <FormBuilder />}
+                {activeTab === 'scheduler' && <ContentScheduler />}
+                {activeTab === 'subscribers' && <NewsletterSubscribers />}
+                {activeTab === 'invitation_templates' && <InvitationTemplateManager />}
+                {activeTab === 'email_templates' && <EmailTemplateManager />}
+                {activeTab === 'account_settings' && <AccountSettings />}
+              </Suspense>
             </div>
           </div>
         </main>
-
       </div>
     </div>
   );

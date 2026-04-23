@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Mail, Plus, CreditCard as Edit2, Copy, Trash2, Eye, Save, X, Palette } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useTenantInfo } from '../../lib/hooks';
+import { sanitizeHtml } from '../../lib/sanitize';
 
 interface InvitationTemplate {
   id: string;
@@ -577,7 +578,7 @@ export default function InvitationTemplateManager() {
                   }}
                 >
                   <p style={{ marginTop: 0 }}>{formData.greeting_text || 'Greeting'}</p>
-                  <div dangerouslySetInnerHTML={{ __html: formData.body_text || '<p>Body content...</p>' }} />
+                  <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(formData.body_text || '<p>Body content...</p>') }} />
 
                   <div style={{ textAlign: 'center', margin: '20px 0' }}>
                     <a
@@ -597,7 +598,7 @@ export default function InvitationTemplateManager() {
                   </div>
 
                   {formData.footer_text && (
-                    <div dangerouslySetInnerHTML={{ __html: formData.footer_text }} />
+                    <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(formData.footer_text) }} />
                   )}
                 </div>
               </div>
