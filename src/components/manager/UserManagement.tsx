@@ -174,7 +174,7 @@ export default function UserManagement() {
           token,
           role,
           userType,
-          tenantName: currentTenant?.company_name || currentTenant?.name || 'ClearNav',
+          tenantName: currentTenant?.company_name || currentTenant?.name || 'ClearNAV',
           tenantId: currentTenant?.id,
         }),
       });

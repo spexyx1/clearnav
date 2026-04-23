@@ -14,7 +14,7 @@ export function useTenantBranding() {
 
   const branding: TenantBranding = {
     logo_url: currentTenant?.branding?.logo_url || null,
-    company_name: currentTenant?.company_name || 'ClearNav',
+    company_name: currentTenant?.company_name || 'ClearNAV',
     colors: {
       primary: currentTenant?.branding?.primary_color || '#06b6d4',
       secondary: currentTenant?.branding?.secondary_color || '#3b82f6',

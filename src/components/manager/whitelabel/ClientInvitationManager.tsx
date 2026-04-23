@@ -94,7 +94,7 @@ export default function ClientInvitationManager() {
         .eq('id', tenantId)
         .single();
 
-      const tenantName = tenantData?.company_name || tenantData?.name || 'ClearNav';
+      const tenantName = tenantData?.company_name || tenantData?.name || 'ClearNAV';
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -208,7 +208,7 @@ export default function ClientInvitationManager() {
         .eq('id', tenantId)
         .single();
 
-      const tenantName = tenantData?.company_name || tenantData?.name || 'ClearNav';
+      const tenantName = tenantData?.company_name || tenantData?.name || 'ClearNAV';
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {

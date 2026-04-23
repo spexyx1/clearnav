@@ -33,7 +33,7 @@ export default function SalesSheet({ onBack }: SalesSheetProps) {
           <div className="text-center max-w-3xl mx-auto">
             <div className="flex items-center justify-center gap-3 mb-6">
               <Compass className="w-10 h-10 text-sky-400" />
-              <span className="text-3xl md:text-4xl font-bold tracking-tight">ClearNav</span>
+              <span className="text-3xl md:text-4xl font-bold tracking-tight">ClearNAV</span>
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-5 leading-tight tracking-tight">
               The Operating System for Modern Investment Funds
@@ -104,8 +104,8 @@ export default function SalesSheet({ onBack }: SalesSheetProps) {
               <strong className="text-slate-300">Website:</strong> clearnav.cv &middot; <strong className="text-slate-300">Email:</strong> sales@clearnav.cv
             </p>
             <p className="text-xs text-slate-500">
-              &copy; 2026 ClearNav Platform. All rights reserved. SOC 2 Type II Certified.<br />
-              Securities offered through registered broker-dealers. ClearNav is a technology platform provider.
+              &copy; 2026 ClearNAV Platform. All rights reserved. SOC 2 Type II Certified.<br />
+              Securities offered through registered broker-dealers. ClearNAV is a technology platform provider.
             </p>
           </div>
         </div>

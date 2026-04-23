@@ -91,7 +91,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
 
   const branding = settings?.branding || {
     logo_url: '',
-    company_name: currentTenant?.name || 'ClearNav',
+    company_name: currentTenant?.name || 'ClearNAV',
     colors: {
       primary: '#06b6d4',
       secondary: '#0ea5e9',

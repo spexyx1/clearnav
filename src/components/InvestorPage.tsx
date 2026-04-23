@@ -49,7 +49,7 @@ export default function InvestorPage({ onBack }: InvestorPageProps) {
             <div className="h-5 w-px bg-slate-700" />
             <div className="flex items-center gap-2">
               <LineChart className="w-5 h-5 text-blue-400" />
-              <span className="font-semibold text-slate-100">ClearNav — Investor Overview</span>
+              <span className="font-semibold text-slate-100">ClearNAV — Investor Overview</span>
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -69,7 +69,7 @@ export default function InvestorPage({ onBack }: InvestorPageProps) {
             Company Financials & Projections
           </h1>
           <p className="text-slate-400 text-lg max-w-2xl">
-            ClearNav is a bootstrapped, Delaware-incorporated SaaS platform serving hedge fund managers
+            ClearNAV is a bootstrapped, Delaware-incorporated SaaS platform serving hedge fund managers
             with white-label investor portals, NAV automation, and compliance tooling.
           </p>
 

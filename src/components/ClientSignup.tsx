@@ -121,7 +121,7 @@ export default function ClientSignup({ onBack }: ClientSignupProps) {
             </div>
 
             <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
-              Welcome to ClearNav!
+              Welcome to ClearNAV!
             </h1>
 
             <p className="text-lg text-slate-600 mb-8">

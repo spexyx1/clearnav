@@ -24,7 +24,7 @@ export default function PlatformEmailInbox() {
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Platform Inbox</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Manage the official ClearNav platform email addresses assigned to your account.
+          Manage the official ClearNAV platform email addresses assigned to your account.
         </p>
       </div>
 

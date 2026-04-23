@@ -50,15 +50,15 @@ export default function ComparisonTable() {
     <section className="py-20 px-6 bg-slate-50">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-10">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-3">ClearNav vs. Traditional Fund Administrators</h2>
-          <p className="text-lg text-slate-500">See how ClearNav compares to SS&C, Citco, Northern Trust, and BNY Mellon.</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-3">ClearNAV vs. Traditional Fund Administrators</h2>
+          <p className="text-lg text-slate-500">See how ClearNAV compares to SS&C, Citco, Northern Trust, and BNY Mellon.</p>
         </div>
         <div className="overflow-x-auto rounded-2xl shadow-lg border border-slate-200">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-slate-900 text-white">
                 <th className="py-4 px-6 text-left font-semibold text-sm uppercase tracking-wider">Feature</th>
-                <th className="py-4 px-6 text-left font-semibold text-sm uppercase tracking-wider">ClearNav</th>
+                <th className="py-4 px-6 text-left font-semibold text-sm uppercase tracking-wider">ClearNAV</th>
                 <th className="py-4 px-6 text-left font-semibold text-sm uppercase tracking-wider">Traditional Administrators</th>
               </tr>
             </thead>

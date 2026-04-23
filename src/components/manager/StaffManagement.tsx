@@ -149,7 +149,7 @@ export default function StaffManagement() {
           token,
           role,
           userType: 'staff',
-          tenantName: currentTenant?.company_name || currentTenant?.name || 'ClearNav',
+          tenantName: currentTenant?.company_name || currentTenant?.name || 'ClearNAV',
           customMessage,
         }),
       });

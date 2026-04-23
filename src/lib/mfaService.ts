@@ -34,7 +34,7 @@ export class MFAService {
   /**
    * Generates a TOTP secret for a user
    */
-  static async generateTOTPSecret(userId: string, email: string, issuer: string = 'ClearNav'): Promise<TOTPSetup> {
+  static async generateTOTPSecret(userId: string, email: string, issuer: string = 'ClearNAV'): Promise<TOTPSetup> {
     // Generate a random base32 secret
     const secret = this.generateBase32Secret();
 
@@ -456,7 +456,7 @@ export class DeviceFingerprintService {
       ctx.fillStyle = '#f60';
       ctx.fillRect(125, 1, 62, 20);
       ctx.fillStyle = '#069';
-      ctx.fillText('ClearNav', 2, 15);
+      ctx.fillText('ClearNAV', 2, 15);
       components.push(canvas.toDataURL());
     }
 

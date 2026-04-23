@@ -2,7 +2,7 @@ import { useState, lazy, Suspense, useEffect } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
 import { LanguageProvider } from './lib/LanguageContext';
 import LandingPage from './components/LandingPage';
-import ClearNavLandingPage from './components/ClearNavLandingPage';
+import ClearNAVLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
 import { PublicWebsite } from './components/public/PublicWebsite';
 import { resolveTenantFromDomain } from './lib/tenantResolver';
@@ -228,7 +228,7 @@ function AppContent() {
   }
 
   if (!currentTenant) {
-    return <ClearNavLandingPage onLoginClick={() => setView('login')} />;
+    return <ClearNAVLandingPage onLoginClick={() => setView('login')} />;
   }
 
   return <LandingPage onLoginClick={() => setView('login')} />;

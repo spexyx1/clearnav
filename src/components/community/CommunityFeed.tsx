@@ -235,7 +235,7 @@ export default function CommunityFeed() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Community</h1>
-          <p className="text-gray-600">Connect, collaborate, and share with the ClearNav network</p>
+          <p className="text-gray-600">Connect, collaborate, and share with the ClearNAV network</p>
         </div>
 
         <button

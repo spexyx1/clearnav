@@ -8,7 +8,7 @@ const traditionalCosts = [
 ];
 
 const clearnavCosts = [
-  { label: 'ClearNav Professional', value: '$7,200' },
+  { label: 'ClearNAV Professional', value: '$7,200' },
   { label: 'All Features Included', value: '$0' },
   { label: 'Setup & Onboarding', value: '$0' },
   { label: 'Additional Software', value: '$0' },
@@ -22,7 +22,7 @@ export default function ROISection() {
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-10">
           <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-3">ROI Analysis</h2>
-          <p className="text-lg text-slate-500">How ClearNav saves your fund six figures every year.</p>
+          <p className="text-lg text-slate-500">How ClearNAV saves your fund six figures every year.</p>
         </div>
         <div className="border border-emerald-200 rounded-2xl overflow-hidden">
           <div className="grid grid-cols-1 md:grid-cols-2">
@@ -42,7 +42,7 @@ export default function ROISection() {
               </div>
             </div>
             <div className="p-6 bg-emerald-50/50 border-t md:border-t-0 md:border-l border-emerald-200">
-              <h3 className="text-lg font-bold text-emerald-800 text-center mb-4">ClearNav Platform</h3>
+              <h3 className="text-lg font-bold text-emerald-800 text-center mb-4">ClearNAV Platform</h3>
               <div className="space-y-2">
                 {clearnavCosts.map((item, i) => (
                   <div key={i} className="flex justify-between items-center bg-white rounded-lg px-4 py-2.5 text-sm">

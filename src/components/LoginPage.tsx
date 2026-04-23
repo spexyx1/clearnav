@@ -39,7 +39,7 @@ export default function LoginPage({ onBack }: LoginPageProps) {
     }
   };
 
-  const companyName = tenantSettings?.branding?.company_name || currentTenant?.name || 'ClearNav';
+  const companyName = tenantSettings?.branding?.company_name || currentTenant?.name || 'ClearNAV';
   const contactEmail = tenantSettings?.landing_page?.contact_email || 'support@clearnav.cv';
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -2,11 +2,11 @@ import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCirc
 import { useState } from 'react';
 import PageFooter from './shared/PageFooter';
 
-interface ClearNavLandingPageProps {
+interface ClearNAVLandingPageProps {
   onLoginClick: () => void;
 }
 
-export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPageProps) {
+export default function ClearNAVLandingPage({ onLoginClick }: ClearNAVLandingPageProps) {
   const [showFAQ, setShowFAQ] = useState(false);
 
   const navigateToSignup = () => {
@@ -391,7 +391,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
         </div>
       </footer>
 
-      <PageFooter companyName="ClearNav" theme="dark" />
+      <PageFooter companyName="ClearNAV" theme="dark" />
 
       {showFAQ && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center z-50 p-6">
@@ -417,9 +417,9 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
                 </div>
                 <div className="space-y-6">
                   <div className="border-b border-slate-800 pb-6">
-                    <h4 className="text-lg font-semibold text-white mb-2">What is ClearNav?</h4>
+                    <h4 className="text-lg font-semibold text-white mb-2">What is ClearNAV?</h4>
                     <p className="text-slate-400 leading-relaxed">
-                      ClearNav is an enterprise fund operations platform providing complete infrastructure for investments and administrators. It includes NAV calculation, capital operations, compliance tools, IBKR integration, white-label investor portals, and automated reporting—everything needed to run fund operations without spreadsheets or manual processes.
+                      ClearNAV is an enterprise fund operations platform providing complete infrastructure for investments and administrators. It includes NAV calculation, capital operations, compliance tools, IBKR integration, white-label investor portals, and automated reporting—everything needed to run fund operations without spreadsheets or manual processes.
                     </p>
                   </div>
                   <div className="border-b border-slate-800 pb-6">
@@ -471,7 +471,7 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
                   <div className="border-b border-slate-800 pb-6">
                     <h4 className="text-lg font-semibold text-white mb-2">What accounting integrations are available?</h4>
                     <p className="text-slate-400 leading-relaxed">
-                      ClearNav integrates with major accounting platforms including QuickBooks Online, Xero, and NetSuite. Automatically sync capital transactions, fee calculations, and investor distributions to your accounting system. The integration supports bi-directional data flow with configurable mapping for chart of accounts, classes, and departments. Journal entries are automatically generated and can be reviewed before posting.
+                      ClearNAV integrates with major accounting platforms including QuickBooks Online, Xero, and NetSuite. Automatically sync capital transactions, fee calculations, and investor distributions to your accounting system. The integration supports bi-directional data flow with configurable mapping for chart of accounts, classes, and departments. Journal entries are automatically generated and can be reviewed before posting.
                     </p>
                   </div>
                   <div className="border-b border-slate-800 pb-6">
@@ -499,13 +499,13 @@ export default function ClearNavLandingPage({ onLoginClick }: ClearNavLandingPag
                   <div className="border-b border-slate-800 pb-6">
                     <h4 className="text-lg font-semibold text-white mb-2">Is the platform secure and compliant?</h4>
                     <p className="text-slate-400 leading-relaxed">
-                      Yes. ClearNav implements bank-grade AES-256 encryption for data at rest and in transit, multi-factor authentication, complete audit trails, and granular role-based access controls. Built-in KYC/AML workflows and document verification ensure compliance with regulatory requirements. Complete data isolation in multi-tenant architecture with row-level security ensures each fund's data is completely separated.
+                      Yes. ClearNAV implements bank-grade AES-256 encryption for data at rest and in transit, multi-factor authentication, complete audit trails, and granular role-based access controls. Built-in KYC/AML workflows and document verification ensure compliance with regulatory requirements. Complete data isolation in multi-tenant architecture with row-level security ensures each fund's data is completely separated.
                     </p>
                   </div>
                   <div className="border-b border-slate-800 pb-6">
-                    <h4 className="text-lg font-semibold text-white mb-2">What security certifications does ClearNav have?</h4>
+                    <h4 className="text-lg font-semibold text-white mb-2">What security certifications does ClearNAV have?</h4>
                     <p className="text-slate-400 leading-relaxed">
-                      ClearNav is SOC 2 Type II compliant, demonstrating adherence to strict security, availability, and confidentiality standards. Our infrastructure undergoes regular third-party security audits and penetration testing. We maintain compliance with GDPR, CCPA, and other data protection regulations. Annual security assessments and continuous monitoring ensure ongoing compliance.
+                      ClearNAV is SOC 2 Type II compliant, demonstrating adherence to strict security, availability, and confidentiality standards. Our infrastructure undergoes regular third-party security audits and penetration testing. We maintain compliance with GDPR, CCPA, and other data protection regulations. Annual security assessments and continuous monitoring ensure ongoing compliance.
                     </p>
                   </div>
                   <div className="border-b border-slate-800 pb-6">

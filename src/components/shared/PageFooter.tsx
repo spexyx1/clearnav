@@ -19,7 +19,7 @@ interface PageFooterProps {
 }
 
 export default function PageFooter({
-  companyName = 'ClearNav',
+  companyName = 'ClearNAV',
   copyright,
   theme = 'dark'
 }: PageFooterProps) {

@@ -137,7 +137,7 @@ export default function TenantQuestionnaire({ tenantId, onComplete, onSkip }: Te
             )}
           </div>
           <p className="text-slate-600">
-            Help us tailor ClearNav to your specific needs and requirements
+            Help us tailor ClearNAV to your specific needs and requirements
           </p>
 
           <div className="mt-6 flex items-center space-x-2">
@@ -619,7 +619,7 @@ export default function TenantQuestionnaire({ tenantId, onComplete, onSkip }: Te
                     <h3 className="font-semibold text-slate-900 mb-2">What happens next?</h3>
                     <ul className="text-sm text-slate-700 space-y-2">
                       <li>• Your profile will be reviewed by our team</li>
-                      <li>• We'll configure ClearNav to match your requirements</li>
+                      <li>• We'll configure ClearNAV to match your requirements</li>
                       <li>• You'll receive personalized onboarding support</li>
                       <li>• Custom features can be enabled based on your needs</li>
                     </ul>

@@ -250,7 +250,7 @@ export default function AuditorApplication() {
 
             <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-6">
               <p className="text-slate-300 mb-4">
-                Thank you for applying to become a certified ClearNav exchange auditor. Your application has been received and assigned reference number:
+                Thank you for applying to become a certified ClearNAV exchange auditor. Your application has been received and assigned reference number:
               </p>
               <div className="bg-slate-800 border border-teal-500/30 rounded px-4 py-3 mb-4">
                 <p className="text-teal-400 font-mono text-lg">{applicationId?.substring(0, 8).toUpperCase()}</p>
@@ -305,7 +305,7 @@ export default function AuditorApplication() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">Auditor Certification Application</h1>
-          <p className="text-slate-400">Join the ClearNav Exchange Auditor Partner Program</p>
+          <p className="text-slate-400">Join the ClearNAV Exchange Auditor Partner Program</p>
         </div>
 
         {/* Progress Bar */}
@@ -625,7 +625,7 @@ export default function AuditorApplication() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Why do you want to partner with the ClearNav platform? * (minimum 100 characters)
+                  Why do you want to partner with the ClearNAV platform? * (minimum 100 characters)
                 </label>
                 <textarea
                   value={formData.motivationStatement}
@@ -674,7 +674,7 @@ export default function AuditorApplication() {
                     className="w-5 h-5 mt-0.5 text-teal-600 bg-slate-800 border-slate-600 rounded focus:ring-teal-500"
                   />
                   <span className="text-slate-300 text-sm">
-                    I agree to abide by the ClearNav platform standards, maintain independence and objectivity, and uphold the highest professional and ethical standards in all audit engagements
+                    I agree to abide by the ClearNAV platform standards, maintain independence and objectivity, and uphold the highest professional and ethical standards in all audit engagements
                   </span>
                 </label>
               </div>
