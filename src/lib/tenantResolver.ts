@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { Database } from '../types/database';
-import { isLocalHost, extractSubdomain } from './hostUtils';
+import { isLocalHost, extractSubdomain, getTenantDomainCookie } from './hostUtils';
 
 type Tenant = Database['public']['Tables']['platform_tenants']['Row'];
 
@@ -22,6 +22,7 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
   const isLocalhost = isLocalHost(hostname);
 
   if (isLocalhost && tenantParam) {
+    // Local dev: ?tenant=slug query param
     subdomain = tenantParam;
     const { data } = await supabase
       .from('platform_tenants')
@@ -32,11 +33,16 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
 
     tenant = data;
   } else {
-    const lookupDomains = [hostname];
-    if (hostname.startsWith('www.')) {
-      lookupDomains.push(hostname.slice(4));
+    // Production: prefer the domain set by Vercel Edge Middleware cookie,
+    // then fall back to hostname-based detection.
+    const cookieDomain = getTenantDomainCookie();
+    const effectiveHostname = cookieDomain || hostname;
+
+    const lookupDomains = [effectiveHostname];
+    if (effectiveHostname.startsWith('www.')) {
+      lookupDomains.push(effectiveHostname.slice(4));
     } else {
-      lookupDomains.push(`www.${hostname}`);
+      lookupDomains.push(`www.${effectiveHostname}`);
     }
 
     const { data: domainData } = await supabase
@@ -60,6 +66,7 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
       }
     }
 
+    // Subdomain fallback: e.g. arkline.clearnav.cv → slug = 'arkline'
     if (!tenant && parts.length >= 3 && parts[0] !== 'www') {
       subdomain = parts[0];
       const { data: subdomainData } = await supabase
@@ -89,8 +96,14 @@ export function getTenantSlugFromUrl(): string | null {
     return tenantParam;
   }
 
-  const parts = hostname.split('.');
+  const cookieDomain = getTenantDomainCookie();
+  if (cookieDomain) {
+    const cookieParts = cookieDomain.split('.');
+    if (cookieParts.length >= 3) return cookieParts[0];
+    return cookieDomain;
+  }
 
+  const parts = hostname.split('.');
   if (parts.length >= 3 && parts[0] !== 'www') {
     return parts[0];
   }

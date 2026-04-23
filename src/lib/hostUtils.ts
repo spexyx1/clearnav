@@ -1,10 +1,5 @@
-/**
- * Hostname and environment utilities
- */
+const ROOT_HOSTNAMES = ['clearnav.cv', 'www.clearnav.cv'];
 
-/**
- * Check if a hostname is a local development environment
- */
 export function isLocalHost(hostname: string): boolean {
   return (
     hostname === 'localhost' ||
@@ -15,10 +10,6 @@ export function isLocalHost(hostname: string): boolean {
   );
 }
 
-/**
- * Extract subdomain from hostname
- * Returns null if no subdomain or if local development
- */
 export function extractSubdomain(hostname: string): string | null {
   if (isLocalHost(hostname)) {
     return null;
@@ -32,9 +23,31 @@ export function extractSubdomain(hostname: string): string | null {
   return null;
 }
 
-/**
- * Check if hostname is a production domain
- */
 export function isProductionDomain(hostname: string): boolean {
   return !isLocalHost(hostname) && hostname.includes('.');
+}
+
+/**
+ * Returns true when the current host is the ClearNav platform root,
+ * not a tenant subdomain or custom domain.
+ */
+export function isPlatformRootDomain(hostname: string): boolean {
+  const host = hostname.split(':')[0].toLowerCase().replace(/^www\./, '');
+  return (
+    isLocalHost(host) ||
+    ROOT_HOSTNAMES.some(d => d.replace(/^www\./, '') === host) ||
+    host.endsWith('.vercel.app')
+  );
+}
+
+/**
+ * Reads the tenant-domain cookie set by Vercel Edge Middleware.
+ * Returns null when not present.
+ */
+export function getTenantDomainCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('tenant-domain='));
+  return match ? decodeURIComponent(match.split('=')[1]) : null;
 }
