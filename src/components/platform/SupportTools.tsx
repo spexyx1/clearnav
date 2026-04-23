@@ -3,14 +3,41 @@ import {
   MessageSquare,
   Search,
   Flag,
-  Clock,
   User,
   Building2,
   Plus,
-  Filter,
   Eye,
+  Globe,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+async function callBackfill(): Promise<{ success: boolean; results?: any[]; error?: string; configured?: boolean }> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { success: false, error: 'Not authenticated' };
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/vercel-domain-manager?action=backfill`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        Apikey: SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.error, configured: data.configured };
+    return { success: true, results: data.results };
+  } catch {
+    return { success: false, error: 'Failed to contact Vercel API' };
+  }
+}
 
 interface TenantNote {
   id: string;
@@ -48,7 +75,7 @@ interface SupportTicket {
 }
 
 export default function SupportTools() {
-  const [activeView, setActiveView] = useState<'tickets' | 'notes' | 'audit'>('tickets');
+  const [activeView, setActiveView] = useState<'tickets' | 'notes' | 'audit' | 'domains'>('tickets');
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [notes, setNotes] = useState<TenantNote[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -235,6 +262,16 @@ export default function SupportTools() {
             }`}
           >
             Audit Logs
+          </button>
+          <button
+            onClick={() => setActiveView('domains')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeView === 'domains'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            Domain Backfill
           </button>
         </div>
 
@@ -526,6 +563,7 @@ export default function SupportTools() {
             )}
           </div>
         )}
+        {activeView === 'domains' && <DomainBackfillPanel />}
       </div>
 
       {showCreateNote && (
@@ -536,6 +574,127 @@ export default function SupportTools() {
             loadNotes();
           }}
         />
+      )}
+    </div>
+  );
+}
+
+function DomainBackfillPanel() {
+  const [running, setRunning] = useState(false);
+  const [results, setResults] = useState<any[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [unconfigured, setUnconfigured] = useState(false);
+
+  const run = async () => {
+    setRunning(true);
+    setError(null);
+    setUnconfigured(false);
+    setResults(null);
+    const res = await callBackfill();
+    setRunning(false);
+    if (!res.success) {
+      if (res.configured === false) setUnconfigured(true);
+      else setError(res.error || 'Backfill failed');
+    } else {
+      setResults(res.results || []);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Globe className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">Vercel Domain Backfill</h3>
+            <p className="text-sm text-slate-600 mt-1">
+              Registers all <code className="bg-slate-100 px-1 rounded">tenant_domains</code> rows with the Vercel project
+              and clears any redirect aliases. Safe to run multiple times — already-registered domains are updated, not duplicated.
+            </p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4 flex items-start gap-2">
+            <XCircle className="w-4 h-4 mt-0.5 flex-shrink-0" /> {error}
+          </div>
+        )}
+
+        {unconfigured && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-amber-800">
+                Vercel API is not configured. Add <code className="bg-amber-100 px-1 rounded">VERCEL_API_TOKEN</code> and{' '}
+                <code className="bg-amber-100 px-1 rounded">VERCEL_PROJECT_ID</code> to your Supabase Edge Function secrets.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={run}
+          disabled={running}
+          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium transition-colors"
+        >
+          {running ? (
+            <><RefreshCw className="w-4 h-4 animate-spin" /> Running backfill...</>
+          ) : (
+            <><RefreshCw className="w-4 h-4" /> Run Backfill</>
+          )}
+        </button>
+      </div>
+
+      {results && (
+        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+            <h4 className="font-semibold text-slate-900">Results — {results.length} domains processed</h4>
+            <div className="flex items-center gap-3 text-xs text-slate-500">
+              <span className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-green-500" /> Verified</span>
+              <span className="flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5 text-yellow-500" /> DNS pending</span>
+              <span className="flex items-center gap-1"><XCircle className="w-3.5 h-3.5 text-red-500" /> Failed</span>
+            </div>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Domain</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Action</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">DNS Verified</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Redirect Cleared</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Note</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {results.map((r, i) => (
+                <tr key={i} className="hover:bg-slate-50">
+                  <td className="px-6 py-3 font-medium text-slate-900">{r.domain}</td>
+                  <td className="px-6 py-3">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      r.action === 'added' ? 'bg-green-100 text-green-700' :
+                      r.action === 'updated' ? 'bg-blue-100 text-blue-700' :
+                      r.action === 'add_failed' || r.action === 'error' ? 'bg-red-100 text-red-700' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>{r.action}</span>
+                  </td>
+                  <td className="px-6 py-3">
+                    {r.verified
+                      ? <CheckCircle className="w-4 h-4 text-green-500" />
+                      : <AlertCircle className="w-4 h-4 text-yellow-500" />}
+                  </td>
+                  <td className="px-6 py-3">
+                    {r.redirect === null
+                      ? <CheckCircle className="w-4 h-4 text-green-500" />
+                      : <XCircle className="w-4 h-4 text-red-500" />}
+                  </td>
+                  <td className="px-6 py-3 text-slate-500 text-xs">{r.error || (r.redirect ? `Still redirecting → ${r.redirect}` : '')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
