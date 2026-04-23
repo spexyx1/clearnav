@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, PieChart, RefreshCw, Percent, BarChart3, FileText } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Calendar, PieChart, RefreshCw, Percent } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { MetricCard, Card, CardHeader } from '../shared/Card';
-import { Money, Pct, Count } from '../shared/Numerics';
-import { EmptyState } from '../shared/EmptyState';
-import { Button } from '../shared/Button';
-import { PanelLoader } from '../shared/Spinner';
-import { formatDateTime, formatCurrency } from '../../lib/format';
 
 interface DashboardProps {
   profile: any;
@@ -22,20 +16,34 @@ export default function Dashboard({ profile }: DashboardProps) {
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    if (user) loadData();
+    if (user) {
+      loadData();
+    }
   }, [user]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [unitsRes, trustRes, positionsRes] = await Promise.all([
-        supabase.from('client_units').select('*').eq('client_id', user?.id).maybeSingle(),
-        supabase.from('trust_account').select('*').maybeSingle(),
-        supabase.from('trust_positions').select('*').order('market_value', { ascending: false }),
+        supabase
+          .from('client_units')
+          .select('*')
+          .eq('client_id', user?.id)
+          .maybeSingle(),
+        supabase
+          .from('trust_account')
+          .select('*')
+          .maybeSingle(),
+        supabase
+          .from('trust_positions')
+          .select('*')
+          .order('market_value', { ascending: false })
       ]);
+
       if (unitsRes.error) throw unitsRes.error;
       if (trustRes.error) throw trustRes.error;
       if (positionsRes.error) throw positionsRes.error;
+
       setClientUnits(unitsRes.data);
       setTrustAccount(trustRes.data);
       setTrustPositions(positionsRes.data || []);
@@ -54,178 +62,206 @@ export default function Dashboard({ profile }: DashboardProps) {
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json',
           },
         }
       );
-      if (response.ok) await loadData();
+
+      if (response.ok) {
+        await loadData();
+      }
     } catch (error) {
       console.error('Sync failed:', error);
     }
     setSyncing(false);
   };
 
-  if (loading) return <PanelLoader />;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
 
   if (!clientUnits || !trustAccount) {
     return (
-      <Card>
-        <EmptyState
-          icon={PieChart}
-          title="No portfolio data yet"
-          body="Your units and holdings will appear here once your account manager has completed setup. This typically takes 1–2 business days."
-        />
-      </Card>
+      <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-12 text-center">
+        <PieChart className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+        <p className="text-slate-400 mb-4">No units allocated yet. Contact your account manager to complete setup.</p>
+      </div>
     );
   }
 
   const currentValue = clientUnits.units_owned * trustAccount.current_nav_per_unit;
   const totalGainLoss = currentValue - clientUnits.cost_basis;
-  const totalReturn = clientUnits.cost_basis > 0 ? (totalGainLoss / clientUnits.cost_basis) * 100 : 0;
-  const ownershipPct = trustAccount.total_units_outstanding > 0
+  const totalReturn = clientUnits.cost_basis > 0 ? ((totalGainLoss / clientUnits.cost_basis) * 100) : 0;
+  const ownershipPercentage = trustAccount.total_units_outstanding > 0
     ? (clientUnits.units_owned / trustAccount.total_units_outstanding) * 100
     : 0;
 
+  const lastSyncTime = trustAccount.last_sync_at
+    ? new Date(trustAccount.last_sync_at).toLocaleString()
+    : 'Never';
+
   return (
     <div className="space-y-8">
-      {/* Page header */}
-      <div className="flex justify-between items-start gap-4">
+      <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-h1 text-white">Portfolio Overview</h2>
-          <p className="text-meta text-brand-text-muted mt-1">
-            Last updated: {formatDateTime(trustAccount.last_sync_at)}
+          <h2 className="text-2xl font-light text-white mb-1">
+            Portfolio <span className="font-semibold">Overview</span>
+          </h2>
+          <p className="text-sm text-slate-400">
+            Last synced: {lastSyncTime}
           </p>
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
+        <button
           onClick={handleManualSync}
-          loading={syncing}
-          leftIcon={<RefreshCw className="w-4 h-4" />}
+          disabled={syncing}
+          className="flex items-center space-x-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {syncing ? 'Syncing…' : 'Refresh'}
-        </Button>
+          <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+          <span>{syncing ? 'Syncing...' : 'Refresh Data'}</span>
+        </button>
       </div>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          label="Current Value"
-          icon={<DollarSign className="w-4 h-4" />}
-          value={<Money value={currentValue} />}
-          delta={
-            <span className={`flex items-center gap-1 ${totalGainLoss >= 0 ? 'text-status-success' : 'text-status-danger'}`}>
-              {totalGainLoss >= 0
-                ? <TrendingUp className="w-3.5 h-3.5" aria-hidden />
-                : <TrendingDown className="w-3.5 h-3.5" aria-hidden />}
-              <Pct value={totalReturn} signed />
-            </span>
-          }
-        />
-        <MetricCard
-          label="Units Owned"
-          icon={<PieChart className="w-4 h-4" />}
-          value={<Count value={clientUnits.units_owned} decimals={2} />}
-          delta={
-            <span className="text-brand-text-muted">
-              NAV <Money value={trustAccount.current_nav_per_unit} decimals={4} /> / unit
-            </span>
-          }
-        />
-        <MetricCard
-          label="Cost Basis"
-          icon={<BarChart3 className="w-4 h-4" />}
-          value={<Money value={clientUnits.cost_basis} />}
-          delta={
-            <span className="text-brand-text-muted">
-              <Money value={clientUnits.cost_basis_per_unit} decimals={4} /> / unit
-            </span>
-          }
-        />
-        <MetricCard
-          label="Trust Ownership"
-          icon={<Percent className="w-4 h-4" />}
-          value={<Pct value={ownershipPct} />}
-          delta={
-            <span className="text-brand-text-muted">
-              of <Money value={trustAccount.total_aum} /> AUM
-            </span>
-          }
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-slate-400">Current Value</div>
+            <DollarSign className="w-5 h-5 text-cyan-400" />
+          </div>
+          <div className="text-3xl font-bold text-white mb-1">
+            ${currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div className={`text-sm flex items-center ${totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {totalGainLoss >= 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
+            {totalReturn >= 0 ? '+' : ''}{totalReturn.toFixed(2)}%
+          </div>
+        </div>
+
+        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-slate-400">Units Owned</div>
+            <PieChart className="w-5 h-5 text-cyan-400" />
+          </div>
+          <div className="text-3xl font-bold text-white mb-1">
+            {clientUnits.units_owned.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div className="text-sm text-slate-500">
+            NAV: ${trustAccount.current_nav_per_unit.toFixed(4)}/unit
+          </div>
+        </div>
+
+        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-slate-400">Cost Basis</div>
+            <Calendar className="w-5 h-5 text-cyan-400" />
+          </div>
+          <div className="text-3xl font-bold text-white mb-1">
+            ${clientUnits.cost_basis.toLocaleString()}
+          </div>
+          <div className="text-sm text-slate-500">
+            ${clientUnits.cost_basis_per_unit.toFixed(4)}/unit
+          </div>
+        </div>
+
+        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-slate-400">Trust Ownership</div>
+            <Percent className="w-5 h-5 text-cyan-400" />
+          </div>
+          <div className="text-3xl font-bold text-white mb-1">
+            {ownershipPercentage.toFixed(2)}%
+          </div>
+          <div className="text-sm text-slate-500">
+            Of ${trustAccount.total_aum.toLocaleString()} AUM
+          </div>
+        </div>
       </div>
 
-      {/* Holdings + Trust Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Holdings */}
-        <Card>
-          <CardHeader title="Your Proportional Holdings" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-6">
+          <h3 className="text-xl font-semibold text-white mb-6">Your Proportional Holdings</h3>
+
           {trustPositions.length === 0 ? (
-            <EmptyState
-              icon={FileText}
-              title="No positions yet"
-              body="Trust positions will appear here once the portfolio has been funded and holdings are recorded."
-              compact
-            />
+            <div className="text-center py-12 text-slate-500">
+              No positions in trust portfolio
+            </div>
           ) : (
-            <div className="space-y-2">
-              {trustPositions.map((pos) => {
-                const clientShare = (pos.market_value * ownershipPct) / 100;
-                const posReturn = pos.average_cost > 0
-                  ? ((pos.current_price - pos.average_cost) / pos.average_cost) * 100
+            <div className="space-y-4">
+              {trustPositions.map((position) => {
+                const clientShare = (position.market_value * ownershipPercentage) / 100;
+                const clientQuantity = (position.quantity * ownershipPercentage) / 100;
+                const positionReturn = position.average_cost > 0
+                  ? ((position.current_price - position.average_cost) / position.average_cost) * 100
                   : 0;
 
                 return (
-                  <div key={pos.id} className="flex items-center justify-between gap-4 px-4 py-3 bg-brand-surface-2 border border-brand-border rounded-input">
-                    {/* Symbol + name */}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-body font-semibold text-white">{pos.symbol}</p>
-                      <p className="text-meta text-brand-text-muted truncate">
-                        <Count value={(pos.quantity * ownershipPct) / 100} decimals={2} /> shares
-                      </p>
+                  <div key={position.id} className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-lg">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="font-semibold text-white text-lg">{position.symbol}</div>
+                        <div className="text-sm text-slate-400">
+                          {clientQuantity.toFixed(2)} shares ({ownershipPercentage.toFixed(2)}% of {position.quantity.toLocaleString()})
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold text-white">${clientShare.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                        <div className={`text-sm ${positionReturn >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {positionReturn >= 0 ? '+' : ''}{positionReturn.toFixed(2)}%
+                        </div>
+                      </div>
                     </div>
-                    {/* Price pair */}
-                    <div className="text-right shrink-0">
-                      <p className="text-meta text-brand-text-muted">
-                        <span className="text-brand-text-secondary">${pos.current_price.toFixed(2)}</span>
-                        <span className="mx-1 text-brand-border">·</span>
-                        avg ${pos.average_cost.toFixed(2)}
-                      </p>
-                    </div>
-                    {/* Value + return */}
-                    <div className="text-right shrink-0 w-28">
-                      <Money value={clientShare} column />
-                      <Pct value={posReturn} signed column />
+                    <div className="flex justify-between text-sm text-slate-500">
+                      <span>Price: ${position.current_price.toFixed(2)}</span>
+                      <span>Avg Cost: ${position.average_cost.toFixed(2)}</span>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </Card>
+        </div>
 
-        {/* Trust summary */}
-        <Card>
-          <CardHeader title="Trust Summary" />
-          <dl className="space-y-3">
-            {[
-              { label: 'Total Trust AUM', value: <Money value={trustAccount.total_aum} /> },
-              { label: 'Units Outstanding', value: <Count value={trustAccount.total_units_outstanding} decimals={2} /> },
-              { label: 'Current NAV / Unit', value: <Money value={trustAccount.current_nav_per_unit} decimals={4} /> },
-              { label: 'Your Current Value', value: <Money value={currentValue} /> },
-              { label: 'Unrealised Gain / Loss', value: (
-                <span className={totalGainLoss >= 0 ? 'text-status-success' : 'text-status-danger'}>
-                  {totalGainLoss >= 0 ? '+' : ''}{formatCurrency(totalGainLoss)}
-                </span>
-              )},
-            ].map(({ label, value }) => (
-              <div key={label} className="flex items-center justify-between gap-4 py-2.5 border-b border-brand-border last:border-0">
-                <dt className="text-meta text-brand-text-muted">{label}</dt>
-                <dd className="text-body font-medium text-white tabular-nums">{value}</dd>
+        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-6">
+          <h3 className="text-xl font-semibold text-white mb-6">Trust Summary</h3>
+
+          <div className="space-y-6">
+            <div className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-lg">
+              <div className="text-sm text-slate-400 mb-1">Total Trust AUM</div>
+              <div className="text-2xl font-bold text-white">
+                ${trustAccount.total_aum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-            ))}
-          </dl>
-        </Card>
+            </div>
+
+            <div className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-lg">
+              <div className="text-sm text-slate-400 mb-1">Total Units Outstanding</div>
+              <div className="text-2xl font-bold text-white">
+                {trustAccount.total_units_outstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-lg">
+              <div className="text-sm text-slate-400 mb-1">Current NAV per Unit</div>
+              <div className="text-2xl font-bold text-white">
+                ${trustAccount.current_nav_per_unit.toFixed(4)}
+              </div>
+            </div>
+
+            <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+              <div className="text-sm text-cyan-300 mb-2">Performance Calculation</div>
+              <div className="text-xs text-slate-400 space-y-1">
+                <div>Your Units: {clientUnits.units_owned.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                <div>× Current NAV: ${trustAccount.current_nav_per_unit.toFixed(4)}</div>
+                <div className="pt-1 border-t border-cyan-500/30">
+                  = Current Value: ${currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

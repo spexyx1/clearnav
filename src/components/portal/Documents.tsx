@@ -1,44 +1,28 @@
 import { useEffect, useState } from 'react';
 import { FileText, Download, Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { Card } from '../shared/Card';
-import { Badge } from '../shared/Badge';
-import { EmptyState } from '../shared/EmptyState';
-import { PanelLoader } from '../shared/Spinner';
-import type { BadgeTone } from '../shared/Badge';
-import { formatDate } from '../../lib/format';
-
-type DocFilter = 'all' | 'quarterly_letter' | 'annual_report' | 'other';
-
-const FILTER_LABELS: Record<DocFilter, string> = {
-  all: 'All',
-  quarterly_letter: 'Quarterly',
-  annual_report: 'Annual',
-  other: 'Other',
-};
-
-const DOC_TYPE_META: Record<string, { label: string; tone: BadgeTone }> = {
-  quarterly_letter: { label: 'Quarterly Letter', tone: 'info' },
-  annual_report:    { label: 'Annual Report',    tone: 'success' },
-  other:            { label: 'Other',            tone: 'neutral' },
-};
-
-function docMeta(type: string) {
-  return DOC_TYPE_META[type] ?? DOC_TYPE_META.other;
-}
 
 export default function Documents() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<DocFilter>('all');
+  const [filter, setFilter] = useState<'all' | 'quarterly_letter' | 'annual_report' | 'other'>('all');
 
-  useEffect(() => { loadDocuments(); }, [filter]);
+  useEffect(() => {
+    loadDocuments();
+  }, [filter]);
 
   const loadDocuments = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('documents').select('*').order('created_at', { ascending: false });
-      if (filter !== 'all') query = query.eq('document_type', filter);
+      let query = supabase
+        .from('documents')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (filter !== 'all') {
+        query = query.eq('document_type', filter);
+      }
+
       const { data, error } = await query;
       if (error) throw error;
       setDocuments(data || []);
@@ -50,85 +34,101 @@ export default function Documents() {
     }
   };
 
+  const getDocumentIcon = (type: string) => {
+    return <FileText className="w-5 h-5 text-cyan-400" />;
+  };
+
+  const getDocumentTypeBadge = (type: string) => {
+    const badges: Record<string, { label: string; color: string }> = {
+      quarterly_letter: { label: 'Quarterly Letter', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+      annual_report: { label: 'Annual Report', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+      other: { label: 'Other', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' }
+    };
+
+    const badge = badges[type] || badges.other;
+
+    return (
+      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${badge.color}`}>
+        {badge.label}
+      </span>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="text-h1 text-white">Documents & Reports</h2>
-        <div className="flex gap-1.5 flex-wrap">
-          {(Object.keys(FILTER_LABELS) as DocFilter[]).map((f) => (
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-light text-white">
+          Documents & <span className="font-semibold">Reports</span>
+        </h2>
+        <div className="flex space-x-2">
+          {(['all', 'quarterly_letter', 'annual_report', 'other'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              aria-pressed={filter === f}
-              className={`px-3 py-1.5 rounded-input text-meta font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
+              className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
                 filter === f
-                  ? 'bg-brand-primary text-white'
-                  : 'bg-brand-surface-2 text-brand-text-secondary hover:text-white hover:bg-slate-700'
+                  ? 'bg-cyan-600 text-white'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
             >
-              {FILTER_LABELS[f]}
+              {f === 'all' ? 'All' : f === 'quarterly_letter' ? 'Quarterly' : f === 'annual_report' ? 'Annual' : 'Other'}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Content */}
-      {loading ? (
-        <PanelLoader />
-      ) : documents.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon={FileText}
-            title="No documents yet"
-            body={
-              filter === 'all'
-                ? 'Your manager will share quarterly letters, annual reports, and other documents here. Check back after your next reporting period.'
-                : `No ${FILTER_LABELS[filter].toLowerCase()} documents have been shared yet.`
-            }
-          />
-        </Card>
+      {documents.length === 0 ? (
+        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-12 text-center">
+          <FileText className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+          <p className="text-slate-500">No documents available</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {documents.map((doc) => {
-            const meta = docMeta(doc.document_type);
-            return (
-              <div
-                key={doc.id}
-                className="bg-brand-surface border border-brand-border rounded-card shadow-card p-5 hover:border-slate-600 transition-colors duration-150 group"
-              >
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-9 h-9 bg-brand-surface-2 rounded-input flex items-center justify-center flex-shrink-0">
-                    <FileText className="w-4 h-4 text-brand-accent" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {documents.map((doc) => (
+            <div
+              key={doc.id}
+              className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-6 hover:border-cyan-500/30 transition-all duration-300 group"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start space-x-3">
+                  <div className="w-10 h-10 bg-cyan-500/10 rounded-lg flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
+                    {getDocumentIcon(doc.document_type)}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-body font-semibold text-white leading-snug mb-1 truncate">{doc.title}</h3>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-1">{doc.title}</h3>
                     {doc.description && (
-                      <p className="text-meta text-brand-text-muted line-clamp-2 mb-2">{doc.description}</p>
+                      <p className="text-sm text-slate-400 mb-2">{doc.description}</p>
                     )}
-                    <Badge tone={meta.tone}>{meta.label}</Badge>
+                    {getDocumentTypeBadge(doc.document_type)}
                   </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-brand-border">
-                  <div className="flex items-center gap-1.5 text-meta text-brand-text-muted">
-                    <Calendar className="w-3.5 h-3.5" aria-hidden />
-                    <span>{doc.period || formatDate(doc.created_at, 'short')}</span>
-                  </div>
-                  <a
-                    href={doc.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Download ${doc.title}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-meta font-medium rounded-input transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 focus-visible:ring-offset-brand-surface"
-                  >
-                    <Download className="w-3.5 h-3.5" aria-hidden />
-                    Download
-                  </a>
                 </div>
               </div>
-            );
-          })}
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-800/50">
+                <div className="flex items-center text-sm text-slate-400">
+                  <Calendar className="w-4 h-4 mr-2" />
+                  <span>{doc.period}</span>
+                </div>
+                <a
+                  href={doc.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center space-x-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium rounded transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download</span>
+                </a>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

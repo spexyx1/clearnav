@@ -81,7 +81,10 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-2 border-slate-700 border-t-cyan-500" role="status" aria-label="Loading" />
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-slate-700 border-t-cyan-500"></div>
+          <p className="text-slate-400 mt-4">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -141,10 +144,19 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
     return Icon;
   };
 
-  const primaryColor = branding.colors.primary || '#0E7490';
-
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950"
+      style={{
+        '--primary-color': branding.colors.primary,
+        '--secondary-color': branding.colors.secondary,
+        '--accent-color': branding.colors.accent,
+      } as React.CSSProperties}>
+      <style>{`
+        .btn-primary { background-color: ${branding.colors.primary}; }
+        .btn-primary:hover { filter: brightness(1.1); }
+        .text-primary { color: ${branding.colors.primary}; }
+        .border-primary { border-color: ${branding.colors.primary}; }
+      `}</style>
 
       <nav className="fixed top-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
@@ -153,10 +165,11 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
               <img src={branding.logo_url} alt={branding.company_name} className="h-8" />
             ) : (
               <>
-                <div className="w-8 h-8 rounded-sm flex items-center justify-center" style={{ backgroundColor: primaryColor }}>
-                  <span className="text-white text-xs font-bold">{branding.company_name.charAt(0)}</span>
-                </div>
-                <span className="text-xl font-semibold tracking-wide text-white">{branding.company_name}</span>
+                <div className="w-8 h-8 rounded-sm" style={{ background: `linear-gradient(135deg, ${branding.colors.primary}, ${branding.colors.secondary})` }}></div>
+                <span className="text-2xl font-light tracking-wider text-white">
+                  {branding.company_name.split(' ')[0].toUpperCase()}
+                  <span className="font-semibold">{branding.company_name.split(' ')[1]?.toUpperCase() || ''}</span>
+                </span>
               </>
             )}
           </div>
@@ -164,12 +177,12 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             <a href="#about" className="text-sm text-slate-300 hover:text-white transition-colors tracking-wide">ABOUT</a>
             <a href="#features" className="text-sm text-slate-300 hover:text-white transition-colors tracking-wide">FEATURES</a>
             <a href="#platform" className="text-sm text-slate-300 hover:text-white transition-colors tracking-wide">PLATFORM</a>
-            <button onClick={() => setShowFAQ(true)} className="text-sm text-slate-300 hover:text-white transition-colors tracking-wide focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded">FAQ</button>
+            <button onClick={() => setShowFAQ(true)} className="text-sm text-slate-300 hover:text-white transition-colors tracking-wide">FAQ</button>
             <a href="#contact" className="text-sm text-slate-300 hover:text-white transition-colors tracking-wide">CONTACT</a>
             <button
               onClick={onLoginClick}
-              style={{ backgroundColor: primaryColor }}
-              className="px-6 py-2 text-white text-sm font-medium rounded tracking-wide hover:opacity-90 transition-opacity duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 focus-visible:ring-cyan-400"
+              className="px-6 py-2 text-white text-sm font-medium rounded tracking-wide transition-all duration-200 btn-primary"
+              style={{ backgroundColor: branding.colors.primary }}
             >
               CLIENT LOGIN
             </button>
@@ -180,38 +193,38 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
       <section className="pt-32 pb-20 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="max-w-4xl">
-            <div className="inline-block mb-6 px-4 py-1.5 bg-slate-800/60 border border-slate-700/50 rounded-full">
-              <span className="text-xs font-medium tracking-widest text-slate-300">{landingPage.hero.subtitle.toUpperCase()}</span>
+            <div className="inline-block mb-6 px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-full">
+              <span className="text-xs font-medium tracking-widest text-primary" style={{ color: branding.colors.primary }}>{landingPage.hero.subtitle.toUpperCase()}</span>
             </div>
-            <h1 className="text-6xl font-semibold text-white mb-6 leading-tight">
-              {landingPage.hero.title}
+            <h1 className="text-7xl font-light text-white mb-6 leading-tight">
+              {landingPage.hero.title.split(' ').slice(0, -2).join(' ')}<br />
+              <span className="font-semibold bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to right, ${branding.colors.primary}, ${branding.colors.secondary})` }}>{landingPage.hero.title.split(' ').slice(-2).join(' ')}</span>
             </h1>
-            <p className="text-lg text-slate-400 mb-10 leading-relaxed max-w-2xl">
+            <p className="text-xl text-slate-400 mb-12 leading-relaxed max-w-2xl font-light">
               {landingPage.hero.description}
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex space-x-4">
               <button
                 onClick={() => setShowInquiryForm(true)}
-                style={{ backgroundColor: primaryColor }}
-                className="px-8 py-3.5 text-white rounded-lg font-medium hover:opacity-90 transition-opacity duration-150 flex items-center gap-2 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                className="px-8 py-4 bg-white text-slate-900 rounded font-medium hover:bg-slate-100 transition-all duration-200 flex items-center space-x-2 group shadow-lg shadow-white/10"
               >
                 <span>{landingPage.hero.cta_text}</span>
-                <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-150" aria-hidden />
+                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
               <button
                 onClick={onLoginClick}
-                className="px-8 py-3.5 border border-slate-700 text-white rounded-lg font-medium hover:bg-slate-800/60 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                className="px-8 py-4 border border-slate-700 text-white rounded font-medium hover:bg-slate-800 transition-all duration-200"
               >
                 Access Portal
               </button>
             </div>
-            <div className="mt-5 flex flex-wrap items-center gap-5">
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-slate-500" aria-hidden />
+            <div className="mt-6 flex items-center space-x-6">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-slate-500" />
                 <span className="text-sm text-slate-500">14-Day Free Trial</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-slate-500" aria-hidden />
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 text-slate-500" />
                 <span className="text-sm text-slate-500">No Credit Card Required</span>
               </div>
             </div>
@@ -220,35 +233,43 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
 
         {/* Trust & Social Proof Section */}
         <div className="max-w-7xl mx-auto mt-24">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
-              {[
-                { value: '$500M+', label: 'Assets Administered', note: 'across active funds' },
-                { value: '100+', label: 'Active Funds', note: 'on the platform' },
-                { value: '99.9%', label: 'Platform Uptime', note: 'SLA guaranteed' },
-                { value: '<5 min', label: 'Setup Time', note: 'from signup to live' },
-              ].map(({ value, label, note }) => (
-                <div key={label} className="text-center">
-                  <div className="text-3xl font-bold text-white mb-1 tabular-nums">{value}</div>
-                  <div className="text-sm font-medium text-slate-300 mb-0.5">{label}</div>
-                  <div className="text-xs text-slate-500">{note}</div>
-                </div>
-              ))}
+          <div className="bg-gradient-to-br from-slate-900/80 to-slate-800/50 border border-slate-700/50 rounded-2xl p-12 backdrop-blur-sm">
+            <div className="grid grid-cols-4 gap-8 mb-12">
+              <div className="text-center">
+                <div className="text-4xl font-bold text-white mb-2">$500M+</div>
+                <div className="text-sm text-slate-400">Assets Under Management</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-white mb-2">100+</div>
+                <div className="text-sm text-slate-400">Active Funds</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-white mb-2">99.9%</div>
+                <div className="text-sm text-slate-400">Platform Uptime</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-white mb-2">&lt;5 min</div>
+                <div className="text-sm text-slate-400">Setup Time</div>
+              </div>
             </div>
-            <div className="border-t border-slate-800 pt-8">
-              <p className="text-xs text-slate-500 text-center mb-5 uppercase tracking-widest">Security & Compliance</p>
-              <div className="flex flex-wrap items-center justify-center gap-6">
-                {[
-                  { Icon: ShieldCheck, label: 'AES-256 Encryption' },
-                  { Icon: Award, label: 'SOC 2 Type II Ready' },
-                  { Icon: Lock, label: 'GDPR Compliant' },
-                  { Icon: Shield, label: 'ISO 27001 Controls' },
-                ].map(({ Icon, label }) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <Icon className="w-4 h-4 text-slate-400" aria-hidden style={{ color: primaryColor }} />
-                    <span className="text-sm text-slate-300">{label}</span>
-                  </div>
-                ))}
+            <div className="border-t border-slate-700/50 pt-8">
+              <div className="flex items-center justify-center space-x-8">
+                <div className="flex items-center space-x-2">
+                  <ShieldCheck className="w-5 h-5" style={{ color: branding.colors.primary }} />
+                  <span className="text-sm text-slate-300">Bank-Grade Encryption</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Award className="w-5 h-5" style={{ color: branding.colors.primary }} />
+                  <span className="text-sm text-slate-300">SOC 2 Type II Ready</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Lock className="w-5 h-5" style={{ color: branding.colors.primary }} />
+                  <span className="text-sm text-slate-300">GDPR Compliant</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Shield className="w-5 h-5" style={{ color: branding.colors.primary }} />
+                  <span className="text-sm text-slate-300">ISO 27001 Controls</span>
+                </div>
               </div>
             </div>
           </div>
@@ -258,9 +279,9 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
           {landingPage.features.map((feature, index) => {
             const Icon = getIcon(feature.icon);
             return (
-              <div key={index} className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg backdrop-blur-sm hover:border-primary/30 transition-all duration-300 group" style={{ '--hover-border': `${primaryColor}30` } as React.CSSProperties}>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                  <Icon className="w-6 h-6" style={{ color: primaryColor }} />
+              <div key={index} className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg backdrop-blur-sm hover:border-primary/30 transition-all duration-300 group" style={{ '--hover-border': `${branding.colors.primary}30` } as React.CSSProperties}>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                  <Icon className="w-6 h-6" style={{ color: branding.colors.primary }} />
                 </div>
                 <h3 className="text-xl font-semibold text-white mb-3">{feature.title}</h3>
                 <p className="text-slate-400 leading-relaxed">
@@ -276,9 +297,10 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 gap-16 items-center">
             <div>
-              <div className="text-xs font-medium tracking-widest mb-4 text-slate-400 uppercase">About The Platform</div>
-              <h2 className="text-4xl font-semibold text-white mb-6">
-                Complete Back-Office In One System
+              <div className="text-xs font-medium tracking-widest mb-4" style={{ color: branding.colors.primary }}>ABOUT THE PLATFORM</div>
+              <h2 className="text-5xl font-light text-white mb-6">
+                Complete Back-Office<br />
+                <span className="font-semibold">In One System</span>
               </h2>
               <p className="text-lg text-slate-400 mb-6 leading-relaxed">
                 Replace spreadsheets, disparate tools, and manual processes with a unified platform built specifically for fund operations. From investor onboarding to quarterly reporting, every workflow is automated and compliant.
@@ -290,11 +312,11 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
                 Real-time portfolio syncing through Interactive Brokers integration ensures NAV calculations are always accurate, while automated capital call and distribution workflows keep investors informed.
               </p>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-6">
               {landingPage.stats.map((stat, index) => (
-                <div key={index} className="p-6 bg-slate-900 border border-slate-800 rounded-xl flex items-center gap-5">
-                  <div className="text-3xl font-bold text-white tabular-nums shrink-0">{stat.value}</div>
-                  <div className="text-sm text-slate-400 leading-snug">{stat.label}</div>
+                <div key={index} className="p-8 bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 rounded-lg">
+                  <div className="text-4xl font-bold text-white mb-2">{stat.value}</div>
+                  <div className="text-sm text-slate-400 tracking-wide">{stat.label}</div>
                 </div>
               ))}
             </div>
@@ -305,9 +327,9 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
       <section id="platform" className="py-32 px-6 border-t border-slate-800/50 bg-slate-900/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <div className="text-xs font-medium tracking-widest mb-4 text-slate-400 uppercase">Comprehensive Features</div>
-            <h2 className="text-4xl font-semibold text-white mb-6">
-              Every Tool Fund Managers Actually Need
+            <div className="text-xs font-medium tracking-widest mb-4" style={{ color: branding.colors.primary }}>COMPREHENSIVE FEATURES</div>
+            <h2 className="text-5xl font-light text-white mb-6">
+              Every Tool Fund Managers <span className="font-semibold">Actually Need</span>
             </h2>
             <p className="text-lg text-slate-400 max-w-3xl mx-auto">
               Enterprise-grade infrastructure covering capital management, investor relations, compliance, performance reporting, and operations—replacing entire stacks of disparate software with one unified platform.
@@ -316,8 +338,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <LineChart className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <LineChart className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">NAV Calculation Engine</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -326,8 +348,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <CreditCard className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <CreditCard className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Capital Operations</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -336,8 +358,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Globe className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Globe className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">IBKR Integration</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -346,8 +368,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Users className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Users className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Investor Portal</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -356,8 +378,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Lock className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Lock className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Compliance Center</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -366,8 +388,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <FileCheck className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <FileCheck className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Document Vault</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -376,8 +398,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <BarChart3 className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <BarChart3 className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Performance Reporting</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -386,8 +408,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Calculator className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Calculator className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Fee Automation</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -396,8 +418,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Bell className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Bell className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Investor Relations</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -406,8 +428,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Bot className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Bot className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">AI Sales Agent</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -416,8 +438,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Layers className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Layers className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Accounting Platform Sync</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -426,8 +448,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Brain className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Brain className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Predictive Lead Scoring</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -436,8 +458,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Rocket className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Rocket className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Automated Trial Provisioning</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -446,8 +468,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Send className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Send className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Email Sequence Automation</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -456,8 +478,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Calendar className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Calendar className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Meeting Scheduler</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -466,8 +488,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <Target className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <Target className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Competitive Intelligence</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -476,8 +498,8 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             </div>
 
             <div className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg hover:border-primary/30 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${primaryColor}1a` }}>
-                <MessageSquare className="w-6 h-6" style={{ color: primaryColor }} />
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
+                <MessageSquare className="w-6 h-6" style={{ color: branding.colors.primary }} />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Multi-Channel CRM</h3>
               <p className="text-slate-400 leading-relaxed">
@@ -490,9 +512,9 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
 
       <section id="contact" className="py-32 px-6 border-t border-slate-800/50">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="text-xs font-medium tracking-widest mb-4 text-slate-400 uppercase">Get In Touch</div>
-          <h2 className="text-4xl font-semibold text-white mb-6">
-            Ready to Transform Operations
+          <div className="text-xs font-medium tracking-widest mb-4" style={{ color: branding.colors.primary }}>GET IN TOUCH</div>
+          <h2 className="text-5xl font-light text-white mb-6">
+            Ready to <span className="font-semibold">Transform Operations</span>
           </h2>
           <p className="text-lg text-slate-400 mb-12 max-w-2xl mx-auto">
             Join forward-thinking fund managers who have eliminated spreadsheets and manual processes. Schedule a demo to see how our platform can streamline your fund operations.
@@ -502,7 +524,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             {landingPage.contact.email && (
               <div className="text-center">
                 <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Mail className="w-8 h-8" style={{ color: primaryColor }} />
+                  <Mail className="w-8 h-8" style={{ color: branding.colors.primary }} />
                 </div>
                 <div className="text-sm text-slate-500 mb-1">Email</div>
                 <div className="text-slate-300">{landingPage.contact.email}</div>
@@ -511,7 +533,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             {landingPage.contact.address && (
               <div className="text-center">
                 <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Building2 className="w-8 h-8" style={{ color: primaryColor }} />
+                  <Building2 className="w-8 h-8" style={{ color: branding.colors.primary }} />
                 </div>
                 <div className="text-sm text-slate-500 mb-1">Location</div>
                 <div className="text-slate-300">{landingPage.contact.address}</div>
@@ -521,8 +543,11 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
 
           <button
             onClick={() => setShowInquiryForm(true)}
-            style={{ backgroundColor: primaryColor }}
-            className="px-10 py-3.5 text-white rounded-lg font-medium hover:opacity-90 transition-opacity duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            className="px-12 py-4 text-white rounded font-medium transition-all duration-200"
+            style={{
+              background: `linear-gradient(to right, ${branding.colors.primary}, ${branding.colors.secondary})`,
+              boxShadow: `0 10px 30px ${branding.colors.primary}20`
+            }}
           >
             Submit Inquiry
           </button>
@@ -535,7 +560,13 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
             {branding.logo_url ? (
               <img src={branding.logo_url} alt={branding.company_name} className="h-6" />
             ) : (
-              <span className="text-sm font-semibold tracking-wide text-slate-400">{branding.company_name}</span>
+              <>
+                <div className="w-6 h-6 rounded-sm" style={{ background: `linear-gradient(135deg, ${branding.colors.primary}, ${branding.colors.secondary})` }}></div>
+                <span className="text-lg font-light tracking-wider text-slate-400">
+                  {branding.company_name.split(' ')[0].toUpperCase()}
+                  <span className="font-semibold">{branding.company_name.split(' ')[1]?.toUpperCase() || ''}</span>
+                </span>
+              </>
             )}
           </div>
         </div>
@@ -549,7 +580,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
           <div className="bg-slate-900 rounded-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto border border-slate-800">
             <div className="sticky top-0 bg-slate-900 border-b border-slate-800 p-6 flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <HelpCircle className="w-6 h-6" style={{ color: primaryColor }} />
+                <HelpCircle className="w-6 h-6" style={{ color: branding.colors.primary }} />
                 <h2 className="text-2xl font-semibold text-white">Frequently Asked Questions</h2>
               </div>
               <button onClick={() => setShowFAQ(false)} className="text-slate-400 hover:text-white">

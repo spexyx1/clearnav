@@ -213,8 +213,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
               {!collapsed && (
                 <button
                   onClick={() => toggleSection(group.label)}
-                  aria-expanded={isOpen}
-                  className={`w-full flex items-center justify-between px-4 py-2 text-[11px] font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-500 rounded ${
+                  className={`w-full flex items-center justify-between px-4 py-2 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
                     hasActive ? 'text-slate-200' : 'text-slate-500 hover:text-slate-300'
                   }`}
                 >
@@ -236,9 +235,8 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
                       <button
                         key={item.id}
                         onClick={() => onTabChange(item.id)}
-                        aria-current={isActive ? 'page' : undefined}
                         title={collapsed ? item.label : undefined}
-                        className={`w-full flex items-center rounded-lg transition-all duration-150 group relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-950 ${
+                        className={`w-full flex items-center rounded-lg transition-all duration-150 group relative ${
                           collapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-3'
                         } ${
                           isActive
@@ -284,7 +282,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
       <div className="border-t border-slate-800/70 p-2">
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="w-full flex items-center justify-center p-2 text-slate-500 hover:text-slate-300 rounded-lg hover:bg-slate-800/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+          className="w-full flex items-center justify-center p-2 text-slate-500 hover:text-slate-300 rounded-lg hover:bg-slate-800/60 transition-colors"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed
