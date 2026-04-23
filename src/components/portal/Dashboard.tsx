@@ -23,27 +23,35 @@ export default function Dashboard({ profile }: DashboardProps) {
 
   const loadData = async () => {
     setLoading(true);
+    try {
+      const [unitsRes, trustRes, positionsRes] = await Promise.all([
+        supabase
+          .from('client_units')
+          .select('*')
+          .eq('client_id', user?.id)
+          .maybeSingle(),
+        supabase
+          .from('trust_account')
+          .select('*')
+          .maybeSingle(),
+        supabase
+          .from('trust_positions')
+          .select('*')
+          .order('market_value', { ascending: false })
+      ]);
 
-    const [unitsRes, trustRes, positionsRes] = await Promise.all([
-      supabase
-        .from('client_units')
-        .select('*')
-        .eq('client_id', user?.id)
-        .maybeSingle(),
-      supabase
-        .from('trust_account')
-        .select('*')
-        .maybeSingle(),
-      supabase
-        .from('trust_positions')
-        .select('*')
-        .order('market_value', { ascending: false })
-    ]);
+      if (unitsRes.error) throw unitsRes.error;
+      if (trustRes.error) throw trustRes.error;
+      if (positionsRes.error) throw positionsRes.error;
 
-    setClientUnits(unitsRes.data);
-    setTrustAccount(trustRes.data);
-    setTrustPositions(positionsRes.data || []);
-    setLoading(false);
+      setClientUnits(unitsRes.data);
+      setTrustAccount(trustRes.data);
+      setTrustPositions(positionsRes.data || []);
+    } catch (err) {
+      console.warn('Dashboard load error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleManualSync = async () => {

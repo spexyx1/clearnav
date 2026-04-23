@@ -7,6 +7,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import KYCLetterModal from '../documents/KYCLetterModal';
+import { getKycMeta } from '../../lib/kycStatus';
 
 interface KYCRecord {
   id: string;
@@ -32,18 +33,18 @@ interface ContactWithoutKYC {
   email: string;
 }
 
-const DIDIT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ElementType }> = {
-  'Not Started': { label: 'Not Started', color: 'text-slate-400', bg: 'bg-slate-800/50', border: 'border-slate-700', icon: Clock },
-  'In Progress': { label: 'In Progress', color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', icon: RefreshCw },
-  'Approved': { label: 'Approved', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', icon: CheckCircle },
-  'Declined': { label: 'Declined', color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30', icon: XCircle },
-  'In Review': { label: 'Under Review', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', icon: Eye },
-  'Abandoned': { label: 'Abandoned', color: 'text-slate-500', bg: 'bg-slate-800/30', border: 'border-slate-700/50', icon: XCircle },
-};
+// Tone → visual style mapping (manager dark-theme palette)
+const MGMT_TONE_STYLE = {
+  neutral: { color: 'text-slate-400', bg: 'bg-slate-800/50', border: 'border-slate-700', icon: Clock },
+  info:    { color: 'text-cyan-400',  bg: 'bg-cyan-500/10',  border: 'border-cyan-500/30', icon: RefreshCw },
+  success: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', icon: CheckCircle },
+  danger:  { color: 'text-red-400',   bg: 'bg-red-500/10',   border: 'border-red-500/30', icon: XCircle },
+  warn:    { color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', icon: Eye },
+} as const;
 
 function statusConfig(s: string | null) {
-  if (!s) return DIDIT_STATUS_CONFIG['Not Started'];
-  return DIDIT_STATUS_CONFIG[s] || DIDIT_STATUS_CONFIG['Not Started'];
+  const meta = getKycMeta(s);
+  return { label: meta.label, ...MGMT_TONE_STYLE[meta.tone] };
 }
 
 interface DetailModalProps {
@@ -451,25 +452,33 @@ export default function KYCManagement() {
 
   const loadData = useCallback(async () => {
     if (!currentTenant) return;
-    const [kycRes, contactsRes] = await Promise.all([
-      supabase
-        .from('kyc_aml_records')
-        .select('*, crm_contacts(full_name, email)')
-        .eq('tenant_id', currentTenant.id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('crm_contacts')
-        .select('id, full_name, email')
-        .eq('tenant_id', currentTenant.id)
-        .order('full_name'),
-    ]);
+    try {
+      const [kycRes, contactsRes] = await Promise.all([
+        supabase
+          .from('kyc_aml_records')
+          .select('*, crm_contacts(full_name, email)')
+          .eq('tenant_id', currentTenant.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('crm_contacts')
+          .select('id, full_name, email')
+          .eq('tenant_id', currentTenant.id)
+          .order('full_name'),
+      ]);
 
-    const existingContactIds = new Set((kycRes.data || []).map((r: KYCRecord) => r.contact_id).filter(Boolean));
-    setRecords((kycRes.data as KYCRecord[]) || []);
-    setUnverifiedContacts(
-      ((contactsRes.data as ContactWithoutKYC[]) || []).filter(c => !existingContactIds.has(c.id))
-    );
-    setLoading(false);
+      if (kycRes.error) throw kycRes.error;
+      if (contactsRes.error) throw contactsRes.error;
+
+      const existingContactIds = new Set((kycRes.data || []).map((r: KYCRecord) => r.contact_id).filter(Boolean));
+      setRecords((kycRes.data as KYCRecord[]) || []);
+      setUnverifiedContacts(
+        ((contactsRes.data as ContactWithoutKYC[]) || []).filter(c => !existingContactIds.has(c.id))
+      );
+    } catch (err) {
+      console.warn('KYCManagement loadData error:', err);
+    } finally {
+      setLoading(false);
+    }
   }, [currentTenant]);
 
   useEffect(() => {

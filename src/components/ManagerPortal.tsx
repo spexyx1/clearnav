@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useTenantBranding } from '../lib/hooks';
 import ManagerSidebar, { TabType } from './manager/ManagerSidebar';
+import { PanelLoader } from './shared/Spinner';
 
 // Lazy-load every tab so only the active tab's code is downloaded.
 // Heavy portfolio/reporting tabs (which account for most of the bundle)
@@ -54,11 +55,7 @@ const InvitationTemplateManager = lazy(() => import('./manager/InvitationTemplat
 const EmailTemplateManager = lazy(() => import('./manager/EmailTemplateManager'));
 
 function TabFallback() {
-  return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full" />
-    </div>
-  );
+  return <PanelLoader />;
 }
 
 export default function ManagerPortal() {

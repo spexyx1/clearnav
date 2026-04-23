@@ -61,8 +61,18 @@ export default function FundDocumentUpload({ onReviewDocument }: FundDocumentUpl
     fund_id: '',
   });
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const showToast = (message: string, type: 'warning' | 'error' = 'warning') => {
+    if (type === 'error') {
+      setError(message);
+    } else {
+      setWarning(message);
+      setTimeout(() => setWarning(null), 6000);
+    }
+  };
 
   useEffect(() => {
     if (currentTenant?.id) {
@@ -127,17 +137,34 @@ export default function FundDocumentUpload({ onReviewDocument }: FundDocumentUpl
     if (file) handleFileSelect(file);
   }, []);
 
-  const handleFileSelect = (file: File) => {
-    const allowed = ['application/pdf', 'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+  const handleFileSelect = async (file: File) => {
+    const MAX_SIZE = 52428800; // 50 MB
+    const allowed = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+    ];
+
     if (!allowed.includes(file.type)) {
       setError('Only PDF, Word (.doc/.docx), and text files are supported');
       return;
     }
-    if (file.size > 52428800) {
-      setError('File size must be under 50MB');
+    if (file.size > MAX_SIZE) {
+      setError('File size must be under 50 MB');
       return;
     }
+
+    // Magic-byte check for PDFs — file.type is client-spoofable
+    if (file.type === 'application/pdf') {
+      const header = await file.slice(0, 5).arrayBuffer();
+      const magic = new TextDecoder().decode(header);
+      if (!magic.startsWith('%PDF-')) {
+        setError('The selected file does not appear to be a valid PDF.');
+        return;
+      }
+    }
+
     setError(null);
     setSelectedFile(file);
     setShowUploadForm(true);
@@ -194,7 +221,12 @@ export default function FundDocumentUpload({ onReviewDocument }: FundDocumentUpl
             },
             body: JSON.stringify({ fund_document_id: docData.id }),
           }
-        ).catch(() => {});
+        )
+          .then(async r => { if (!r.ok) throw new Error(await r.text()); })
+          .catch(err => {
+            console.warn('Document extraction failed:', err);
+            showToast('Document uploaded — auto-extraction failed. Fields can be filled manually.', 'warning');
+          });
       }
 
       setUploadProgress(100);
@@ -233,7 +265,12 @@ export default function FundDocumentUpload({ onReviewDocument }: FundDocumentUpl
           },
           body: JSON.stringify({ fund_document_id: doc.id }),
         }
-      ).catch(() => {});
+      )
+        .then(async r => { if (!r.ok) throw new Error(await r.text()); })
+        .catch(err => {
+          console.warn('Document extraction retry failed:', err);
+          showToast('Re-extraction failed. Please try again or contact support.', 'warning');
+        });
     }
     startPolling();
   };
@@ -323,6 +360,12 @@ export default function FundDocumentUpload({ onReviewDocument }: FundDocumentUpl
               <div className="flex items-start space-x-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                 <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
                 <p className="text-red-300 text-sm">{error}</p>
+              </div>
+            )}
+            {warning && (
+              <div className="flex items-start space-x-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <p className="text-amber-300 text-sm">{warning}</p>
               </div>
             )}
 

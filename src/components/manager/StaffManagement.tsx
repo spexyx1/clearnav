@@ -76,7 +76,6 @@ export default function StaffManagement() {
   const [successDetails, setSuccessDetails] = useState<{ email: string; fullName: string; inviteUrl: string; sent: boolean } | null>(null);
 
   useEffect(() => {
-    console.log('StaffManagement auth state:', { userRole, isTenantAdmin, currentTenant, isPlatformAdmin, staffAccount });
     if ((userRole === 'general_manager' || isTenantAdmin) && currentTenant) {
       loadStaff();
       loadInvitations();

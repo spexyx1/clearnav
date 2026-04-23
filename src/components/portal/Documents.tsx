@@ -13,19 +13,25 @@ export default function Documents() {
 
   const loadDocuments = async () => {
     setLoading(true);
+    try {
+      let query = supabase
+        .from('documents')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    let query = supabase
-      .from('documents')
-      .select('*')
-      .order('created_at', { ascending: false });
+      if (filter !== 'all') {
+        query = query.eq('document_type', filter);
+      }
 
-    if (filter !== 'all') {
-      query = query.eq('document_type', filter);
+      const { data, error } = await query;
+      if (error) throw error;
+      setDocuments(data || []);
+    } catch (err) {
+      console.warn('Documents load error:', err);
+      setDocuments([]);
+    } finally {
+      setLoading(false);
     }
-
-    const { data } = await query;
-    setDocuments(data || []);
-    setLoading(false);
   };
 
   const getDocumentIcon = (type: string) => {

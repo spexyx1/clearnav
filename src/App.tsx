@@ -6,6 +6,8 @@ import ClearNAVLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
 import { PublicWebsite } from './components/public/PublicWebsite';
 import { resolveTenantFromDomain } from './lib/tenantResolver';
+import { FullPageLoader } from './components/shared/Spinner';
+import { useRoute } from './lib/useRoute';
 import './i18n/config';
 
 const ClientPortal = lazy(() => import('./components/ClientPortal'));
@@ -20,43 +22,10 @@ const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
 const InvestorPage = lazy(() => import('./components/InvestorPage'));
 
 function AppContent() {
-  const { user, loading, roleCategory, isPlatformAdmin, currentTenant } = useAuth();
-  const [view, setView] = useState<'landing' | 'login' | 'accept-invite' | 'signup' | 'debug' | 'sales-sheet' | 'terms' | 'privacy' | 'investors'>('landing');
+  const { user, loading, roleCategory, currentTenant } = useAuth();
+  const [route, navigate] = useRoute();
   const [publicTenant, setPublicTenant] = useState<{ id: string; slug: string } | null>(null);
   const [tenantLoading, setTenantLoading] = useState(true);
-
-  useEffect(() => {
-    const checkRoute = () => {
-      const params = new URLSearchParams(window.location.search);
-
-      if (params.get('token')) {
-        setView('accept-invite');
-      } else if (params.get('login')) {
-        setView('login');
-      } else if (window.location.pathname === '/signup') {
-        setView('signup');
-      } else if (window.location.pathname === '/debug') {
-        setView('debug');
-      } else if (window.location.pathname === '/sales-sheet') {
-        setView('sales-sheet');
-      } else if (window.location.pathname === '/terms') {
-        setView('terms');
-      } else if (window.location.pathname === '/privacy') {
-        setView('privacy');
-      } else if (window.location.pathname === '/investors') {
-        setView('investors');
-      }
-    };
-
-    checkRoute();
-
-    const handleUrlChange = () => {
-      checkRoute();
-    };
-
-    window.addEventListener('popstate', handleUrlChange);
-    return () => window.removeEventListener('popstate', handleUrlChange);
-  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -82,116 +51,60 @@ function AppContent() {
     }
   }, [user, loading]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F2EE' }}>
-        <div className="animate-spin w-10 h-10 border-2 border-t-transparent rounded-full" style={{ borderColor: '#D4C4A8', borderTopColor: 'transparent' }}></div>
-      </div>
-    );
+  if (loading) return <FullPageLoader />;
+
+  const Fallback = () => <FullPageLoader />;
+
+  if (route === 'debug' && import.meta.env.DEV) {
+    return <Suspense fallback={<Fallback />}><DebugLogin /></Suspense>;
   }
 
-  const LoadingSpinner = () => (
-    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F2EE' }}>
-      <div className="animate-spin w-10 h-10 border-2 border-t-transparent rounded-full" style={{ borderColor: '#D4C4A8', borderTopColor: 'transparent' }}></div>
-    </div>
-  );
+  if (route === 'sales-sheet') {
+    return <Suspense fallback={<Fallback />}><SalesSheet onBack={() => navigate('/')} /></Suspense>;
+  }
 
-  if (view === 'debug' && import.meta.env.DEV) {
+  if (route === 'accept-invite') {
+    return <Suspense fallback={<Fallback />}><AcceptInvitation /></Suspense>;
+  }
+
+  if (route === 'signup') {
+    return <Suspense fallback={<Fallback />}><ClientSignup onBack={() => navigate('/')} /></Suspense>;
+  }
+
+  if (route === 'terms') {
     return (
-      <Suspense fallback={<LoadingSpinner />}>
-        <DebugLogin />
+      <Suspense fallback={<Fallback />}>
+        <TermsOfService tenantId={currentTenant?.id || publicTenant?.id || null} onBack={() => navigate('/')} />
       </Suspense>
     );
   }
 
-  if (view === 'sales-sheet') {
+  if (route === 'privacy') {
     return (
-      <Suspense fallback={<LoadingSpinner />}>
-        <SalesSheet onBack={() => setView('landing')} />
+      <Suspense fallback={<Fallback />}>
+        <PrivacyPolicy tenantId={currentTenant?.id || publicTenant?.id || null} onBack={() => navigate('/')} />
       </Suspense>
     );
   }
 
-  if (view === 'accept-invite') {
+  if (route === 'investors') {
     return (
-      <Suspense fallback={<LoadingSpinner />}>
-        <AcceptInvitation />
-      </Suspense>
-    );
-  }
-
-  if (view === 'signup') {
-    return (
-      <Suspense fallback={<LoadingSpinner />}>
-        <ClientSignup onBack={() => setView('landing')} />
-      </Suspense>
-    );
-  }
-
-  if (view === 'terms') {
-    return (
-      <Suspense fallback={<LoadingSpinner />}>
-        <TermsOfService tenantId={currentTenant?.id || publicTenant?.id || null} onBack={() => setView('landing')} />
-      </Suspense>
-    );
-  }
-
-  if (view === 'privacy') {
-    return (
-      <Suspense fallback={<LoadingSpinner />}>
-        <PrivacyPolicy tenantId={currentTenant?.id || publicTenant?.id || null} onBack={() => setView('landing')} />
-      </Suspense>
-    );
-  }
-
-  if (view === 'investors') {
-    return (
-      <Suspense fallback={<LoadingSpinner />}>
-        <InvestorPage onBack={() => {
-          window.history.pushState({}, '', '/');
-          setView('landing');
-        }} />
+      <Suspense fallback={<Fallback />}>
+        <InvestorPage onBack={() => navigate('/')} />
       </Suspense>
     );
   }
 
   if (user && roleCategory) {
-    // Route based on role_category from user_roles table
     switch (roleCategory) {
       case 'superadmin':
-        // Platform admins access the platform admin portal
-        return (
-          <Suspense fallback={<LoadingSpinner />}>
-            <PlatformAdminPortal />
-          </Suspense>
-        );
-
+        return <Suspense fallback={<Fallback />}><PlatformAdminPortal /></Suspense>;
       case 'tenant_admin':
-        // Tenant admins access the manager portal with full permissions
-        return (
-          <Suspense fallback={<LoadingSpinner />}>
-            <ManagerPortal />
-          </Suspense>
-        );
-
       case 'staff_user':
-        // Staff users access the manager portal with role-based restrictions
-        return (
-          <Suspense fallback={<LoadingSpinner />}>
-            <ManagerPortal />
-          </Suspense>
-        );
-
+        return <Suspense fallback={<Fallback />}><ManagerPortal /></Suspense>;
       case 'client':
-        // Clients access the client portal
-        return (
-          <Suspense fallback={<LoadingSpinner />}>
-            <ClientPortal />
-          </Suspense>
-        );
-
+        return <Suspense fallback={<Fallback />}><ClientPortal /></Suspense>;
       default:
-        // Unknown role - show error
         return (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <div className="text-center text-gray-600 max-w-md">
@@ -203,59 +116,37 @@ function AppContent() {
     }
   }
 
-  if (view === 'login') {
-    const handleLoginBack = () => {
-      if (publicTenant) {
-        window.history.pushState({}, '', '/');
-        setView('landing');
-      } else {
-        setView('landing');
-      }
-    };
-    return <LoginPage onBack={handleLoginBack} />;
+  if (route === 'login') {
+    return <LoginPage onBack={() => navigate(publicTenant ? '/' : '/')} />;
   }
 
-  if (tenantLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F2EE' }}>
-        <div className="animate-spin w-10 h-10 border-2 border-t-transparent rounded-full" style={{ borderColor: '#D4C4A8', borderTopColor: 'transparent' }}></div>
-      </div>
-    );
-  }
+  if (tenantLoading) return <FullPageLoader />;
 
   if (publicTenant) {
     return <PublicWebsite tenantId={publicTenant.id} tenantSlug={publicTenant.slug} />;
   }
 
   if (!currentTenant) {
-    return <ClearNAVLandingPage onLoginClick={() => setView('login')} />;
+    return <ClearNAVLandingPage onLoginClick={() => navigate('/?login=1')} />;
   }
 
-  return <LandingPage onLoginClick={() => setView('login')} />;
+  return <LandingPage onLoginClick={() => navigate('/?login=1')} />;
 }
 
 function App() {
-  // On localhost, ensure tenant parameter is present before anything loads
-  // This must run synchronously to prevent AuthProvider from loading with null tenant
+  // Localhost dev guard — redirects to default tenant if none is specified
   if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
     const params = new URLSearchParams(window.location.search);
     const tenantParam = params.get('tenant');
-    const isDebug = window.location.pathname === '/debug';
-    const isSignup = window.location.pathname === '/signup';
-    const isTerms = window.location.pathname === '/terms';
-    const isPrivacy = window.location.pathname === '/privacy';
-    const isInvestors = window.location.pathname === '/investors';
+    const path = window.location.pathname;
+    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors'];
 
-    // If not in special modes and no tenant param, redirect immediately
-    if (!isDebug && !isSignup && !isTerms && !isPrivacy && !isInvestors && !tenantParam) {
-      const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?tenant=arkline`;
-      window.location.replace(newUrl);
-      // Return loading state while redirecting
-      return (
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F2EE' }}>
-          <div className="animate-spin w-10 h-10 border-2 border-t-transparent rounded-full" style={{ borderColor: '#D4C4A8', borderTopColor: 'transparent' }}></div>
-        </div>
+    if (!specialPaths.includes(path) && !tenantParam) {
+      const defaultTenant = import.meta.env.VITE_DEFAULT_DEV_TENANT || 'arkline';
+      window.location.replace(
+        `${window.location.protocol}//${window.location.host}${path}?tenant=${defaultTenant}`
       );
+      return <FullPageLoader />;
     }
   }
 

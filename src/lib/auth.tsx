@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { Database } from '../types/database';
+import { dbg } from './debug';
 
 type UserRole = 'general_manager' | 'compliance_manager' | 'accountant' | 'cfo' | 'legal_counsel' | 'admin' | 'client' | 'platform_admin' | 'auditor';
 type RoleCategory = 'superadmin' | 'tenant_admin' | 'client' | 'staff_user' | 'auditor';
@@ -39,12 +40,17 @@ interface AuthContextType {
   userRole: UserRole | null;
   roleCategory: RoleCategory | null;
   roleDetail: string | null;
+  /** Derived from roleCategory — use roleCategory === 'staff_user' for new code */
   isStaff: boolean;
+  /** Derived from roleCategory — use roleCategory === 'tenant_admin' for new code */
   isTenantAdmin: boolean;
+  /** Derived from roleCategory — use roleCategory === 'client' for new code */
   isClient: boolean;
+  /** Derived from roleCategory — use roleCategory === 'auditor' for new code */
   isAuditor: boolean;
   staffAccount: StaffAccount | null;
   auditorProfile: AuditorProfile | null;
+  /** Derived from roleCategory — use roleCategory === 'superadmin' for new code */
   isPlatformAdmin: boolean;
   platformAdminUser: PlatformAdminUser | null;
   currentTenant: Tenant | null;
@@ -65,22 +71,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [roleCategory, setRoleCategory] = useState<RoleCategory | null>(null);
   const [roleDetail, setRoleDetail] = useState<string | null>(null);
-  const [isStaff, setIsStaff] = useState(false);
-  const [isTenantAdmin, setIsTenantAdmin] = useState(false);
-  const [isClient, setIsClient] = useState(false);
-  const [isAuditor, setIsAuditor] = useState(false);
   const [staffAccount, setStaffAccount] = useState<StaffAccount | null>(null);
   const [auditorProfile, setAuditorProfile] = useState<AuditorProfile | null>(null);
-  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [platformAdminUser, setPlatformAdminUser] = useState<PlatformAdminUser | null>(null);
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
   const [tenantUser, setTenantUser] = useState<TenantUser | null>(null);
   const [userRoleRecord, setUserRoleRecord] = useState<UserRoleRecord | null>(null);
 
-  const loadUserRole = async (userId: string, resolvedTenant: Tenant | null) => {
-    console.log('[Auth] Loading user role for:', userId);
+  const loadUserRole = async (userId: string) => {
+    dbg('[Auth] Loading user role for:', userId);
 
-    // Query user_roles table as single source of truth
     const { data: userRoleData, error: roleError } = await supabase
       .from('user_roles')
       .select('*')
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('status', 'active')
       .maybeSingle();
 
-    console.log('[Auth] User role data:', userRoleData, 'Error:', roleError);
+    dbg('[Auth] User role data:', userRoleData, 'Error:', roleError);
 
     if (roleError || !userRoleData) {
       console.error('Failed to load user role:', roleError);
@@ -96,145 +96,98 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Store the user role record
     setUserRoleRecord(userRoleData);
     setRoleCategory(userRoleData.role_category as RoleCategory);
     setRoleDetail(userRoleData.role_detail);
 
-    // Load tenant directly from user's role record (every user has exactly one tenant)
-    if (userRoleData.tenant_id) {
-      console.log('[Auth] Loading tenant:', userRoleData.tenant_id);
-      const { data: userTenant, error: tenantError } = await supabase
-        .from('platform_tenants')
-        .select('*')
-        .eq('id', userRoleData.tenant_id)
-        .maybeSingle();
+    // Tenant fetch + role-specific detail fetch run in parallel
+    const tenantPromise = userRoleData.tenant_id
+      ? supabase
+          .from('platform_tenants')
+          .select('id, slug, name, subdomain, custom_domain, status, billing_plan, subscription_status, branding, settings, created_at, updated_at, trial_ends_at, stripe_customer_id, stripe_subscription_id')
+          .eq('id', userRoleData.tenant_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null });
 
-      console.log('[Auth] Tenant data:', userTenant, 'Error:', tenantError);
+    type DetailResult = {
+      adminData: PlatformAdminUser | null;
+      tenantUserData: TenantUser | null;
+      staffData: StaffAccount | null;
+      auditorData: AuditorProfile | null;
+    };
 
-      if (userTenant) {
-        setCurrentTenant(userTenant);
-        resolvedTenant = userTenant;
-      }
-    } else {
-      console.log('[Auth] No tenant_id in user role data');
-    }
+    let detailPromise: Promise<DetailResult>;
 
-    // Set flags based on role_category
     switch (userRoleData.role_category) {
       case 'superadmin':
-        setIsPlatformAdmin(true);
-        setIsStaff(false);
-        setIsTenantAdmin(false);
-        setIsClient(false);
-        setIsAuditor(false);
         setUserRole('platform_admin');
-
-        // Fetch platform admin details
-        const { data: adminData } = await supabase
+        detailPromise = supabase
           .from('platform_admin_users')
           .select('*')
           .eq('user_id', userId)
-          .maybeSingle();
-        setPlatformAdminUser(adminData);
-        setStaffAccount(null);
-        setTenantUser(null);
-        setAuditorProfile(null);
+          .maybeSingle()
+          .then(({ data }) => ({ adminData: data, tenantUserData: null, staffData: null, auditorData: null }));
         break;
 
       case 'tenant_admin':
-        setIsTenantAdmin(true);
-        setIsPlatformAdmin(false);
-        setIsStaff(false);
-        setIsClient(false);
-        setIsAuditor(false);
         setUserRole('admin');
-
-        // Fetch tenant user details
-        if (resolvedTenant && userRoleData.tenant_id === resolvedTenant.id) {
-          const { data: tenantUserData } = await supabase
-            .from('tenant_users')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('tenant_id', resolvedTenant.id)
-            .maybeSingle();
-          setTenantUser(tenantUserData);
-        }
-        setPlatformAdminUser(null);
-        setStaffAccount(null);
-        setAuditorProfile(null);
+        detailPromise = supabase
+          .from('tenant_users')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('tenant_id', userRoleData.tenant_id)
+          .maybeSingle()
+          .then(({ data }) => ({ adminData: null, tenantUserData: data, staffData: null, auditorData: null }));
         break;
 
       case 'staff_user':
-        setIsStaff(true);
-        setIsPlatformAdmin(false);
-        setIsTenantAdmin(false);
-        setIsClient(false);
-        setIsAuditor(false);
         setUserRole(userRoleData.role_detail as UserRole);
-
-        // Fetch staff account details
-        const { data: staffData } = await supabase
+        detailPromise = supabase
           .from('staff_accounts')
           .select('*')
           .eq('auth_user_id', userId)
           .eq('status', 'active')
-          .maybeSingle();
-        setStaffAccount(staffData);
-        setPlatformAdminUser(null);
-        setTenantUser(null);
-        setAuditorProfile(null);
-        break;
-
-      case 'client':
-        setIsClient(true);
-        setIsPlatformAdmin(false);
-        setIsStaff(false);
-        setIsTenantAdmin(false);
-        setIsAuditor(false);
-        setUserRole('client');
-        setPlatformAdminUser(null);
-        setStaffAccount(null);
-        setTenantUser(null);
-        setAuditorProfile(null);
+          .maybeSingle()
+          .then(({ data }) => ({ adminData: null, tenantUserData: null, staffData: data, auditorData: null }));
         break;
 
       case 'auditor':
-        setIsAuditor(true);
-        setIsPlatformAdmin(false);
-        setIsStaff(false);
-        setIsTenantAdmin(false);
-        setIsClient(false);
         setUserRole('auditor');
-
-        // Fetch auditor profile details
-        const { data: auditorData } = await supabase
+        detailPromise = supabase
           .from('auditor_profiles')
           .select('*')
           .eq('user_id', userId)
-          .maybeSingle();
-        setAuditorProfile(auditorData);
-        setPlatformAdminUser(null);
-        setStaffAccount(null);
-        setTenantUser(null);
+          .maybeSingle()
+          .then(({ data }) => ({ adminData: null, tenantUserData: null, staffData: null, auditorData: data }));
         break;
 
       default:
-        resetRoleState();
+        setUserRole('client');
+        detailPromise = Promise.resolve({ adminData: null, tenantUserData: null, staffData: null, auditorData: null });
     }
+
+    // Run tenant + detail queries in parallel
+    const [tenantResult, detail] = await Promise.all([tenantPromise, detailPromise]);
+
+    if (tenantResult.data) {
+      setCurrentTenant(tenantResult.data as unknown as Tenant);
+      dbg('[Auth] Tenant loaded:', tenantResult.data.id);
+    } else {
+      dbg('[Auth] No tenant_id in user role data');
+    }
+
+    setPlatformAdminUser(detail.adminData);
+    setTenantUser(detail.tenantUserData);
+    setStaffAccount(detail.staffData);
+    setAuditorProfile(detail.auditorData);
   };
 
   const resetRoleState = () => {
     setUserRole(null);
     setRoleCategory(null);
     setRoleDetail(null);
-    setIsStaff(false);
-    setIsTenantAdmin(false);
-    setIsClient(false);
-    setIsAuditor(false);
     setStaffAccount(null);
     setAuditorProfile(null);
-    setIsPlatformAdmin(false);
     setPlatformAdminUser(null);
     setTenantUser(null);
     setUserRoleRecord(null);
@@ -250,7 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        await loadUserRole(session.user.id, null);
+        await loadUserRole(session.user.id);
       }
 
       setLoading(false);
@@ -267,9 +220,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          await loadUserRole(session.user.id, null);
+          await loadUserRole(session.user.id);
         } else {
           resetRoleState();
+          setCurrentTenant(null);
         }
       })();
     });
@@ -291,9 +245,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refetch = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
-      await loadUserRole(session.user.id, null);
+      await loadUserRole(session.user.id);
     }
   };
+
+  // Derived boolean flags — kept for backwards compatibility with existing consumers.
+  // For new code, compare roleCategory directly.
+  const isStaff = roleCategory === 'staff_user';
+  const isTenantAdmin = roleCategory === 'tenant_admin';
+  const isClient = roleCategory === 'client';
+  const isAuditor = roleCategory === 'auditor';
+  const isPlatformAdmin = roleCategory === 'superadmin';
 
   return (
     <AuthContext.Provider value={{

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Shield, CheckCircle, XCircle, Clock, AlertTriangle, ExternalLink, RefreshCw, ChevronRight, FileText, User, Search, Eye } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { getKycMeta, isKycApproved, isKycDeclined, isKycInProgress, isKycInReview } from '../../lib/kycStatus';
+import { must } from '../../lib/db';
 
 interface KYCRecord {
   id: string;
@@ -17,54 +19,28 @@ interface KYCRecord {
   full_legal_name: string | null;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
-  'Not Started': {
-    label: 'Not Started',
-    color: 'text-slate-400',
-    bg: 'bg-slate-800/50',
-    border: 'border-slate-700',
-    icon: <Clock className="w-5 h-5" />,
-  },
-  'In Progress': {
-    label: 'In Progress',
-    color: 'text-cyan-400',
-    bg: 'bg-cyan-500/10',
-    border: 'border-cyan-500/30',
-    icon: <RefreshCw className="w-5 h-5 animate-spin" />,
-  },
-  'Approved': {
-    label: 'Verified',
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/30',
-    icon: <CheckCircle className="w-5 h-5" />,
-  },
-  'Declined': {
-    label: 'Declined',
-    color: 'text-red-400',
-    bg: 'bg-red-500/10',
-    border: 'border-red-500/30',
-    icon: <XCircle className="w-5 h-5" />,
-  },
-  'In Review': {
-    label: 'Under Review',
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/30',
-    icon: <Eye className="w-5 h-5" />,
-  },
-  'Abandoned': {
-    label: 'Not Completed',
-    color: 'text-slate-400',
-    bg: 'bg-slate-800/50',
-    border: 'border-slate-700',
-    icon: <AlertTriangle className="w-5 h-5" />,
-  },
+// Tone → visual style mapping (portal dark-theme palette)
+const TONE_STYLE = {
+  neutral: { color: 'text-slate-400', bg: 'bg-slate-800/50', border: 'border-slate-700' },
+  info:    { color: 'text-cyan-400',  bg: 'bg-cyan-500/10',  border: 'border-cyan-500/30' },
+  success: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
+  danger:  { color: 'text-red-400',   bg: 'bg-red-500/10',   border: 'border-red-500/30' },
+  warn:    { color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30' },
+} as const;
+
+const TONE_ICON: Record<string, React.ReactNode> = {
+  neutral: <Clock className="w-5 h-5" />,
+  info:    <RefreshCw className="w-5 h-5 animate-spin" />,
+  success: <CheckCircle className="w-5 h-5" />,
+  danger:  <XCircle className="w-5 h-5" />,
+  warn:    <Eye className="w-5 h-5" />,
 };
 
 function getStatusConfig(status: string | null) {
-  if (!status) return STATUS_CONFIG['Not Started'];
-  return STATUS_CONFIG[status] || STATUS_CONFIG['Not Started'];
+  const meta = getKycMeta(status);
+  const style = TONE_STYLE[meta.tone];
+  const icon = TONE_ICON[meta.tone] ?? <AlertTriangle className="w-5 h-5" />;
+  return { label: meta.label, ...style, icon };
 }
 
 export default function KYCVerification() {
@@ -77,13 +53,21 @@ export default function KYCVerification() {
 
   const loadKYCRecord = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('kyc_aml_records')
-      .select('id, didit_session_id, didit_session_url, didit_session_status, id_verification_status, aml_screening_status, verification_initiated_at, verification_completed_at, didit_id_data, didit_aml_hits, full_legal_name')
-      .eq('client_user_id', user.id)
-      .maybeSingle();
-    setKycRecord(data as KYCRecord | null);
-    setLoading(false);
+    try {
+      const data = await must(
+        supabase
+          .from('kyc_aml_records')
+          .select('id, didit_session_id, didit_session_url, didit_session_status, id_verification_status, aml_screening_status, verification_initiated_at, verification_completed_at, didit_id_data, didit_aml_hits, full_legal_name')
+          .eq('client_user_id', user.id)
+          .maybeSingle()
+      );
+      setKycRecord(data as KYCRecord | null);
+    } catch (err) {
+      setError('Unable to load verification status. Please refresh and try again.');
+      console.warn('KYC load error:', err);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -157,10 +141,10 @@ export default function KYCVerification() {
 
   const sessionStatus = kycRecord?.didit_session_status || null;
   const statusCfg = getStatusConfig(sessionStatus);
-  const isVerified = sessionStatus === 'Approved';
-  const isDeclined = sessionStatus === 'Declined';
-  const isInProgress = sessionStatus === 'In Progress';
-  const isInReview = sessionStatus === 'In Review';
+  const isVerified = isKycApproved(sessionStatus);
+  const isDeclined = isKycDeclined(sessionStatus);
+  const isInProgress = isKycInProgress(sessionStatus);
+  const isInReview = isKycInReview(sessionStatus);
   const hasSession = !!kycRecord?.didit_session_id;
   const canResume = hasSession && (isInProgress || sessionStatus === 'Abandoned' || sessionStatus === 'Not Started');
 

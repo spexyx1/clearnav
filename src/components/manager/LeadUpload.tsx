@@ -218,34 +218,39 @@ export default function LeadUpload() {
 
       if (importError) throw importError;
 
+      // Build structured rows first (skip rows with no email)
+      const structuredRows = csvData
+        .map(row => {
+          const leadData: any = { tenant_id: tenantInfo.id };
+          fieldMapping.forEach(mapping => {
+            if (mapping.systemField !== 'skip') {
+              leadData[mapping.systemField] = row[mapping.csvColumn];
+            }
+          });
+          return leadData;
+        })
+        .filter(r => !!r.email);
+
+      // Single prefetch to detect all duplicates — avoids N+1 round-trips
+      const allEmails = structuredRows.map(r => (r.email as string).toLowerCase());
+      const { data: existingRows, error: dupeErr } = await supabase
+        .from('ai_lead_queue')
+        .select('contact_email')
+        .eq('tenant_id', tenantInfo.id)
+        .in('contact_email', allEmails);
+      if (dupeErr) throw dupeErr;
+
+      const dupeSet = new Set((existingRows ?? []).map(e => (e.contact_email as string).toLowerCase()));
+
+      const freshRows = structuredRows.filter(r => !dupeSet.has((r.email as string).toLowerCase()));
+      const duplicates = structuredRows.length - freshRows.length;
+
+      // Batch-insert in chunks of 500 to stay within payload limits
       let newContacts = 0;
-      let duplicates = 0;
       let valid = 0;
-
-      for (const row of csvData) {
-        const leadData: any = { tenant_id: tenantInfo.id };
-
-        fieldMapping.forEach(mapping => {
-          if (mapping.systemField !== 'skip') {
-            leadData[mapping.systemField] = row[mapping.csvColumn];
-          }
-        });
-
-        if (!leadData.email) continue;
-
-        const { data: existingLead } = await supabase
-          .from('ai_lead_queue')
-          .select('id')
-          .eq('tenant_id', tenantInfo.id)
-          .eq('contact_email', leadData.email)
-          .maybeSingle();
-
-        if (existingLead) {
-          duplicates++;
-          continue;
-        }
-
-        const queueData = {
+      const CHUNK = 500;
+      for (let i = 0; i < freshRows.length; i += CHUNK) {
+        const chunk = freshRows.slice(i, i + CHUNK).map(leadData => ({
           tenant_id: tenantInfo.id,
           contact_email: leadData.email,
           contact_name: leadData.full_name || `${leadData.first_name || ''} ${leadData.last_name || ''}`.trim(),
@@ -256,15 +261,12 @@ export default function LeadUpload() {
           queue_status: 'new',
           assigned_campaign_id: campaignId || null,
           custom_fields: leadData,
-        };
+        }));
 
-        const { error: queueError } = await supabase
-          .from('ai_lead_queue')
-          .insert(queueData);
-
+        const { error: queueError } = await supabase.from('ai_lead_queue').insert(chunk);
         if (!queueError) {
-          newContacts++;
-          valid++;
+          newContacts += chunk.length;
+          valid += chunk.length;
         }
       }
 
