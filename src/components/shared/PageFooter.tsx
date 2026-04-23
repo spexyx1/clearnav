@@ -16,14 +16,12 @@ interface PageFooterProps {
   companyName?: string;
   copyright?: string;
   theme?: 'dark' | 'light';
-  showOperatorDetails?: boolean;
 }
 
 export default function PageFooter({
   companyName = 'ClearNAV',
   copyright,
   theme = 'dark',
-  showOperatorDetails = false,
 }: PageFooterProps) {
   const { currentLanguage, changeLanguage } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
@@ -73,16 +71,9 @@ export default function PageFooter({
     ? 'text-xs text-slate-600 hover:text-slate-400 transition-colors'
     : 'text-xs text-slate-500 hover:text-slate-700 transition-colors';
 
-  const operatorTextClass = theme === 'dark' ? 'text-slate-600' : 'text-slate-400';
-
   return (
     <footer className={`${containerClasses} py-3 mt-8`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {showOperatorDetails && (
-          <p className={`text-xs text-center pb-2 ${operatorTextClass}`}>
-            ClearNAV is operated by Grey Alpha LLC, a Wyoming LLC &mdash; 640 South Broadway Suite 40, Los Angeles, CA 90014
-          </p>
-        )}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-wrap">
             <p className={`text-xs sm:text-sm ${textClasses}`}>

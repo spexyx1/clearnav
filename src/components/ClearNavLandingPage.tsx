@@ -397,29 +397,25 @@ export default function ClearNAVLandingPage({ onLoginClick }: ClearNAVLandingPag
                 >
                   Privacy Policy
                 </a>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-white font-semibold mb-4">Company</h4>
-              <div className="space-y-1">
-                <p className="text-sm text-slate-300">Grey Alpha LLC</p>
-                <p className="text-xs text-slate-500">Wyoming Limited Liability Company</p>
-                <p className="text-xs text-slate-500 mt-2">640 South Broadway Suite 40</p>
-                <p className="text-xs text-slate-500">Los Angeles, CA 90014</p>
                 <a
-                  href="mailto:support@clearnav.cv"
-                  className="block text-xs text-slate-500 hover:text-teal-400 transition-colors mt-2"
+                  href="/contact"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.history.pushState({}, '', '/contact');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  className="block text-sm text-slate-400 hover:text-teal-400 transition-colors"
                 >
-                  support@clearnav.cv
+                  Contact Us
                 </a>
               </div>
             </div>
+
           </div>
         </div>
       </footer>
 
-      <PageFooter companyName="ClearNAV" theme="dark" showOperatorDetails />
+      <PageFooter companyName="ClearNAV" theme="dark" />
 
       {showFAQ && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center z-50 p-6">
