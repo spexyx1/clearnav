@@ -197,9 +197,22 @@ export default function LegalDocumentViewer({ documentType, tenantId }: LegalDoc
           <p className="text-slate-400 mb-4">
             If you have any questions about this {title.toLowerCase()}, please contact us at:
           </p>
-          <div className="text-slate-300">
-            <p>Email: {documentType === 'terms' ? 'legal@clearnav.com' : 'privacy@clearnav.com'}</p>
-            <p>Phone: 1-800-CLEARNAV</p>
+          <div className="text-slate-300 space-y-1">
+            <p>
+              Email:{' '}
+              <a
+                href={`mailto:${documentType === 'terms' ? 'support@clearnav.cv' : 'privacy@clearnav.cv'}`}
+                className="text-cyan-400 hover:text-cyan-300 transition-colors"
+              >
+                {documentType === 'terms' ? 'support@clearnav.cv' : 'privacy@clearnav.cv'}
+              </a>
+            </p>
+          </div>
+          <div className="mt-4 pt-4 border-t border-slate-800 text-slate-500 text-sm space-y-0.5">
+            <p className="font-medium text-slate-400">Grey Alpha LLC</p>
+            <p>Wyoming Limited Liability Company</p>
+            <p>640 South Broadway Suite 40</p>
+            <p>Los Angeles, CA 90014</p>
           </div>
         </div>
 
