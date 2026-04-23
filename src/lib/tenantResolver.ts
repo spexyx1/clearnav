@@ -45,12 +45,18 @@ export async function resolveTenantFromDomain(hostname: string): Promise<Resolve
       lookupDomains.push(`www.${effectiveHostname}`);
     }
 
-    const { data: domainData } = await supabase
+    const { data: domainRows, error: domainError } = await supabase
       .from('tenant_domains')
       .select('tenant_id')
       .in('domain', lookupDomains)
       .eq('is_verified', true)
-      .maybeSingle();
+      .limit(1);
+
+    if (domainError) {
+      console.error('[tenantResolver] domain lookup error:', domainError.message);
+    }
+
+    const domainData = domainRows?.[0] ?? null;
 
     if (domainData?.tenant_id) {
       const { data: tenantData } = await supabase
