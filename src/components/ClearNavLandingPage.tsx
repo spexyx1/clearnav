@@ -1,6 +1,8 @@
 import { ArrowRight, BarChart3, Shield, Users, Zap, CheckCircle, Globe, HelpCircle, LineChart, CreditCard, Calculator, FileCheck, Bell, Lock, Bot, Layers, Brain, Rocket, Send, Calendar, Target, MessageSquare, Database, ShieldCheck } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PageFooter from './shared/PageFooter';
+
+const CLEARNAV_FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%230A1628'/%3E%3Cpolyline points='5%2C23 11%2C14 17%2C19 23%2C9 27%2C13' fill='none' stroke='%2306B6D4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E";
 
 interface ClearNAVLandingPageProps {
   onLoginClick: () => void;
@@ -8,6 +10,16 @@ interface ClearNAVLandingPageProps {
 
 export default function ClearNAVLandingPage({ onLoginClick }: ClearNAVLandingPageProps) {
   const [showFAQ, setShowFAQ] = useState(false);
+
+  useEffect(() => {
+    document.title = 'ClearNAV — Fund Management Platform';
+    const fav = document.getElementById('favicon') as HTMLLinkElement
+      || document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+    if (fav) {
+      fav.type = 'image/svg+xml';
+      fav.href = CLEARNAV_FAVICON;
+    }
+  }, []);
 
   const navigateToSignup = () => {
     window.location.href = '/signup';

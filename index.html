@@ -2,13 +2,95 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Loading...</title>
     <meta name="description" content="" />
+
+    <!--
+      ClearNAV favicon — dark navy square, NAV chart line in cyan.
+      Used on the platform root (clearnav.cv) and as fallback.
+    -->
+    <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%230A1628'/%3E%3Cpolyline points='5%2C23 11%2C14 17%2C19 23%2C9 27%2C13' fill='none' stroke='%2306B6D4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+
+    <!--
+      Theme-priming script — runs synchronously before React hydrates.
+
+      For tenants with known custom domains: immediately applies brand
+      CSS variables and swaps the favicon so the very first paint is
+      in the correct brand colors with zero flash.
+
+      To add a new tenant: add an entry to TENANT_THEMES keyed by
+      the production domain (without www).
+    -->
+    <script>
+      (function () {
+        var TENANT_THEMES = {
+          'arklinetrust.com': {
+            primary:       '#1B3A2D',
+            secondary:     '#244D3C',
+            accent:        '#B8934A',
+            accentLight:   '#D4A85C',
+            background:    '#FFFFFF',
+            backgroundAlt: '#F5F2EE',
+            text:          '#1A1A1A',
+            textSecondary: '#4A4A4A',
+            textLight:     '#7A7A7A',
+            border:        '#E0DBD4',
+            headingFont:   '"Cormorant Garamond","Garamond",Georgia,serif',
+            bodyFont:      '"Nunito Sans","Inter",system-ui,sans-serif',
+            // Arkline favicon: forest-green square, gold diamond mark
+            favicon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%231B3A2D'/%3E%3Cpath d='M16 6 L27 16 L16 26 L5 16 Z' fill='none' stroke='%23B8934A' stroke-width='1.8' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='2.8' fill='%23B8934A'/%3E%3C/svg%3E",
+          },
+        };
+
+        function getCookie(name) {
+          var parts = document.cookie.split('; ');
+          for (var i = 0; i < parts.length; i++) {
+            if (parts[i].indexOf(name + '=') === 0) {
+              return decodeURIComponent(parts[i].slice(name.length + 1));
+            }
+          }
+          return null;
+        }
+
+        var domain = getCookie('tenant-domain');
+        if (!domain) {
+          var host = location.hostname.replace(/^www\./, '');
+          if (TENANT_THEMES[host]) domain = host;
+        }
+
+        var theme = domain && TENANT_THEMES[domain];
+        if (!theme) return;
+
+        // Apply CSS variables immediately — sections that use var(--color-*)
+        // will render in the correct colors on first paint.
+        var r = document.documentElement;
+        r.style.setProperty('--color-primary',        theme.primary);
+        r.style.setProperty('--color-secondary',      theme.secondary);
+        r.style.setProperty('--color-accent',         theme.accent);
+        r.style.setProperty('--color-accentLight',    theme.accentLight);
+        r.style.setProperty('--color-background',     theme.background);
+        r.style.setProperty('--color-backgroundAlt',  theme.backgroundAlt);
+        r.style.setProperty('--color-text',           theme.text);
+        r.style.setProperty('--color-textSecondary',  theme.textSecondary);
+        r.style.setProperty('--color-textLight',      theme.textLight);
+        r.style.setProperty('--color-border',         theme.border);
+        r.style.setProperty('--font-heading',         theme.headingFont);
+        r.style.setProperty('--font-body',            theme.bodyFont);
+
+        // Set body background synchronously so there is no colour flash
+        // between the html background and the React root mounting.
+        r.style.backgroundColor = theme.background;
+
+        // Swap favicon immediately — no async tick required
+        var fav = document.getElementById('favicon');
+        if (fav && theme.favicon) fav.setAttribute('href', theme.favicon);
+      })();
+    </script>
+
     <style>
-      html, body { margin: 0; padding: 0; background-color: #F5F2EE; }
-      #root { min-height: 100vh; background-color: #F5F2EE; }
+      html, body { margin: 0; padding: 0; }
+      #root { min-height: 100vh; }
     </style>
   </head>
   <body>

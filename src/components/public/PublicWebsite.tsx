@@ -49,7 +49,6 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
   const [siteStatus, setSiteStatus] = useState<string>('live');
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   const displayName = branding.company_name || (tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1));
   const accentColor = (theme?.colors as any)?.accent || '#C9A84C';
@@ -75,8 +74,6 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
 
   async function loadSiteData() {
     try {
-      setLoading(true);
-
       const [themeResult, settingsResult, headerNavResult, footerNavResult] = await Promise.all([
         supabase
           .from('site_themes')
@@ -122,8 +119,6 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
       }
     } catch (error) {
       console.error('Error loading site data:', error);
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -143,15 +138,29 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
     root.style.setProperty('--font-heading', t.typography.headingFont);
     root.style.setProperty('--font-body', t.typography.bodyFont);
 
-    if (t.favicon_url) {
-      let favicon = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
-      if (!favicon) {
-        favicon = document.createElement('link');
-        favicon.rel = 'icon';
-        document.head.appendChild(favicon);
-      }
-      favicon.href = t.favicon_url;
+    // Set favicon — prefer tenant-uploaded URL, fallback to generated SVG
+    const faviconHref = t.favicon_url || generateFaviconSvg(
+      (t.colors as any).primary || '#1B3A2D',
+      (t.colors as any).accent || '#B8934A'
+    );
+    let favicon = document.querySelector('#favicon') as HTMLLinkElement
+      || document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+    if (!favicon) {
+      favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      favicon.id = 'favicon';
+      document.head.appendChild(favicon);
     }
+    favicon.type = 'image/svg+xml';
+    favicon.href = faviconHref;
+  }
+
+  function generateFaviconSvg(primary: string, accent: string): string {
+    // Encode colors for inline SVG data URI
+    const p = encodeURIComponent(primary);
+    const a = encodeURIComponent(accent);
+    // Elegant monogram-style mark: dark square, accent diamond/chevron
+    return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='${p}'/%3E%3Cpath d='M16 7 L26 16 L16 25 L6 16 Z' fill='none' stroke='${a}' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='${a}'/%3E%3C/svg%3E`;
   }
 
   useEffect(() => {
@@ -176,16 +185,8 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
     window.dispatchEvent(new PopStateEvent('popstate'));
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F2EE' }}>
-        <div
-          className="w-10 h-10 border-2 border-t-transparent rounded-full animate-spin"
-          style={{ borderColor: '#D4C4A8', borderTopColor: 'transparent' }}
-        />
-      </div>
-    );
-  }
+  // No loading gate — CSS variables are pre-primed by the inline script in index.html,
+  // so we render the shell immediately and content fills in as data arrives.
 
   if (siteStatus === 'coming_soon') {
     return (
