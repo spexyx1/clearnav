@@ -6,26 +6,42 @@
     <title>Loading...</title>
     <meta name="description" content="" />
 
+    <!-- Preconnect to Supabase so DNS+TLS is resolved during HTML parse -->
+    <link rel="preconnect" href="https://xielqbwkiibeaajljamo.supabase.co" crossorigin />
+
     <!--
-      ClearNAV favicon — dark navy square, NAV chart line in cyan.
-      Used on the platform root (clearnav.cv) and as fallback.
+      ClearNAV default favicon — dark navy, cyan NAV chart line.
+      Swapped to the tenant favicon immediately by the priming script below
+      when a known tenant domain is detected.
     -->
-    <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%230A1628'/%3E%3Cpolyline points='5%2C23 11%2C14 17%2C19 23%2C9 27%2C13' fill='none' stroke='%2306B6D4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <link
+      id="favicon"
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%230A1628'/%3E%3Cpolyline points='5%2C23 11%2C14 17%2C19 23%2C9 27%2C13' fill='none' stroke='%2306B6D4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
 
     <!--
-      Theme-priming script — runs synchronously before React hydrates.
+      PHASE 1 — Synchronous theme priming.
 
-      For tenants with known custom domains: immediately applies brand
-      CSS variables and swaps the favicon so the very first paint is
-      in the correct brand colors with zero flash.
+      Runs before any paint. Reads the tenant-domain cookie (set by Vercel Edge
+      Middleware) or detects from hostname, then:
+        a) Sets all CSS variables so the first paint uses brand colours.
+        b) Swaps the favicon immediately.
+        c) Starts a parallel fetch for all site data (theme + branding +
+           navigation + home page content) and stores the promise on
+           window.__TENANT_BOOTSTRAP__ so React can await it without
+           incurring an extra round-trip.
 
-      To add a new tenant: add an entry to TENANT_THEMES keyed by
-      the production domain (without www).
+      To add a new tenant domain: add one entry to TENANT_MAP below.
+      The tenantId must match platform_tenants.id in Supabase.
     -->
     <script>
       (function () {
-        var TENANT_THEMES = {
+        // ─── Tenant registry ───────────────────────────────────────────────
+        var TENANT_MAP = {
           'arklinetrust.com': {
+            tenantId: '66aa0d61-696b-46e1-b2d3-4efcb8a315af',
             primary:       '#1B3A2D',
             secondary:     '#244D3C',
             accent:        '#B8934A',
@@ -38,63 +54,213 @@
             border:        '#E0DBD4',
             headingFont:   '"Cormorant Garamond","Garamond",Georgia,serif',
             bodyFont:      '"Nunito Sans","Inter",system-ui,sans-serif',
-            // Arkline favicon: forest-green square, gold diamond mark
             favicon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%231B3A2D'/%3E%3Cpath d='M16 6 L27 16 L16 26 L5 16 Z' fill='none' stroke='%23B8934A' stroke-width='1.8' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='2.8' fill='%23B8934A'/%3E%3C/svg%3E",
           },
         };
 
+        // ─── Helpers ───────────────────────────────────────────────────────
+        var SUPA_URL  = 'https://xielqbwkiibeaajljamo.supabase.co';
+        var SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpZWxxYndraWliZWFhamxqYW1vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MTg2MDcsImV4cCI6MjA4NTE5NDYwN30.YpEw8siBfrbtdpMzLsl4RsinBd_2QayVTulWgYna1Gg';
+        var HEADERS   = { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY };
+
         function getCookie(name) {
           var parts = document.cookie.split('; ');
           for (var i = 0; i < parts.length; i++) {
-            if (parts[i].indexOf(name + '=') === 0) {
+            if (parts[i].indexOf(name + '=') === 0)
               return decodeURIComponent(parts[i].slice(name.length + 1));
-            }
           }
           return null;
         }
 
+        function supaFetch(path) {
+          return fetch(SUPA_URL + '/rest/v1/' + path, { headers: HEADERS })
+            .then(function (r) { return r.json(); });
+        }
+
+        function supaRpc(fn, body) {
+          return fetch(SUPA_URL + '/rest/v1/rpc/' + fn, {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, HEADERS),
+            body: JSON.stringify(body),
+          }).then(function (r) { return r.json(); });
+        }
+
+        // ─── Detect tenant ─────────────────────────────────────────────────
         var domain = getCookie('tenant-domain');
         if (!domain) {
           var host = location.hostname.replace(/^www\./, '');
-          if (TENANT_THEMES[host]) domain = host;
+          if (TENANT_MAP[host]) domain = host;
         }
+        var tenant = domain && TENANT_MAP[domain];
+        if (!tenant) return; // platform root — nothing to prime
 
-        var theme = domain && TENANT_THEMES[domain];
-        if (!theme) return;
-
-        // Apply CSS variables immediately — sections that use var(--color-*)
-        // will render in the correct colors on first paint.
+        // ─── Apply CSS variables synchronously ─────────────────────────────
         var r = document.documentElement;
-        r.style.setProperty('--color-primary',        theme.primary);
-        r.style.setProperty('--color-secondary',      theme.secondary);
-        r.style.setProperty('--color-accent',         theme.accent);
-        r.style.setProperty('--color-accentLight',    theme.accentLight);
-        r.style.setProperty('--color-background',     theme.background);
-        r.style.setProperty('--color-backgroundAlt',  theme.backgroundAlt);
-        r.style.setProperty('--color-text',           theme.text);
-        r.style.setProperty('--color-textSecondary',  theme.textSecondary);
-        r.style.setProperty('--color-textLight',      theme.textLight);
-        r.style.setProperty('--color-border',         theme.border);
-        r.style.setProperty('--font-heading',         theme.headingFont);
-        r.style.setProperty('--font-body',            theme.bodyFont);
+        r.style.setProperty('--color-primary',        tenant.primary);
+        r.style.setProperty('--color-secondary',      tenant.secondary);
+        r.style.setProperty('--color-accent',         tenant.accent);
+        r.style.setProperty('--color-accentLight',    tenant.accentLight);
+        r.style.setProperty('--color-background',     tenant.background);
+        r.style.setProperty('--color-backgroundAlt',  tenant.backgroundAlt);
+        r.style.setProperty('--color-text',           tenant.text);
+        r.style.setProperty('--color-textSecondary',  tenant.textSecondary);
+        r.style.setProperty('--color-textLight',      tenant.textLight);
+        r.style.setProperty('--color-border',         tenant.border);
+        r.style.setProperty('--font-heading',         tenant.headingFont);
+        r.style.setProperty('--font-body',            tenant.bodyFont);
+        r.style.backgroundColor = tenant.background;
 
-        // Set body background synchronously so there is no colour flash
-        // between the html background and the React root mounting.
-        r.style.backgroundColor = theme.background;
-
-        // Swap favicon immediately — no async tick required
+        // ─── Swap favicon synchronously ────────────────────────────────────
         var fav = document.getElementById('favicon');
-        if (fav && theme.favicon) fav.setAttribute('href', theme.favicon);
+        if (fav && tenant.favicon) fav.setAttribute('href', tenant.favicon);
+
+        // ─── Fire parallel data fetch ──────────────────────────────────────
+        // This runs NOW, in parallel with the React bundle download.
+        // By the time React mounts and awaits this promise, the data is
+        // usually already resolved — zero extra round-trip latency.
+        var tid = tenant.tenantId;
+
+        window.__TENANT_BOOTSTRAP__ = Promise.all([
+          // 1. Theme
+          supaFetch('site_themes?tenant_id=eq.' + tid + '&is_active=eq.true&select=colors,typography,logo_url,favicon_url,custom_css&limit=1'),
+          // 2. Public settings (branding + site status)
+          supaRpc('get_tenant_public_settings', { p_tenant_id: tid }),
+          // 3. Header nav
+          supaFetch('navigation_menus?tenant_id=eq.' + tid + '&menu_type=eq.header&select=items&limit=1'),
+          // 4. Footer nav
+          supaFetch('navigation_menus?tenant_id=eq.' + tid + '&menu_type=eq.footer&select=items&limit=1'),
+          // 5. Home page metadata
+          supaFetch('site_pages?tenant_id=eq.' + tid + '&slug=eq.home&is_published=eq.true&select=id,slug,title,meta_description&limit=1'),
+          // 6. Home page sections
+          supaFetch('website_content?tenant_id=eq.' + tid + '&page_slug=eq.home&is_published=eq.true&select=id,section_type,section_order,content&order=section_order.asc'),
+        ]).then(function (results) {
+          var themeRow     = Array.isArray(results[0]) ? results[0][0] : null;
+          var settings     = results[1];
+          var headerNavRow = Array.isArray(results[2]) ? results[2][0] : null;
+          var footerNavRow = Array.isArray(results[3]) ? results[3][0] : null;
+          var pageRow      = Array.isArray(results[4]) ? results[4][0] : null;
+          var sections     = Array.isArray(results[5]) ? results[5] : [];
+
+          return {
+            tenantId: tid,
+            slug: 'home',
+            site: {
+              theme: themeRow || null,
+              branding: (settings && settings.branding) ? settings.branding : {},
+              siteStatus: (settings && settings.site_status) ? settings.site_status : 'live',
+              headerNav: (headerNavRow && headerNavRow.items) ? headerNavRow.items : [],
+              footerNav: (footerNavRow && footerNavRow.items) ? footerNavRow.items : [],
+            },
+            page: {
+              page: pageRow || null,
+              sections: sections,
+            },
+          };
+        }).catch(function () { return null; });
+
       })();
     </script>
 
+    <!--
+      PHASE 2 — Inline skeleton shell.
+
+      Shown immediately on first-ever cold load (no cache, bootstrap still
+      in-flight). Uses the CSS variables already set above, so colours match
+      the real site. Replaced atomically by React when it mounts — no layout
+      shift, no visible transition.
+    -->
     <style>
       html, body { margin: 0; padding: 0; }
       #root { min-height: 100vh; }
+
+      /* Skeleton is only visible before React hydrates */
+      #pre-shell { display: flex; flex-direction: column; min-height: 100vh; }
+      #root:not(:empty) ~ * { display: none !important; }
+
+      @keyframes shimmer {
+        0%   { background-position: -600px 0; }
+        100% { background-position:  600px 0; }
+      }
+      .sk {
+        background: linear-gradient(
+          90deg,
+          var(--color-backgroundAlt, #F5F2EE) 25%,
+          var(--color-border, #E0DBD4)        50%,
+          var(--color-backgroundAlt, #F5F2EE) 75%
+        );
+        background-size: 1200px 100%;
+        animation: shimmer 1.4s infinite linear;
+        border-radius: 3px;
+      }
     </style>
   </head>
   <body>
+    <!--
+      Pre-shell: visible only until React mounts (replaces #root content).
+      Hidden via CSS once #root has children.
+    -->
+    <div id="pre-shell" aria-hidden="true">
+      <!-- Header bar -->
+      <div style="
+        background-color: var(--color-primary, #1B3A2D);
+        height: 64px;
+        display: flex;
+        align-items: center;
+        padding: 0 24px;
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      ">
+        <!-- Logo placeholder -->
+        <div class="sk" style="width:140px; height:22px; opacity:0.35;"></div>
+        <!-- Nav items placeholder -->
+        <div style="margin-left:auto; display:flex; gap:24px; align-items:center;">
+          <div class="sk" style="width:56px; height:14px; opacity:0.25;"></div>
+          <div class="sk" style="width:56px; height:14px; opacity:0.25;"></div>
+          <div class="sk" style="width:56px; height:14px; opacity:0.25;"></div>
+          <div class="sk" style="width:110px; height:34px; border-radius:4px; background-color: var(--color-accent, #B8934A); opacity:0.55;"></div>
+        </div>
+      </div>
+
+      <!-- Hero placeholder -->
+      <div style="
+        background-color: var(--color-primary, #1B3A2D);
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 80px 24px;
+        gap: 20px;
+      ">
+        <div class="sk" style="width:min(580px,80vw); height:52px; opacity:0.2;"></div>
+        <div class="sk" style="width:min(440px,65vw); height:24px; opacity:0.15; margin-top:8px;"></div>
+        <div class="sk" style="width:min(340px,55vw); height:20px; opacity:0.12;"></div>
+        <div style="display:flex; gap:16px; margin-top:24px;">
+          <div class="sk" style="width:160px; height:44px; border-radius:2px; opacity:0.30;"></div>
+          <div class="sk" style="width:130px; height:44px; border-radius:2px; opacity:0.18;"></div>
+        </div>
+      </div>
+    </div>
+
     <div id="root"></div>
+
+    <script>
+      // Hide pre-shell as soon as React populates #root
+      var root = document.getElementById('root');
+      var shell = document.getElementById('pre-shell');
+      if (root && shell) {
+        var obs = new MutationObserver(function () {
+          if (root.childElementCount > 0) {
+            shell.style.display = 'none';
+            obs.disconnect();
+          }
+        });
+        obs.observe(root, { childList: true });
+      }
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
