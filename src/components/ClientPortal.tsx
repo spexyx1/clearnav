@@ -95,12 +95,10 @@ export default function ClientPortal() {
     { id: 'settings' as TabType, label: t('clientPortal.settings'), icon: SettingsIcon },
   ];
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
-      <style>{`
-        .tab-active { background-color: ${branding.colors.primary} !important; box-shadow: 0 10px 30px ${branding.colors.primary}20 !important; }
-      `}</style>
+  const primaryColor = branding.colors.primary || '#0E7490';
 
+  return (
+    <div className="min-h-screen bg-slate-950">
       <nav className="border-b border-slate-800/50 bg-slate-950/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex justify-between items-center">
@@ -109,10 +107,11 @@ export default function ClientPortal() {
                 <img src={branding.logo_url} alt={branding.company_name} className="h-8" />
               ) : (
                 <>
-                  <div className="w-8 h-8 rounded-sm" style={{ background: `linear-gradient(135deg, ${branding.colors.primary}, ${branding.colors.secondary})` }}></div>
-                  <span className="text-2xl font-light tracking-wider text-white">
-                    {branding.company_name.split(' ')[0].toUpperCase()}
-                    <span className="font-semibold">{branding.company_name.split(' ')[1]?.toUpperCase() || ''}</span>
+                  <div className="w-8 h-8 rounded-sm bg-brand-primary flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">{branding.company_name.charAt(0)}</span>
+                  </div>
+                  <span className="text-xl font-semibold tracking-wide text-white">
+                    {branding.company_name}
                   </span>
                 </>
               )}
@@ -124,7 +123,7 @@ export default function ClientPortal() {
               </div>
               <button
                 onClick={signOut}
-                className="flex items-center space-x-2 px-4 py-2 text-slate-300 hover:text-white transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 text-slate-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent rounded"
               >
                 <LogOut className="w-4 h-4" />
                 <span className="text-sm">{t('nav.signOut')}</span>
@@ -135,20 +134,25 @@ export default function ClientPortal() {
       </nav>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="flex space-x-2 mb-8 overflow-x-auto pb-2">
+        <div className="flex space-x-2 mb-8 overflow-x-auto pb-2" role="tablist">
           {tabs.map((tab) => {
             const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                role="tab"
+                aria-current={isActive ? 'page' : undefined}
+                aria-selected={isActive}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'tab-active text-white'
+                style={isActive ? { backgroundColor: primaryColor } : undefined}
+                className={`flex items-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
+                  isActive
+                    ? 'text-white'
                     : 'bg-slate-800/50 text-slate-300 hover:bg-slate-800 hover:text-white'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-4 h-4" aria-hidden />
                 <span>{tab.label}</span>
               </button>
             );
