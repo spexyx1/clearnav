@@ -29,49 +29,22 @@ interface TenantBranding {
   };
 }
 
-/** Read CSS variables already set synchronously by the index.html priming script. */
-function readCSSVar(name: string): string {
-  return document.documentElement.style.getPropertyValue(name).trim();
-}
-
-function getInitialBranding(tenantName: string): TenantBranding {
-  const primary = readCSSVar('--color-primary');
-  // Only use CSS vars if the priming script ran (tenant domain)
-  if (primary) {
-    return {
-      logo_url: '',
-      company_name: tenantName,
-      colors: {
-        primary,
-        secondary: readCSSVar('--color-secondary') || primary,
-        accent:    readCSSVar('--color-accent')    || primary,
-        background: readCSSVar('--color-background') || '#ffffff',
-        text:       readCSSVar('--color-text')       || '#1a1a1a',
-      },
-    };
-  }
-  // Platform root / no priming — ClearNAV defaults
-  return {
-    logo_url: '',
-    company_name: tenantName,
-    colors: {
-      primary:    '#06b6d4',
-      secondary:  '#0ea5e9',
-      accent:     '#22d3ee',
-      background: '#020617',
-      text:       '#ffffff',
-    },
-  };
-}
-
 export default function ClientPortal() {
   const { user, signOut, currentTenant } = useAuth();
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [profile, setProfile] = useState<any>(null);
-  const [branding, setBranding] = useState<TenantBranding>(() =>
-    getInitialBranding(currentTenant?.name || 'Portal')
-  );
+  const [branding, setBranding] = useState<TenantBranding>({
+    logo_url: '',
+    company_name: currentTenant?.name || 'Portal',
+    colors: {
+      primary: '#06b6d4',
+      secondary: '#0ea5e9',
+      accent: '#22d3ee',
+      background: '#020617',
+      text: '#ffffff',
+    },
+  });
 
   useEffect(() => {
     if (user) {
@@ -94,38 +67,15 @@ export default function ClientPortal() {
     if (!currentTenant) return;
 
     try {
-      // Prefer site_themes (canonical source), fall back to tenant_settings.branding
-      const [themeResult, settingsResult] = await Promise.all([
-        supabase
-          .from('site_themes')
-          .select('colors, logo_url')
-          .eq('tenant_id', currentTenant.id)
-          .eq('is_active', true)
-          .maybeSingle(),
-        supabase
-          .from('tenant_settings')
-          .select('branding')
-          .eq('tenant_id', currentTenant.id)
-          .maybeSingle(),
-      ]);
+      const { data, error } = await supabase
+        .from('tenant_settings')
+        .select('branding')
+        .eq('tenant_id', currentTenant.id)
+        .maybeSingle();
 
-      const colors = (themeResult.data?.colors ?? {}) as Record<string, string>;
-      const sb = settingsResult.data?.branding as any ?? {};
-
-      if (Object.keys(colors).length > 0) {
-        setBranding({
-          logo_url: themeResult.data?.logo_url || sb.logo_url || '',
-          company_name: sb.company_name || currentTenant.name,
-          colors: {
-            primary:    colors.primary    || branding.colors.primary,
-            secondary:  colors.secondary  || branding.colors.secondary,
-            accent:     colors.accent     || branding.colors.accent,
-            background: colors.background || branding.colors.background,
-            text:       colors.text       || branding.colors.text,
-          },
-        });
-      } else if (sb && sb.colors) {
-        setBranding(sb as TenantBranding);
+      if (error) throw error;
+      if (data?.branding) {
+        setBranding(data.branding as TenantBranding);
       }
     } catch (error) {
       console.error('Error loading branding:', error);
@@ -145,69 +95,39 @@ export default function ClientPortal() {
     { id: 'settings' as TabType, label: t('clientPortal.settings'), icon: SettingsIcon },
   ];
 
-  const isDarkBg = (() => {
-    const h = branding.colors.background.replace('#', '');
-    if (h.length < 6) return true;
-    const r = parseInt(h.slice(0, 2), 16);
-    const g = parseInt(h.slice(2, 4), 16);
-    const b = parseInt(h.slice(4, 6), 16);
-    return (r * 299 + g * 587 + b * 114) / 1000 < 128;
-  })();
-
-  const navBorder = isDarkBg ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
-  const navBg = isDarkBg
-    ? `${branding.colors.primary}F0`
-    : `${branding.colors.background}F5`;
-  const textPrimary = isDarkBg ? '#ffffff' : branding.colors.text;
-  const textMuted = isDarkBg ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)';
-  const tabInactiveBg = isDarkBg ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
-  const tabInactiveText = isDarkBg ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.50)';
-  const tabInactiveHoverBg = isDarkBg ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)';
-  const footerTheme = isDarkBg ? 'dark' : 'light';
-
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundColor: branding.colors.background, color: branding.colors.text }}
-    >
-      <nav
-        className="sticky top-0 z-40 backdrop-blur-md"
-        style={{
-          backgroundColor: navBg,
-          borderBottom: `1px solid ${navBorder}`,
-        }}
-      >
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+      <style>{`
+        .tab-active { background-color: ${branding.colors.primary} !important; box-shadow: 0 10px 30px ${branding.colors.primary}20 !important; }
+      `}</style>
+
+      <nav className="border-b border-slate-800/50 bg-slate-950/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
               {branding.logo_url ? (
-                <img src={branding.logo_url} alt={branding.company_name} className="h-8 w-auto object-contain" />
+                <img src={branding.logo_url} alt={branding.company_name} className="h-8" />
               ) : (
                 <>
-                  <div
-                    className="w-8 h-8 rounded-sm flex-shrink-0"
-                    style={{ backgroundColor: branding.colors.accent }}
-                  />
-                  <span className="text-xl font-semibold tracking-wide" style={{ color: textPrimary }}>
-                    {branding.company_name}
+                  <div className="w-8 h-8 rounded-sm" style={{ background: `linear-gradient(135deg, ${branding.colors.primary}, ${branding.colors.secondary})` }}></div>
+                  <span className="text-2xl font-light tracking-wider text-white">
+                    {branding.company_name.split(' ')[0].toUpperCase()}
+                    <span className="font-semibold">{branding.company_name.split(' ')[1]?.toUpperCase() || ''}</span>
                   </span>
                 </>
               )}
             </div>
             <div className="flex items-center space-x-6">
               <div className="text-right">
-                <div className="text-xs" style={{ color: textMuted }}>{t('clientPortal.welcome')}</div>
-                <div className="text-sm font-medium" style={{ color: textPrimary }}>{profile?.full_name || 'Client'}</div>
+                <div className="text-sm text-slate-400">{t('clientPortal.welcome')},</div>
+                <div className="text-white font-medium">{profile?.full_name || 'Client'}</div>
               </div>
               <button
                 onClick={signOut}
-                className="flex items-center space-x-2 px-3 py-2 rounded-lg text-sm transition-colors duration-150"
-                style={{ color: textMuted }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = textPrimary; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = textMuted; }}
+                className="flex items-center space-x-2 px-4 py-2 text-slate-300 hover:text-white transition-colors"
               >
                 <LogOut className="w-4 h-4" />
-                <span>{t('nav.signOut')}</span>
+                <span className="text-sm">{t('nav.signOut')}</span>
               </button>
             </div>
           </div>
@@ -218,26 +138,15 @@ export default function ClientPortal() {
         <div className="flex space-x-2 mb-8 overflow-x-auto pb-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="flex items-center space-x-2 px-5 py-2.5 rounded-lg font-medium transition-all duration-150 whitespace-nowrap text-sm"
-                style={isActive ? {
-                  backgroundColor: branding.colors.primary,
-                  color: '#ffffff',
-                  boxShadow: `0 4px 14px ${branding.colors.primary}40`,
-                } : {
-                  backgroundColor: tabInactiveBg,
-                  color: tabInactiveText,
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) e.currentTarget.style.backgroundColor = tabInactiveHoverBg;
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) e.currentTarget.style.backgroundColor = tabInactiveBg;
-                }}
+                className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'tab-active text-white'
+                    : 'bg-slate-800/50 text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
               >
                 <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>
@@ -259,7 +168,7 @@ export default function ClientPortal() {
           {activeTab === 'settings' && <Settings />}
         </div>
 
-        <PageFooter companyName={branding.company_name} theme={footerTheme} />
+        <PageFooter companyName={branding.company_name} theme="dark" />
       </div>
     </div>
   );

@@ -135,7 +135,7 @@ function AppContent() {
   }
 
   if (route === 'login') {
-    return <LoginPage onBack={() => navigate('/')} publicTenantId={publicTenant?.id ?? null} />;
+    return <LoginPage onBack={() => navigate(publicTenant ? '/' : '/')} />;
   }
 
   if (tenantLoading) return <FullPageLoader />;
