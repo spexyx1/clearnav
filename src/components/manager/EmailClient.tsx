@@ -192,6 +192,41 @@ export default function EmailClient() {
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
+  // Real-time subscription: refresh inbox + badge when a new inbound message arrives
+  useEffect(() => {
+    if (!selectedAccount) return;
+
+    const channel = supabase
+      .channel(`inbound:${selectedAccount.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'email_messages',
+          filter: `account_id=eq.${selectedAccount.id}`,
+        },
+        (payload) => {
+          const msg = payload.new as EmailMessage;
+          // Only refresh list if we're looking at the folder the new message landed in
+          if (msg.folder === currentFolder) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === msg.id)) return prev;
+              return [msg, ...prev];
+            });
+          }
+          if (msg.folder === 'inbox' && !msg.is_read) {
+            setFolderCounts((prev) => ({ ...prev, inbox: (prev.inbox || 0) + 1 }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedAccount, currentFolder]);
+
   const markAsRead = async (messageId: string) => {
     await supabase
       .from('email_messages')
