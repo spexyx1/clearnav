@@ -4,6 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import PageFooter from './shared/PageFooter';
+import { TutorialProvider } from '../lib/tutorial/TutorialContext';
+import { TourOverlay } from './tutorial/TourOverlay';
+import { TutorialLauncher } from './tutorial/TutorialLauncher';
+import { HelpButton } from './help/HelpButton';
+import { HelpChatPanel } from './help/HelpChatPanel';
 import Dashboard from './portal/Dashboard';
 import Returns from './portal/Returns';
 import Documents from './portal/Documents';
@@ -96,12 +101,13 @@ export default function ClientPortal() {
   ];
 
   return (
+    <TutorialProvider portal="client" onNavigate={(route) => setActiveTab(route as TabType)}>
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       <style>{`
         .tab-active { background-color: ${branding.colors.primary} !important; box-shadow: 0 10px 30px ${branding.colors.primary}20 !important; }
       `}</style>
 
-      <nav className="border-b border-slate-800/50 bg-slate-950/80 backdrop-blur-md">
+      <nav className="border-b border-slate-800/50 bg-slate-950/80 backdrop-blur-md" data-tour="client-header">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
@@ -117,11 +123,12 @@ export default function ClientPortal() {
                 </>
               )}
             </div>
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-4">
               <div className="text-right">
                 <div className="text-sm text-slate-400">{t('clientPortal.welcome')},</div>
                 <div className="text-white font-medium">{profile?.full_name || 'Client'}</div>
               </div>
+              <HelpButton variant="dark" />
               <button
                 onClick={signOut}
                 className="flex items-center space-x-2 px-4 py-2 text-slate-300 hover:text-white transition-colors"
@@ -142,6 +149,7 @@ export default function ClientPortal() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                data-tour={`client-tab-${tab.id}`}
                 className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'tab-active text-white'
@@ -170,6 +178,15 @@ export default function ClientPortal() {
 
         <PageFooter companyName={branding.company_name} theme="dark" />
       </div>
+      <TourOverlay />
+      <TutorialLauncher />
+      <HelpChatPanel
+        portal="client"
+        currentRoute={activeTab}
+        tenantName={currentTenant?.name}
+        onNavigate={(route) => setActiveTab(route as TabType)}
+      />
     </div>
+    </TutorialProvider>
   );
 }

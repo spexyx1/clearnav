@@ -1,10 +1,12 @@
-import React from 'react';
-import { Settings, Shield, Bell, Database, Globe, Languages } from 'lucide-react';
+import React, { useState } from 'react';
+import { Settings, Shield, Bell, Database, Globe, Languages, BookOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import LanguageSelector from '../shared/LanguageSelector';
+import TutorialManager from './TutorialManager';
 
 export default function PlatformSettings() {
   const { t } = useTranslation();
+  const [activeSection, setActiveSection] = useState<'general' | 'tutorial'>('general');
 
   return (
     <div className="p-6">
@@ -13,6 +15,26 @@ export default function PlatformSettings() {
         <p className="text-slate-600 mt-1">Configure platform-wide settings and preferences</p>
       </div>
 
+      <div className="flex gap-2 mb-6 border-b border-slate-200">
+        <button
+          onClick={() => setActiveSection('general')}
+          className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeSection === 'general' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          General Settings
+        </button>
+        <button
+          onClick={() => setActiveSection('tutorial')}
+          className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${activeSection === 'tutorial' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          <BookOpen size={14} />
+          Tutorial Management
+        </button>
+      </div>
+
+      {activeSection === 'tutorial' && <TutorialManager />}
+
+      {activeSection === 'general' && (
+      <>
       <div className="space-y-6">
         <div className="bg-white border border-slate-200 rounded-lg p-6">
           <div className="flex items-center space-x-3 mb-4">
@@ -148,12 +170,13 @@ export default function PlatformSettings() {
           </div>
         </div>
       </div>
-
       <div className="mt-6 flex justify-end">
         <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
           Save Settings
         </button>
       </div>
+      </>
+      )}
     </div>
   );
 }

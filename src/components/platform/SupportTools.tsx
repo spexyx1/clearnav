@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+const AISupportConversationsInline = lazy(() => import('./AISupportConversations'));
 import {
   MessageSquare,
   Search,
@@ -75,7 +76,7 @@ interface SupportTicket {
 }
 
 export default function SupportTools() {
-  const [activeView, setActiveView] = useState<'tickets' | 'notes' | 'audit' | 'domains'>('tickets');
+  const [activeView, setActiveView] = useState<'tickets' | 'notes' | 'audit' | 'domains' | 'ai_chat'>('tickets');
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [notes, setNotes] = useState<TenantNote[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -272,6 +273,16 @@ export default function SupportTools() {
             }`}
           >
             Domain Backfill
+          </button>
+          <button
+            onClick={() => setActiveView('ai_chat')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${
+              activeView === 'ai_chat'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            AI Conversations
           </button>
         </div>
 
@@ -564,6 +575,11 @@ export default function SupportTools() {
           </div>
         )}
         {activeView === 'domains' && <DomainBackfillPanel />}
+        {activeView === 'ai_chat' && (
+          <Suspense fallback={<div className="py-12 text-center text-slate-400">Loading...</div>}>
+            <AISupportConversationsInline />
+          </Suspense>
+        )}
       </div>
 
       {showCreateNote && (

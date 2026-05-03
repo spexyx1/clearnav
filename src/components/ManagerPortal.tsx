@@ -4,6 +4,11 @@ import { useAuth } from '../lib/auth';
 import { useTenantBranding } from '../lib/hooks';
 import ManagerSidebar, { TabType } from './manager/ManagerSidebar';
 import { PanelLoader } from './shared/Spinner';
+import { TutorialProvider } from '../lib/tutorial/TutorialContext';
+import { TourOverlay } from './tutorial/TourOverlay';
+import { TutorialLauncher } from './tutorial/TutorialLauncher';
+import { HelpButton } from './help/HelpButton';
+import { HelpChatPanel } from './help/HelpChatPanel';
 
 // Lazy-load every tab so only the active tab's code is downloaded.
 // Heavy portfolio/reporting tabs (which account for most of the bundle)
@@ -65,8 +70,9 @@ export default function ManagerPortal() {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   return (
+    <TutorialProvider portal="manager" onNavigate={(route) => setActiveTab(route as TabType)}>
     <div className="h-screen flex flex-col bg-slate-950">
-      <nav className="flex-shrink-0 border-b border-slate-800/50 bg-slate-950/95 backdrop-blur-md z-50">
+      <nav className="flex-shrink-0 border-b border-slate-800/50 bg-slate-950/95 backdrop-blur-md z-50" data-tour="manager-header">
         <div className="px-4 py-3">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
@@ -85,6 +91,7 @@ export default function ManagerPortal() {
             </div>
 
             <div className="flex items-center gap-3">
+              <HelpButton variant="dark" />
               <div className="relative group">
                 <div
                   onClick={() => setShowUserMenu(!showUserMenu)}
@@ -187,6 +194,16 @@ export default function ManagerPortal() {
           </div>
         </main>
       </div>
+      <TourOverlay />
+      <TutorialLauncher />
+      <HelpChatPanel
+        portal="manager"
+        currentRoute={activeTab}
+        userRole={userRole ?? undefined}
+        tenantName={currentTenant?.name}
+        onNavigate={(route) => setActiveTab(route as TabType)}
+      />
     </div>
+    </TutorialProvider>
   );
 }

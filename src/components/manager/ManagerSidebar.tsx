@@ -209,7 +209,11 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
           const hasActive = group.items.some(i => i.id === activeTab);
 
           return (
-            <div key={group.label} className="mb-1">
+            <div
+              key={group.label}
+              className="mb-1"
+              data-tour={`sidebar-${group.label.toLowerCase().replace(/\s+/g, '-')}`}
+            >
               {!collapsed && (
                 <button
                   onClick={() => toggleSection(group.label)}
@@ -235,6 +239,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
                       <button
                         key={item.id}
                         onClick={() => onTabChange(item.id)}
+                        data-tour={`sidebar-${item.id}`}
                         title={collapsed ? item.label : undefined}
                         className={`w-full flex items-center rounded-lg transition-all duration-150 group relative ${
                           collapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-3'

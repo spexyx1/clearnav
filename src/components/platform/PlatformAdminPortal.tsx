@@ -16,6 +16,11 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../lib/auth';
 import PageFooter from '../shared/PageFooter';
+import { TutorialProvider } from '../../lib/tutorial/TutorialContext';
+import { TourOverlay } from '../tutorial/TourOverlay';
+import { TutorialLauncher } from '../tutorial/TutorialLauncher';
+import { HelpButton } from '../help/HelpButton';
+import { HelpChatPanel } from '../help/HelpChatPanel';
 import TenantManagement from './TenantManagement';
 import BillingOverview from './BillingOverview';
 import PlatformAnalytics from './PlatformAnalytics';
@@ -50,8 +55,9 @@ export default function PlatformAdminPortal() {
   ];
 
   return (
+    <TutorialProvider portal="platform_admin" onNavigate={(route) => setActiveTab(route as Tab)}>
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white shadow-sm border-b border-slate-200">
+      <header className="bg-white shadow-sm border-b border-slate-200" data-tour="platform-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-3">
@@ -64,6 +70,7 @@ export default function PlatformAdminPortal() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <HelpButton variant="light" />
               <button
                 onClick={() => signOut()}
                 className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
@@ -84,6 +91,7 @@ export default function PlatformAdminPortal() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as Tab)}
+                data-tour={`platform-tab-${tab.id}`}
                 className={`flex items-center space-x-2 px-4 py-2.5 rounded-md transition-all flex-1 justify-center ${
                   activeTab === tab.id
                     ? 'bg-blue-600 text-white shadow-sm'
@@ -113,6 +121,14 @@ export default function PlatformAdminPortal() {
 
         <PageFooter companyName="Platform Admin" theme="light" />
       </div>
+      <TourOverlay />
+      <TutorialLauncher />
+      <HelpChatPanel
+        portal="platform_admin"
+        currentRoute={activeTab}
+        onNavigate={(route) => setActiveTab(route as Tab)}
+      />
     </div>
+    </TutorialProvider>
   );
 }
