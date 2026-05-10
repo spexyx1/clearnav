@@ -1,5 +1,6 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, useCallback } from 'react';
 import { LogOut } from 'lucide-react';
+import LanguageSelector from './shared/LanguageSelector';
 import { useAuth } from '../lib/auth';
 import { useTenantBranding } from '../lib/hooks';
 import ManagerSidebar, { TabType } from './manager/ManagerSidebar';
@@ -91,6 +92,7 @@ export default function ManagerPortal() {
             </div>
 
             <div className="flex items-center gap-3">
+              <LanguageSelector variant="compact" theme="dark" />
               <HelpButton variant="dark" />
               <div className="relative group">
                 <div

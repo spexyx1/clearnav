@@ -9,6 +9,7 @@ import { TourOverlay } from './tutorial/TourOverlay';
 import { TutorialLauncher } from './tutorial/TutorialLauncher';
 import { HelpButton } from './help/HelpButton';
 import { HelpChatPanel } from './help/HelpChatPanel';
+import LanguageSelector from './shared/LanguageSelector';
 import Dashboard from './portal/Dashboard';
 import Returns from './portal/Returns';
 import Documents from './portal/Documents';
@@ -128,6 +129,7 @@ export default function ClientPortal() {
                 <div className="text-sm text-slate-400">{t('clientPortal.welcome')},</div>
                 <div className="text-white font-medium">{profile?.full_name || 'Client'}</div>
               </div>
+              <LanguageSelector variant="compact" theme="dark" />
               <HelpButton variant="dark" />
               <button
                 onClick={signOut}

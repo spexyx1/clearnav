@@ -79,7 +79,9 @@
     "scheduler": "Planificateur",
     "subscribers": "Abonnés",
     "accountSettings": "Paramètres du Compte",
-    "signOut": "Se Déconnecter"
+    "signOut": "Se Déconnecter",
+    "invitationTemplates": "Modèles d'Invitation",
+    "emailTemplates": "Modèles d'E-mail"
   },
   "navGroups": {
     "portfolio": "Portefeuille",
@@ -110,6 +112,10 @@
     "billing": "Facturation",
     "analytics": "Analytique",
     "support": "Support",
+    "inbox": "Boîte de réception",
+    "emailOversight": "E-mails des locataires",
+    "financials": "Finances",
+    "complianceOfficers": "Conformité",
     "settings": "Paramètres",
     "title": "Administration de la Plateforme",
     "subtitle": "Gestion Multi-Locataires"

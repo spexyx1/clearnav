@@ -79,7 +79,9 @@
     "scheduler": "Scheduler",
     "subscribers": "Subscribers",
     "accountSettings": "Account Settings",
-    "signOut": "Sign Out"
+    "signOut": "Sign Out",
+    "invitationTemplates": "Invitation Templates",
+    "emailTemplates": "Email Templates"
   },
   "navGroups": {
     "portfolio": "Portfolio",
@@ -110,6 +112,10 @@
     "billing": "Billing",
     "analytics": "Analytics",
     "support": "Support",
+    "inbox": "Inbox",
+    "emailOversight": "Tenant Emails",
+    "financials": "Financials",
+    "complianceOfficers": "Compliance",
     "settings": "Settings",
     "title": "Platform Admin",
     "subtitle": "Multi-Tenant Management"

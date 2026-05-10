@@ -79,7 +79,9 @@
     "scheduler": "Programador",
     "subscribers": "Suscriptores",
     "accountSettings": "Configuración de Cuenta",
-    "signOut": "Cerrar Sesión"
+    "signOut": "Cerrar Sesión",
+    "invitationTemplates": "Plantillas de Invitación",
+    "emailTemplates": "Plantillas de Correo"
   },
   "navGroups": {
     "portfolio": "Portafolio",
@@ -110,6 +112,10 @@
     "billing": "Facturación",
     "analytics": "Análisis",
     "support": "Soporte",
+    "inbox": "Bandeja de Entrada",
+    "emailOversight": "Correos de Inquilinos",
+    "financials": "Finanzas",
+    "complianceOfficers": "Cumplimiento",
     "settings": "Configuración",
     "title": "Administración de Plataforma",
     "subtitle": "Gestión Multi-Inquilino"

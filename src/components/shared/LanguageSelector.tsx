@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Check, Search, Globe } from 'lucide-react';
+import { Check, Search, Globe, ChevronDown, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useTranslation } from 'react-i18next';
 
@@ -14,7 +14,9 @@ export default function LanguageSelector({ variant = 'full', theme = 'dark' }: L
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const filteredLanguages = languages.filter(lang =>
     lang.nativeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -23,78 +25,93 @@ export default function LanguageSelector({ variant = 'full', theme = 'dark' }: L
   );
 
   useEffect(() => {
+    if (!isOpen) return;
+
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
         setSearchQuery('');
       }
     }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+        setSearchQuery('');
+        triggerRef.current?.focus();
+      }
     }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen]);
 
   const handleLanguageSelect = async (code: string) => {
     setSaving(true);
+    setErrorMsg(null);
     try {
       await setLanguage(code);
       setIsOpen(false);
       setSearchQuery('');
     } catch (error) {
-      console.error('Failed to update language:', error);
-      alert(`Failed to change language: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setErrorMsg(error instanceof Error ? error.message : t('settings.languageError'));
     } finally {
       setSaving(false);
     }
   };
 
   const currentLang = languages.find(lang => lang.code === currentLanguage);
+  const isDark = theme === 'dark';
 
   if (variant === 'compact') {
-    const isDark = theme === 'dark';
-
     const buttonClasses = isDark
-      ? "flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors border border-slate-700/30 hover:border-slate-600"
-      : "flex items-center gap-2 px-3 py-2 rounded-lg bg-transparent hover:bg-slate-100 transition-colors border border-slate-300 hover:border-slate-400";
-
-    const iconClasses = isDark ? "w-5 h-5 text-slate-500" : "w-5 h-5 text-slate-600";
-    const textClasses = isDark ? "text-sm font-medium uppercase text-slate-500" : "text-sm font-medium uppercase text-slate-600";
+      ? 'flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors border border-slate-700/30 hover:border-slate-600'
+      : 'flex items-center gap-2 px-3 py-2 rounded-lg bg-transparent hover:bg-slate-100 transition-colors border border-slate-300 hover:border-slate-400';
 
     const dropdownClasses = isDark
-      ? "absolute right-0 bottom-full mb-2 w-64 sm:w-80 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden max-h-96 overflow-y-auto"
-      : "absolute right-0 bottom-full mb-2 w-64 sm:w-80 bg-white border border-slate-300 rounded-lg shadow-xl z-50 overflow-hidden max-h-96 overflow-y-auto";
+      ? 'absolute right-0 bottom-full mb-2 w-72 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden'
+      : 'absolute right-0 bottom-full mb-2 w-72 bg-white border border-slate-300 rounded-lg shadow-xl z-50 overflow-hidden';
 
-    const searchWrapperClasses = isDark ? "p-3 border-b border-slate-800" : "p-3 border-b border-slate-200";
     const searchInputClasses = isDark
-      ? "w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-      : "w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 placeholder-slate-500 focus:outline-none focus:border-cyan-500";
+      ? 'w-full pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-cyan-500'
+      : 'w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 placeholder-slate-500 text-sm focus:outline-none focus:border-cyan-500';
 
-    const itemClasses = isDark
-      ? "w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-800 transition-colors"
-      : "w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition-colors";
-
-    const itemActiveClasses = isDark ? "bg-slate-800/50" : "bg-slate-100";
-    const itemTextClasses = isDark ? "text-white" : "text-slate-900";
-    const itemSubtextClasses = isDark ? "text-slate-400" : "text-slate-600";
+    const itemBaseClasses = isDark
+      ? 'w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-800 transition-colors'
+      : 'w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition-colors';
 
     return (
       <div className="relative" ref={dropdownRef}>
         <button
-          onClick={() => setIsOpen(!isOpen)}
+          ref={triggerRef}
+          onClick={() => { setIsOpen(!isOpen); setErrorMsg(null); }}
           className={buttonClasses}
-          title="Select Language"
+          title={t('settings.selectLanguage')}
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
         >
-          <Globe className={iconClasses} />
-          <span className={`${textClasses} hidden sm:inline`}>{currentLanguage}</span>
+          <Globe className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+          <span className={`text-sm font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'} hidden sm:inline`}>
+            {currentLang?.nativeName ?? currentLanguage.toUpperCase()}
+          </span>
+          <ChevronDown className={`w-3.5 h-3.5 ${isDark ? 'text-slate-500' : 'text-slate-400'} transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </button>
 
+        {errorMsg && (
+          <div className={`absolute right-0 bottom-full mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs whitespace-nowrap ${isDark ? 'bg-red-900/80 text-red-300' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+            {errorMsg}
+          </div>
+        )}
+
         {isOpen && (
-          <div className={dropdownClasses}>
-            <div className={searchWrapperClasses}>
+          <div className={dropdownClasses} role="listbox">
+            <div className={`p-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="relative">
-                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                 <input
                   type="text"
                   value={searchQuery}
@@ -106,23 +123,30 @@ export default function LanguageSelector({ variant = 'full', theme = 'dark' }: L
               </div>
             </div>
 
-            <div className="max-h-96 overflow-y-auto scrollbar-thin">
+            <div className="max-h-80 overflow-y-auto scrollbar-thin">
               {filteredLanguages.map(lang => (
                 <button
                   key={lang.code}
                   onClick={() => handleLanguageSelect(lang.code)}
                   disabled={saving}
-                  className={`${itemClasses} ${lang.code === currentLanguage ? itemActiveClasses : ''}`}
+                  role="option"
+                  aria-selected={lang.code === currentLanguage}
+                  className={`${itemBaseClasses} ${lang.code === currentLanguage ? (isDark ? 'bg-slate-800/60' : 'bg-slate-100') : ''}`}
                 >
                   <div className="flex flex-col items-start">
-                    <span className={`${itemTextClasses} font-medium`}>{lang.nativeName}</span>
-                    <span className={`text-xs ${itemSubtextClasses}`}>{lang.name}</span>
+                    <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{lang.nativeName}</span>
+                    <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{lang.name}</span>
                   </div>
                   {lang.code === currentLanguage && (
-                    <Check className="w-5 h-5 text-cyan-500" />
+                    <Check className="w-4 h-4 text-cyan-500 flex-shrink-0" />
                   )}
                 </button>
               ))}
+              {filteredLanguages.length === 0 && (
+                <div className={`px-4 py-6 text-center text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  {t('common.noData')}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -130,45 +154,56 @@ export default function LanguageSelector({ variant = 'full', theme = 'dark' }: L
     );
   }
 
+  // Full variant
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-slate-300 mb-2">
+        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
           {t('settings.currentLanguage')}
         </label>
-        <div className="flex items-center gap-3 px-4 py-3 bg-slate-800/50 rounded-lg border border-slate-700">
+        <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-300'}`}>
           <Globe className="w-5 h-5 text-cyan-500" />
           <div>
-            <div className="text-white font-medium">{currentLang?.nativeName}</div>
-            <div className="text-xs text-slate-400">{currentLang?.name}</div>
+            <div className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{currentLang?.nativeName}</div>
+            <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{currentLang?.name}</div>
           </div>
         </div>
       </div>
 
+      {errorMsg && (
+        <div className={`flex items-center gap-2 px-4 py-3 rounded-lg text-sm ${isDark ? 'bg-red-900/30 text-red-300 border border-red-800' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {errorMsg}
+        </div>
+      )}
+
       <div className="relative" ref={dropdownRef}>
-        <label className="block text-sm font-medium text-slate-300 mb-2">
+        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
           {t('settings.selectLanguage')}
         </label>
 
         <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg hover:border-slate-600 transition-colors text-white"
+          ref={triggerRef}
+          onClick={() => { setIsOpen(!isOpen); setErrorMsg(null); }}
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+          className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${isDark ? 'bg-slate-800 border border-slate-700 hover:border-slate-600 text-white' : 'bg-white border border-slate-300 hover:border-slate-400 text-slate-900'}`}
         >
           <span>{t('settings.chooseLanguage')}</span>
-          <Globe className="w-5 h-5 text-slate-400" />
+          <Globe className={`w-5 h-5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
         </button>
 
         {isOpen && (
-          <div className="absolute left-0 top-full mt-2 w-full bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
-            <div className="p-3 border-b border-slate-800">
+          <div className={`absolute left-0 top-full mt-2 w-full rounded-lg shadow-xl z-50 overflow-hidden ${isDark ? 'bg-slate-900 border border-slate-700' : 'bg-white border border-slate-200'}`} role="listbox">
+            <div className={`p-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t('settings.searchLanguages')}
-                  className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className={`w-full pl-10 pr-4 py-2 rounded-lg text-sm border focus:outline-none focus:border-cyan-500 ${isDark ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'}`}
                   autoFocus
                 />
               </div>
@@ -180,13 +215,13 @@ export default function LanguageSelector({ variant = 'full', theme = 'dark' }: L
                   key={lang.code}
                   onClick={() => handleLanguageSelect(lang.code)}
                   disabled={saving}
-                  className={`w-full flex items-center justify-between px-4 py-3 hover:bg-slate-800 transition-colors ${
-                    lang.code === currentLanguage ? 'bg-slate-800/50' : ''
-                  }`}
+                  role="option"
+                  aria-selected={lang.code === currentLanguage}
+                  className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'} ${lang.code === currentLanguage ? (isDark ? 'bg-slate-800/50' : 'bg-slate-100') : ''}`}
                 >
                   <div className="flex flex-col items-start">
-                    <span className="text-white font-medium">{lang.nativeName}</span>
-                    <span className="text-xs text-slate-400">{lang.name}</span>
+                    <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{lang.nativeName}</span>
+                    <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{lang.name}</span>
                   </div>
                   {lang.code === currentLanguage && (
                     <Check className="w-5 h-5 text-cyan-500" />
@@ -195,7 +230,7 @@ export default function LanguageSelector({ variant = 'full', theme = 'dark' }: L
               ))}
 
               {filteredLanguages.length === 0 && (
-                <div className="px-4 py-8 text-center text-slate-400">
+                <div className={`px-4 py-8 text-center ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                   {t('common.noData')}
                 </div>
               )}

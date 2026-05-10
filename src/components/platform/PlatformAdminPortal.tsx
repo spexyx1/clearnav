@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import LanguageSelector from '../shared/LanguageSelector';
 import {
   Building2,
   DollarSign,
@@ -47,10 +48,10 @@ export default function PlatformAdminPortal() {
     { id: 'billing', label: t('platformAdmin.billing'), icon: DollarSign },
     { id: 'analytics', label: t('platformAdmin.analytics'), icon: BarChart3 },
     { id: 'support', label: t('platformAdmin.support'), icon: MessageSquare },
-    { id: 'inbox', label: 'Inbox', icon: Mail },
-    { id: 'email_oversight', label: 'Tenant Emails', icon: AtSign },
-    { id: 'financials', label: 'Financials', icon: LineChart },
-    { id: 'compliance', label: 'Compliance', icon: Shield },
+    { id: 'inbox', label: t('platformAdmin.inbox'), icon: Mail },
+    { id: 'email_oversight', label: t('platformAdmin.emailOversight'), icon: AtSign },
+    { id: 'financials', label: t('platformAdmin.financials'), icon: LineChart },
+    { id: 'compliance', label: t('platformAdmin.complianceOfficers'), icon: Shield },
     { id: 'settings', label: t('platformAdmin.settings'), icon: Settings },
   ];
 
@@ -70,6 +71,7 @@ export default function PlatformAdminPortal() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <LanguageSelector variant="compact" theme="light" />
               <HelpButton variant="light" />
               <button
                 onClick={() => signOut()}

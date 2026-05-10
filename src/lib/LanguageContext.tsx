@@ -14,15 +14,35 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+function resolveLocalLanguage(): string {
+  try {
+    const stored = localStorage.getItem('language');
+    if (stored && SUPPORTED_LANGUAGES.includes(stored as any)) return stored;
+    const browser = navigator.language.split('-')[0];
+    if (SUPPORTED_LANGUAGES.includes(browser as any)) return browser;
+  } catch { /* ignore */ }
+  return 'en';
+}
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
-  const [language, setLanguageState] = useState<string>('en');
+  // Initialise from localStorage/browser so the state matches what i18n already set at module load time
+  const [language, setLanguageState] = useState<string>(() => resolveLocalLanguage());
   const [loading, setLoading] = useState(true);
 
   const currentLanguage = languages.find(lang => lang.code === language);
   const isRTL = currentLanguage?.direction === 'rtl' || false;
 
+  // Sync document direction whenever language changes
   useEffect(() => {
+    document.documentElement.setAttribute('dir', isRTL ? 'rtl' : 'ltr');
+    document.documentElement.setAttribute('lang', language);
+  }, [isRTL, language]);
+
+  // On auth resolve, reconcile language preference from server
+  useEffect(() => {
+    if (authLoading) return;
+
     async function loadLanguagePreference() {
       try {
         if (user) {
@@ -33,87 +53,62 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
             .maybeSingle();
 
           if (error && error.code !== 'PGRST116') {
-            console.error('Error loading language preference:', error);
+            // non-fatal, fall through to localStorage
           }
 
-          if (data?.language) {
-            setLanguageState(data.language);
-            i18n.changeLanguage(data.language);
-          } else {
-            const localStorageLang = localStorage.getItem('language');
-            if (localStorageLang) {
-              setLanguageState(localStorageLang);
-              i18n.changeLanguage(localStorageLang);
+          const serverLang = data?.language;
+          const localLang = resolveLocalLanguage();
 
-              await supabase
-                .from('user_preferences')
-                .insert({ user_id: user.id, language: localStorageLang })
-                .select()
-                .maybeSingle();
+          if (serverLang && SUPPORTED_LANGUAGES.includes(serverLang as any)) {
+            // Server is source of truth for signed-in users
+            if (serverLang !== language) {
+              setLanguageState(serverLang);
+              await i18n.changeLanguage(serverLang);
+              try { localStorage.setItem('language', serverLang); } catch { /* ignore */ }
             }
+          } else if (localLang !== 'en') {
+            // No server preference yet — persist the local preference
+            setLanguageState(localLang);
+            await i18n.changeLanguage(localLang);
+            await supabase
+              .from('user_preferences')
+              .upsert({ user_id: user.id, language: localLang }, { onConflict: 'user_id' });
           }
         } else {
-          const localStorageLang = localStorage.getItem('language');
-          if (localStorageLang) {
-            setLanguageState(localStorageLang);
-            i18n.changeLanguage(localStorageLang);
+          const localLang = resolveLocalLanguage();
+          if (localLang !== language) {
+            setLanguageState(localLang);
+            await i18n.changeLanguage(localLang);
           }
         }
-      } catch (error) {
-        console.error('Error in loadLanguagePreference:', error);
+      } catch (err) {
+        // Non-fatal — UI already rendered in the detected language
       } finally {
         setLoading(false);
       }
     }
 
-    if (!authLoading) {
-      loadLanguagePreference();
-    }
-  }, [user, authLoading]);
+    loadLanguagePreference();
+  }, [user, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setLanguage = async (code: string) => {
+    if (!SUPPORTED_LANGUAGES.includes(code as any)) {
+      throw new Error(`Language "${code}" is not supported`);
+    }
+
+    setLanguageState(code);
+    await i18n.changeLanguage(code);
+
     try {
-      if (!SUPPORTED_LANGUAGES.includes(code as any)) {
-        console.error(`Unsupported language: ${code}. Supported languages: ${SUPPORTED_LANGUAGES.join(', ')}`);
-        throw new Error(`Language "${code}" is not supported`);
-      }
-
-      setLanguageState(code);
-      const result = await i18n.changeLanguage(code);
-
-      if (!result) {
-        throw new Error(`i18n failed to change language to ${code}`);
-      }
-
       localStorage.setItem('language', code);
+    } catch { /* ignore */ }
 
-      if (user) {
-        const { error } = await supabase
-          .from('user_preferences')
-          .upsert(
-            { user_id: user.id, language: code },
-            { onConflict: 'user_id' }
-          );
-
-        if (error) {
-          console.error('Error saving language preference:', error);
-        }
-      }
-    } catch (error) {
-      console.error('Error setting language:', error);
-      setLanguageState('en');
-      await i18n.changeLanguage('en');
-      throw error;
+    if (user) {
+      await supabase
+        .from('user_preferences')
+        .upsert({ user_id: user.id, language: code }, { onConflict: 'user_id' });
     }
   };
-
-  useEffect(() => {
-    if (isRTL) {
-      document.documentElement.setAttribute('dir', 'rtl');
-    } else {
-      document.documentElement.setAttribute('dir', 'ltr');
-    }
-  }, [isRTL]);
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, isRTL, languages, loading }}>
