@@ -59,6 +59,7 @@ const ContentScheduler = lazy(() => import('./manager/ContentScheduler').then(m 
 const NewsletterSubscribers = lazy(() => import('./manager/NewsletterSubscribers').then(m => ({ default: m.NewsletterSubscribers })));
 const InvitationTemplateManager = lazy(() => import('./manager/InvitationTemplateManager'));
 const EmailTemplateManager = lazy(() => import('./manager/EmailTemplateManager'));
+const InvoiceManager = lazy(() => import('./manager/invoicing/InvoiceManager'));
 
 function TabFallback() {
   return <PanelLoader />;
@@ -156,6 +157,7 @@ export default function ManagerPortal() {
                 {activeTab === 'distributions' && <DistributionManager />}
                 {activeTab === 'redemptions' && <RedemptionManager />}
                 {activeTab === 'fees' && <FeeManager />}
+                {activeTab === 'invoices' && <InvoiceManager />}
                 {activeTab === 'statements' && <InvestorStatements />}
                 {activeTab === 'performance' && <PerformanceReports />}
                 {activeTab === 'reports' && <ReportLibrary />}

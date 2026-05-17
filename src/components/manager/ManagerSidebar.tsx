@@ -3,7 +3,7 @@ import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell,
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
-export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'scheduler' | 'subscribers' | 'invitation_templates' | 'email_templates' | 'account_settings';
+export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'invoices' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'scheduler' | 'subscribers' | 'invitation_templates' | 'email_templates' | 'account_settings';
 
 interface NavItem {
   id: TabType;
@@ -116,6 +116,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
         { id: 'distributions', label: t('nav.distributions'), icon: DollarSign },
         { id: 'redemptions', label: t('nav.redemptions'), icon: ArrowUpCircle },
         { id: 'fees', label: t('nav.fees'), icon: Percent },
+        { id: 'invoices', label: t('nav.invoices'), icon: CreditCard },
         { id: 'exchange', label: t('nav.exchange'), icon: ShoppingCart },
       ],
     },
