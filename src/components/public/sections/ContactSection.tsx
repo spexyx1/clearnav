@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import { Mail, Phone, MapPin, Clock, AlertCircle, CheckCircle, Building2 } from 'lucide-react';
+
+interface Office {
+  label: string;
+  lines: string[];
+}
 
 interface ContactSectionProps {
   content: {
@@ -16,6 +21,7 @@ interface ContactSectionProps {
     form_heading?: string;
     disclaimer?: string;
     show_divider?: boolean;
+    offices?: Office[];
   };
 }
 
@@ -34,6 +40,7 @@ export function ContactSection({ content }: ContactSectionProps) {
     form_heading = 'Send a Message',
     disclaimer,
     show_divider,
+    offices,
   } = content;
 
   const displayTitle = heading || title || 'Contact Us';
@@ -129,6 +136,48 @@ export function ContactSection({ content }: ContactSectionProps) {
                 </div>
               </div>
             ))}
+
+            {offices && offices.length > 0 && (
+              <div className="mt-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <Building2 size={15} style={{ color: 'var(--color-accent, #C9A84C)' }} />
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wider"
+                    style={{ color: 'var(--color-textLight, #718096)' }}
+                  >
+                    Our Offices
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {offices.map((office, i) => (
+                    <div
+                      key={i}
+                      className="p-4 rounded-lg border"
+                      style={{
+                        borderColor: 'var(--color-border, #E2E8F0)',
+                        backgroundColor: 'var(--color-backgroundAlt, #F8F7F4)',
+                      }}
+                    >
+                      <p
+                        className="text-xs font-semibold uppercase tracking-wider mb-2"
+                        style={{ color: 'var(--color-accent, #C9A84C)' }}
+                      >
+                        {office.label}
+                      </p>
+                      {office.lines.map((line, j) => (
+                        <p
+                          key={j}
+                          className="text-sm leading-relaxed"
+                          style={{ color: 'var(--color-text, #0A1628)' }}
+                        >
+                          {line}
+                        </p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {disclaimer && (
               <div

@@ -6,6 +6,7 @@ import { ContactSection } from './sections/ContactSection';
 import { CustomSection } from './sections/CustomSection';
 import { StatsSection } from './sections/StatsSection';
 import { CTASection } from './sections/CTASection';
+import { TeamSection } from './sections/TeamSection';
 
 interface SectionRendererProps {
   sectionType: string;
@@ -28,6 +29,8 @@ export function SectionRenderer({ sectionType, content }: SectionRendererProps) 
       return <CTASection content={content} />;
     case 'custom':
       return <CustomSection content={content} />;
+    case 'team':
+      return <TeamSection content={content} />;
     default:
       return null;
   }

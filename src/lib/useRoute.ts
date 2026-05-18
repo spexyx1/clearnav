@@ -10,7 +10,8 @@ export type AppRoute =
   | 'terms'
   | 'privacy'
   | 'investors'
-  | 'contact';
+  | 'contact'
+  | 'vault';
 
 function detectRoute(): AppRoute {
   const params = new URLSearchParams(window.location.search);
@@ -25,6 +26,7 @@ function detectRoute(): AppRoute {
   if (path === '/privacy')          return 'privacy';
   if (path === '/investors')        return 'investors';
   if (path === '/contact')          return 'contact';
+  if (path === '/vault')            return 'vault';
   return 'landing';
 }
 
