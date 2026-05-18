@@ -31,16 +31,27 @@ export function Spinner({ size = 'md', colorClass = 'border-cyan-500', className
   );
 }
 
-/** Full-page centred loading gate. */
+/** Full-page centred loading gate. Uses CSS variables so tenant themes show correctly. */
 export function FullPageLoader({ message }: { message?: string }) {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center gap-4"
-      style={{ backgroundColor: '#0A1628' }}
+      style={{ backgroundColor: 'var(--color-background, #FFFFFF)' }}
       aria-busy="true"
     >
-      <Spinner size="lg" colorClass="border-cyan-400" />
-      {message && <p className="text-sm" style={{ color: '#94a3b8' }}>{message}</p>}
+      <div
+        className="w-10 h-10 border-2 border-t-transparent rounded-full animate-spin"
+        style={{ borderColor: 'var(--color-accent, #B8934A)', borderTopColor: 'transparent' }}
+        role="status"
+        aria-label="Loading"
+      >
+        <span className="sr-only">Loading…</span>
+      </div>
+      {message && (
+        <p className="text-sm" style={{ color: 'var(--color-textSecondary, #6B7280)' }}>
+          {message}
+        </p>
+      )}
     </div>
   );
 }
