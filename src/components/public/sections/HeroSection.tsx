@@ -60,7 +60,7 @@ export function HeroSection({ content }: HeroSectionProps) {
 
   return (
     <section
-      className="relative min-h-[680px] flex items-center justify-center px-6 py-32 overflow-hidden"
+      className="relative min-h-[480px] flex items-center justify-center px-6 py-20 overflow-hidden"
       style={bgStyle}
     >
       {isDark && !background_image && (
