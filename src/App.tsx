@@ -29,6 +29,7 @@ function AppContent() {
   const { user, loading, roleCategory, currentTenant } = useAuth();
   const [route, navigate] = useRoute();
   const [publicTenant, setPublicTenant] = useState<{ id: string; slug: string } | null>(null);
+  const [vaultPassphrase, setVaultPassphrase] = useState('');
 
   // On the platform root (clearnav.cv, vercel previews, localhost without ?tenant),
   // there is never a public tenant — skip the network lookup entirely.
@@ -118,7 +119,10 @@ function AppContent() {
   if (route === 'vault') {
     return (
       <Suspense fallback={<Fallback />}>
-        <InvestorVault onBack={() => navigate('/')} />
+        <InvestorVault
+          onBack={() => navigate('/')}
+          onOpenReport={(passphrase) => { setVaultPassphrase(passphrase); navigate('/vault/report'); }}
+        />
       </Suspense>
     );
   }
@@ -126,7 +130,7 @@ function AppContent() {
   if (route === 'investor-report') {
     return (
       <Suspense fallback={<Fallback />}>
-        <InvestorReport onBack={() => navigate('/vault')} />
+        <InvestorReport onBack={() => navigate('/vault')} passphrase={vaultPassphrase} />
       </Suspense>
     );
   }

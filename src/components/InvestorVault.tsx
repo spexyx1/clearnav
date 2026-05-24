@@ -13,6 +13,7 @@ interface VaultDocument {
 
 interface InvestorVaultProps {
   onBack: () => void;
+  onOpenReport: (passphrase: string) => void;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
@@ -35,7 +36,7 @@ const DOC_TYPE_ICONS: Record<string, string> = {
   other:           '📎',
 };
 
-export default function InvestorVault({ onBack }: InvestorVaultProps) {
+export default function InvestorVault({ onBack, onOpenReport }: InvestorVaultProps) {
   const [phase, setPhase] = useState<'gate' | 'loading' | 'documents' | 'error'>('gate');
   const [passphrase, setPassphrase] = useState('');
   const [authError, setAuthError] = useState('');
@@ -300,14 +301,37 @@ export default function InvestorVault({ onBack }: InvestorVaultProps) {
 
                     <div className="flex gap-2 mt-auto pt-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
                       {doc.internal_path ? (
-                        <a
-                          href={doc.internal_path}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-sm text-xs font-semibold transition-all hover:brightness-110"
-                          style={{ backgroundColor: '#B8934A', color: '#0E2219' }}
-                        >
-                          <BookOpen size={13} />
-                          Read Report
-                        </a>
+                        doc.internal_path.endsWith('.pdf') ? (
+                          <>
+                            <a
+                              href={doc.internal_path}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-sm text-xs font-semibold transition-all hover:brightness-110"
+                              style={{ backgroundColor: '#B8934A', color: '#0E2219' }}
+                            >
+                              <ExternalLink size={13} />
+                              View PDF
+                            </a>
+                            <a
+                              href={doc.internal_path}
+                              download
+                              className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-sm text-xs font-semibold transition-all"
+                              style={{ backgroundColor: 'rgba(184,147,74,0.12)', color: '#B8934A', border: '1px solid rgba(184,147,74,0.25)' }}
+                            >
+                              <Download size={13} />
+                            </a>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => onOpenReport(passphrase)}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-sm text-xs font-semibold transition-all hover:brightness-110"
+                            style={{ backgroundColor: '#B8934A', color: '#0E2219' }}
+                          >
+                            <BookOpen size={13} />
+                            Read Report
+                          </button>
+                        )
                       ) : doc.signed_url ? (
                         <>
                           <a

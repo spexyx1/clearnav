@@ -5,6 +5,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 interface InvestorReportProps {
   onBack: () => void;
+  passphrase?: string;
 }
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
@@ -574,6 +575,21 @@ function ReportContent({ onBack }: { onBack: () => void }) {
 
           {/* ── Cover ── */}
           <div className="text-center mb-14">
+            {/* Arkline logo mark */}
+            <div className="flex items-center justify-center gap-3 mb-8">
+              <div
+                className="w-10 h-10 rounded flex items-center justify-center text-sm font-bold flex-shrink-0"
+                style={{ backgroundColor: C.gold, color: C.bg, fontFamily: HEADING_FONT, fontSize: '1.1rem' }}
+              >
+                A
+              </div>
+              <span
+                className="text-sm tracking-widest uppercase"
+                style={{ fontFamily: HEADING_FONT, fontWeight: 500, letterSpacing: '0.2em', color: C.textMid }}
+              >
+                Arkline Trust
+              </span>
+            </div>
             <span
               className="inline-flex items-center px-4 py-1.5 rounded-sm text-xs font-semibold tracking-widest uppercase border mb-6"
               style={{ color: C.gold, borderColor: C.goldBorder, backgroundColor: C.goldMuted }}
@@ -882,13 +898,23 @@ function ReportContent({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─── Password gate ─────────────────────────────────────────────────────────────
-export default function InvestorReport({ onBack }: InvestorReportProps) {
-  const [phase, setPhase] = useState<'gate' | 'loading' | 'report' | 'error'>('gate');
+// ─── Password gate (only shown on direct navigation to /vault/report) ──────────
+export default function InvestorReport({ onBack, passphrase: preAuthPassphrase }: InvestorReportProps) {
+  // Pre-authenticated from InvestorVault — skip gate entirely
+  if (preAuthPassphrase) {
+    return <ReportContent onBack={onBack} />;
+  }
+
+  return <ReportGate onBack={onBack} />;
+}
+
+function ReportGate({ onBack }: { onBack: () => void }) {
+  const [phase, setPhase] = useState<'gate' | 'error'>('gate');
   const [passphrase, setPassphrase] = useState('');
   const [authError, setAuthError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [generalError, setGeneralError] = useState('');
+  const [unlocked, setUnlocked] = useState(false);
 
   useEffect(() => {
     const link = document.createElement('link');
@@ -915,7 +941,7 @@ export default function InvestorReport({ onBack }: InvestorReportProps) {
         return;
       }
       if (!res.ok) throw new Error('Server error');
-      setPhase('report');
+      setUnlocked(true);
     } catch {
       setGeneralError('Unable to connect. Please try again shortly.');
       setPhase('error');
@@ -924,7 +950,7 @@ export default function InvestorReport({ onBack }: InvestorReportProps) {
     }
   };
 
-  if (phase === 'report') {
+  if (unlocked) {
     return <ReportContent onBack={onBack} />;
   }
 
