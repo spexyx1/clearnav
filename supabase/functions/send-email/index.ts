@@ -8,6 +8,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+interface AttachmentPayload {
+  filename: string;
+  content: string; // base64
+  content_type: string;
+}
+
 interface SendEmailPayload {
   account_id: string;
   to: string[];
@@ -17,6 +23,7 @@ interface SendEmailPayload {
   body_text?: string;
   body_html?: string;
   reply_to?: string;
+  attachments?: AttachmentPayload[];
 }
 
 async function sendViaResend(apiKey: string, payload: {
@@ -28,6 +35,7 @@ async function sendViaResend(apiKey: string, payload: {
   text?: string;
   html?: string;
   reply_to?: string;
+  attachments?: AttachmentPayload[];
 }): Promise<{ success: boolean; message_id: string | null; error?: string }> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -79,7 +87,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const payload: SendEmailPayload = await req.json();
-    const { account_id, to, cc, bcc, subject, body_text, body_html, reply_to } = payload;
+    const { account_id, to, cc, bcc, subject, body_text, body_html, reply_to, attachments } = payload;
 
     if (!account_id || !to?.length || !subject) {
       return new Response(JSON.stringify({ error: "Missing required fields: account_id, to, subject" }), {
@@ -103,7 +111,13 @@ Deno.serve(async (req: Request) => {
       .eq("role_category", "tenant_admin")
       .maybeSingle();
 
-    if (!accessCheck && !adminCheck) {
+    const { data: platformAdminCheck } = await supabase
+      .from("platform_admin_users")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!accessCheck && !adminCheck && !platformAdminCheck) {
       return new Response(JSON.stringify({ error: "No send permission for this account" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -152,7 +166,7 @@ Deno.serve(async (req: Request) => {
       const fromAddress = `${account.display_name} <${account.email_address}>`;
 
       if (emailSettings?.provider_type === "sendgrid" && tenantApiKey) {
-        const sgPayload = {
+        const sgPayload: any = {
           personalizations: [{
             to: to.map(email => ({ email })),
             cc: cc?.map(email => ({ email })),
@@ -166,6 +180,15 @@ Deno.serve(async (req: Request) => {
             ...(body_html ? [{ type: "text/html", value: body_html }] : []),
           ],
         };
+
+        if (attachments?.length) {
+          sgPayload.attachments = attachments.map((a) => ({
+            filename: a.filename,
+            content: a.content,
+            type: a.content_type,
+            disposition: "attachment",
+          }));
+        }
 
         const sgRes = await fetch("https://api.sendgrid.com/v3/mail/send", {
           method: "POST",
@@ -192,6 +215,7 @@ Deno.serve(async (req: Request) => {
           text: body_text,
           html: body_html,
           reply_to: reply_to || account.email_address,
+          attachments: attachments?.length ? attachments : undefined,
         });
 
         if (result.success) {
@@ -216,6 +240,7 @@ Deno.serve(async (req: Request) => {
         body_html: body_html || null,
         folder: "sent",
         is_read: true,
+        has_attachments: !!(attachments?.length),
         sent_at: new Date().toISOString(),
       })
       .select("id")
@@ -223,6 +248,17 @@ Deno.serve(async (req: Request) => {
 
     if (saveError) {
       console.error("Failed to save sent message:", saveError);
+    }
+
+    if (savedMessage?.id && attachments?.length) {
+      const attachmentRows = attachments.map((a) => ({
+        message_id: savedMessage.id,
+        file_name: a.filename,
+        file_size: Math.round((a.content.length * 3) / 4),
+        content_type: a.content_type,
+        storage_path: null,
+      }));
+      await supabase.from("email_attachments").insert(attachmentRows);
     }
 
     return new Response(
