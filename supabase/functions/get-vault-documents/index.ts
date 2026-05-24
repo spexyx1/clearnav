@@ -42,19 +42,17 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Retrieve the stored passphrase from Supabase Vault (service role only)
+    // vault schema is not exposed to PostgREST; use a SECURITY DEFINER RPC instead
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
+      { auth: { persistSession: false, autoRefreshToken: false } }
     );
-    const { data: secretRow } = await supabaseAdmin
-      .schema("vault")
-      .from("decrypted_secrets")
-      .select("decrypted_secret")
-      .eq("name", "arkline_vault_passphrase")
-      .maybeSingle();
-    const storedPassphrase: string = secretRow?.decrypted_secret ?? "";
+    const { data: storedPassphraseData } = await supabaseAdmin.rpc(
+      "get_vault_passphrase",
+      { secret_name: "arkline_vault_passphrase" }
+    );
+    const storedPassphrase: string = storedPassphraseData ?? "";
 
     // Validate passphrase using timing-safe comparison
     const isValid = timingSafeEqual(passphrase, storedPassphrase);
