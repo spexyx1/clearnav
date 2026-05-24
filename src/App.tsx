@@ -12,19 +12,36 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { useRoute } from './lib/useRoute';
 import './i18n/config';
 
-const ClientPortal = lazy(() => import('./components/ClientPortal'));
-const ManagerPortal = lazy(() => import('./components/ManagerPortal'));
-const PlatformAdminPortal = lazy(() => import('./components/platform/PlatformAdminPortal'));
-const AcceptInvitation = lazy(() => import('./components/AcceptInvitation'));
-const ClientSignup = lazy(() => import('./components/ClientSignup'));
-const DebugLogin = lazy(() => import('./components/DebugLogin'));
-const SalesSheet = lazy(() => import('./components/SalesSheet'));
-const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
-const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
-const InvestorPage = lazy(() => import('./components/InvestorPage'));
-const ContactPage = lazy(() => import('./components/ContactPage'));
-const InvestorVault = lazy(() => import('./components/InvestorVault'));
-const InvestorReport = lazy(() => import('./components/InvestorReport'));
+// Wraps lazy() so a stale-deployment chunk 404 triggers a one-time page reload
+// rather than surfacing a raw "Failed to fetch dynamically imported module" error.
+function lazyWithReload<T extends React.ComponentType<unknown>>(
+  factory: () => Promise<{ default: T }>
+) {
+  return lazy(() =>
+    factory().catch(() => {
+      if (!sessionStorage.getItem('chunk_reload')) {
+        sessionStorage.setItem('chunk_reload', '1');
+        window.location.reload();
+      }
+      // Return a no-op component while the reload happens
+      return { default: (() => null) as unknown as T };
+    })
+  );
+}
+
+const ClientPortal = lazyWithReload(() => import('./components/ClientPortal'));
+const ManagerPortal = lazyWithReload(() => import('./components/ManagerPortal'));
+const PlatformAdminPortal = lazyWithReload(() => import('./components/platform/PlatformAdminPortal'));
+const AcceptInvitation = lazyWithReload(() => import('./components/AcceptInvitation'));
+const ClientSignup = lazyWithReload(() => import('./components/ClientSignup'));
+const DebugLogin = lazyWithReload(() => import('./components/DebugLogin'));
+const SalesSheet = lazyWithReload(() => import('./components/SalesSheet'));
+const TermsOfService = lazyWithReload(() => import('./components/legal/TermsOfService'));
+const PrivacyPolicy = lazyWithReload(() => import('./components/legal/PrivacyPolicy'));
+const InvestorPage = lazyWithReload(() => import('./components/InvestorPage'));
+const ContactPage = lazyWithReload(() => import('./components/ContactPage'));
+const InvestorVault = lazyWithReload(() => import('./components/InvestorVault'));
+const InvestorReport = lazyWithReload(() => import('./components/InvestorReport'));
 
 function AppContent() {
   const { user, loading, roleCategory, currentTenant } = useAuth();
