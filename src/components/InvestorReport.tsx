@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Lock, Unlock, AlertCircle, Loader2, ChevronLeft, MapPin, Mail } from 'lucide-react';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+import { useEffect } from 'react';
+import { ChevronLeft, MapPin, Mail } from 'lucide-react';
 
 interface InvestorReportProps {
   onBack: () => void;
@@ -898,155 +896,16 @@ function ReportContent({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─── Password gate (only shown on direct navigation to /vault/report) ──────────
 export default function InvestorReport({ onBack, passphrase: preAuthPassphrase }: InvestorReportProps) {
-  // Pre-authenticated from InvestorVault — skip gate entirely
-  if (preAuthPassphrase) {
-    return <ReportContent onBack={onBack} />;
-  }
-
-  return <ReportGate onBack={onBack} />;
-}
-
-function ReportGate({ onBack }: { onBack: () => void }) {
-  const [phase, setPhase] = useState<'gate' | 'error'>('gate');
-  const [passphrase, setPassphrase] = useState('');
-  const [authError, setAuthError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [generalError, setGeneralError] = useState('');
-  const [unlocked, setUnlocked] = useState(false);
-
   useEffect(() => {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Nunito+Sans:wght@300;400;500;600&display=swap';
-    document.head.appendChild(link);
-    return () => { document.head.removeChild(link); };
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!passphrase.trim()) return;
-    setSubmitting(true);
-    setAuthError('');
-    try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-vault-documents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passphrase: passphrase.trim(), tenant_slug: 'arkline' }),
-      });
-      if (res.status === 401) {
-        setAuthError('Incorrect passphrase. Please try again.');
-        setSubmitting(false);
-        return;
-      }
-      if (!res.ok) throw new Error('Server error');
-      setUnlocked(true);
-    } catch {
-      setGeneralError('Unable to connect. Please try again shortly.');
-      setPhase('error');
-    } finally {
-      setSubmitting(false);
+    // No passphrase in state (e.g. direct URL or back-button after full reload) — send to vault gate
+    if (!preAuthPassphrase) {
+      onBack();
     }
-  };
+  }, [preAuthPassphrase, onBack]);
 
-  if (unlocked) {
-    return <ReportContent onBack={onBack} />;
-  }
+  if (!preAuthPassphrase) return null;
 
-  return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{ backgroundColor: C.bg, fontFamily: BODY_FONT, color: C.text }}
-    >
-      <VaultHeader onBack={onBack} />
-
-      <main className="flex-1 flex items-center justify-center px-6 py-16">
-        {phase === 'error' ? (
-          <div className="text-center max-w-sm">
-            <AlertCircle size={40} className="mx-auto mb-4" style={{ color: C.textLow }} />
-            <p className="text-sm mb-6" style={{ color: C.textMid }}>{generalError}</p>
-            <button
-              onClick={() => { setPhase('gate'); setGeneralError(''); }}
-              className="px-6 py-2.5 rounded-sm text-sm font-semibold"
-              style={{ backgroundColor: C.gold, color: C.bg }}
-            >
-              Try Again
-            </button>
-          </div>
-        ) : (
-          <div className="w-full max-w-md">
-            <div className="text-center mb-10">
-              <div
-                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
-                style={{ backgroundColor: C.goldMuted, border: `1px solid ${C.goldBorder}` }}
-              >
-                <Lock size={28} style={{ color: C.gold }} />
-              </div>
-              <h1
-                className="text-3xl md:text-4xl font-semibold mb-3 tracking-tight"
-                style={{ fontFamily: HEADING_FONT }}
-              >
-                Investor Update #1
-              </h1>
-              <div className="w-10 h-px mx-auto my-4" style={{ backgroundColor: C.gold }} />
-              <p className="text-sm leading-relaxed max-w-xs mx-auto" style={{ color: C.textLow }}>
-                This report contains confidential materials prepared exclusively for prospective wholesale
-                investors. Enter your access passphrase to continue.
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: C.textLow }}>
-                  Access Passphrase
-                </label>
-                <input
-                  type="password"
-                  value={passphrase}
-                  onChange={(e) => { setPassphrase(e.target.value); setAuthError(''); }}
-                  autoComplete="current-password"
-                  className="w-full px-4 py-3.5 rounded-sm text-sm focus:outline-none transition-all"
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.06)',
-                    border: authError ? '1px solid rgba(239,68,68,0.6)' : `1px solid ${C.border}`,
-                    color: C.text,
-                  }}
-                  placeholder="Enter passphrase"
-                  disabled={submitting}
-                />
-                {authError && (
-                  <div className="flex items-center gap-2 mt-2 text-red-400 text-xs">
-                    <AlertCircle size={13} />
-                    <span>{authError}</span>
-                  </div>
-                )}
-              </div>
-              <button
-                type="submit"
-                disabled={submitting || !passphrase.trim()}
-                className="w-full py-3.5 rounded-sm text-sm font-semibold tracking-wide transition-all hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-2"
-                style={{ backgroundColor: C.gold, color: C.bg }}
-              >
-                {submitting ? (
-                  <><Loader2 size={16} className="animate-spin" /> Verifying...</>
-                ) : (
-                  <><Unlock size={16} /> Read Report</>
-                )}
-              </button>
-            </form>
-
-            <p className="text-center text-xs mt-8" style={{ color: C.textLowest }}>
-              Don't have a passphrase? Contact{' '}
-              <a href="mailto:enquiries@arklinetrust.com" className="underline hover:opacity-80">
-                enquiries@arklinetrust.com
-              </a>
-            </p>
-          </div>
-        )}
-      </main>
-
-      <VaultFooter />
-    </div>
-  );
+  return <ReportContent onBack={onBack} />;
 }
+

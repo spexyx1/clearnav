@@ -33,10 +33,18 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    this.setState({
-      error,
-      errorInfo,
-    });
+    this.setState({ error, errorInfo });
+
+    // Stale deployment: chunk hash no longer exists on CDN — reload once to fetch fresh assets
+    const isChunkError =
+      error.name === 'ChunkLoadError' ||
+      /Failed to fetch dynamically imported module/.test(error.message) ||
+      /Loading chunk .* failed/.test(error.message);
+
+    if (isChunkError && !sessionStorage.getItem('chunk_reload')) {
+      sessionStorage.setItem('chunk_reload', '1');
+      window.location.reload();
+    }
   }
 
   handleReset = () => {

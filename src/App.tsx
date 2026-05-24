@@ -8,6 +8,7 @@ import { PublicWebsite } from './components/public/PublicWebsite';
 import { resolveTenantFromDomain } from './lib/tenantResolver';
 import { isPlatformRootDomain } from './lib/hostUtils';
 import { FullPageLoader } from './components/shared/Spinner';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useRoute } from './lib/useRoute';
 import './i18n/config';
 
@@ -118,20 +119,24 @@ function AppContent() {
 
   if (route === 'vault') {
     return (
-      <Suspense fallback={<Fallback />}>
-        <InvestorVault
-          onBack={() => navigate('/')}
-          onOpenReport={(passphrase) => { setVaultPassphrase(passphrase); navigate('/vault/report'); }}
-        />
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<Fallback />}>
+          <InvestorVault
+            onBack={() => navigate('/')}
+            onOpenReport={(passphrase) => { setVaultPassphrase(passphrase); navigate('/vault/report'); }}
+          />
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 
   if (route === 'investor-report') {
     return (
-      <Suspense fallback={<Fallback />}>
-        <InvestorReport onBack={() => navigate('/vault')} passphrase={vaultPassphrase} />
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<Fallback />}>
+          <InvestorReport onBack={() => navigate('/vault')} passphrase={vaultPassphrase} />
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 
