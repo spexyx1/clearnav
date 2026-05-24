@@ -49,7 +49,8 @@ Deno.serve(async (req: Request) => {
       { auth: { persistSession: false } }
     );
     const { data: secretRow } = await supabaseAdmin
-      .from("vault.decrypted_secrets")
+      .schema("vault")
+      .from("decrypted_secrets")
       .select("decrypted_secret")
       .eq("name", "arkline_vault_passphrase")
       .maybeSingle();
