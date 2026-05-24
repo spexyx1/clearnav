@@ -23,6 +23,7 @@ const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
 const InvestorPage = lazy(() => import('./components/InvestorPage'));
 const ContactPage = lazy(() => import('./components/ContactPage'));
 const InvestorVault = lazy(() => import('./components/InvestorVault'));
+const InvestorReport = lazy(() => import('./components/InvestorReport'));
 
 function AppContent() {
   const { user, loading, roleCategory, currentTenant } = useAuth();
@@ -122,6 +123,14 @@ function AppContent() {
     );
   }
 
+  if (route === 'investor-report') {
+    return (
+      <Suspense fallback={<Fallback />}>
+        <InvestorReport onBack={() => navigate('/vault')} />
+      </Suspense>
+    );
+  }
+
   if (user && roleCategory) {
     switch (roleCategory) {
       case 'superadmin':
@@ -166,7 +175,7 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const tenantParam = params.get('tenant');
     const path = window.location.pathname;
-    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/contact', '/vault'];
+    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/contact', '/vault', '/vault/report'];
 
     if (!specialPaths.includes(path) && !tenantParam) {
       const defaultTenant = import.meta.env.VITE_DEFAULT_DEV_TENANT || 'arkline';

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Lock, Unlock, FileText, Download, ExternalLink, AlertCircle, Loader2, MapPin, Mail, ChevronLeft } from 'lucide-react';
+import { Lock, Unlock, FileText, Download, ExternalLink, AlertCircle, Loader2, MapPin, Mail, ChevronLeft, BookOpen } from 'lucide-react';
 
 interface VaultDocument {
   id: string;
@@ -8,6 +8,7 @@ interface VaultDocument {
   description: string;
   sort_order: number;
   signed_url: string | null;
+  internal_path?: string | null;
 }
 
 interface InvestorVaultProps {
@@ -298,7 +299,16 @@ export default function InvestorVault({ onBack }: InvestorVaultProps) {
                     )}
 
                     <div className="flex gap-2 mt-auto pt-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-                      {doc.signed_url ? (
+                      {doc.internal_path ? (
+                        <a
+                          href={doc.internal_path}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-sm text-xs font-semibold transition-all hover:brightness-110"
+                          style={{ backgroundColor: '#B8934A', color: '#0E2219' }}
+                        >
+                          <BookOpen size={13} />
+                          Read Report
+                        </a>
+                      ) : doc.signed_url ? (
                         <>
                           <a
                             href={doc.signed_url}

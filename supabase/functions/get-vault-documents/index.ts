@@ -100,15 +100,20 @@ Deno.serve(async (req: Request) => {
       throw docsError;
     }
 
-    // Generate signed URLs (2-hour expiry) for each document
+    // Generate signed URLs (2-hour expiry) for file documents;
+    // internal: paths are served as in-app routes, not storage files.
     const TWO_HOURS = 60 * 60 * 2;
     const documentsWithUrls = await Promise.all(
       (documents ?? []).map(async (doc) => {
-        if (!doc.storage_path) return { ...doc, signed_url: null };
+        if (!doc.storage_path) return { ...doc, signed_url: null, internal_path: null };
+        if (doc.storage_path.startsWith("internal:")) {
+          const internalPath = doc.storage_path.replace("internal:", "");
+          return { ...doc, signed_url: null, internal_path: internalPath };
+        }
         const { data: signedData } = await supabase.storage
           .from("investor-documents")
           .createSignedUrl(doc.storage_path, TWO_HOURS);
-        return { ...doc, signed_url: signedData?.signedUrl ?? null };
+        return { ...doc, signed_url: signedData?.signedUrl ?? null, internal_path: null };
       })
     );
 
