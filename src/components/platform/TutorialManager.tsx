@@ -54,7 +54,7 @@ export default function TutorialManager() {
       aggregated[row.tutorial_key].total++;
       const key = row.status as keyof Omit<ProgressStats, 'tutorial_key' | 'total'>;
       if (key in aggregated[row.tutorial_key]) {
-        (aggregated[row.tutorial_key][key] as number)++;
+        aggregated[row.tutorial_key][key] = (aggregated[row.tutorial_key][key] as number) + 1;
       }
     }
     setStats(Object.values(aggregated));
