@@ -104,7 +104,7 @@ export default function LegalAcceptanceModal({
                 <div className="flex-1">
                   <div className="text-white font-medium mb-1">Terms of Service</div>
                   <p className="text-sm text-slate-400 mb-2">
-                    I have read and agree to the Terms of Service, including all limitations of liability and indemnification provisions.
+                    I agree to the Terms of Service, including all limitations of liability and indemnification provisions.
                   </p>
                   <a
                     href="/terms"
@@ -132,7 +132,7 @@ export default function LegalAcceptanceModal({
                 <div className="flex-1">
                   <div className="text-white font-medium mb-1">Privacy Policy</div>
                   <p className="text-sm text-slate-400 mb-2">
-                    I have read and agree to the Privacy Policy and understand how my personal information will be collected, used, and protected.
+                    I agree to the Privacy Policy and understand how my personal information will be collected, used, and protected.
                   </p>
                   <a
                     href="/privacy"

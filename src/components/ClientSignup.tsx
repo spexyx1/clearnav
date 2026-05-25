@@ -381,7 +381,7 @@ export default function ClientSignup({ onBack }: ClientSignupProps) {
                     className="mt-1 w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-slate-700">
-                    I have read and agree to the{' '}
+                    I agree to the{' '}
                     <a
                       href="/terms"
                       target="_blank"
@@ -404,7 +404,7 @@ export default function ClientSignup({ onBack }: ClientSignupProps) {
                     className="mt-1 w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-slate-700">
-                    I have read and agree to the{' '}
+                    I agree to the{' '}
                     <a
                       href="/privacy"
                       target="_blank"
