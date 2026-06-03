@@ -55,6 +55,13 @@ export interface Invoice {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // e-signature
+  signature_required: boolean;
+  signed_at: string | null;
+  signed_by_name: string | null;
+  signed_by_choice: string | null;
+  signature_data: string | null;
+  signed_by_ip: string | null;
   // joined
   line_items?: InvoiceLineItem[];
 }
@@ -98,6 +105,26 @@ export interface InvoiceSettings {
   stripe_connect_account_id: string | null;
   reminder_days_before: number;
   reminder_days_after: number;
+  // business / sender profile
+  business_name: string | null;
+  business_tax_id: string | null;
+  business_address_line1: string | null;
+  business_address_line2: string | null;
+  business_city: string | null;
+  business_state: string | null;
+  business_zip: string | null;
+  business_country: string | null;
+  business_phone: string | null;
+  business_email: string | null;
+  business_website: string | null;
+  // bank details
+  bank_account_name: string | null;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_routing_number: string | null;
+  bank_swift_bic: string | null;
+  bank_iban: string | null;
+  bank_extra_instructions: string | null;
 }
 
 export const CURRENCIES = [

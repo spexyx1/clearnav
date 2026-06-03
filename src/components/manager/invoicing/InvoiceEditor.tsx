@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, GripVertical, ChevronDown, Eye, EyeOff, Loader2, Send, Save } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Trash2, Eye, EyeOff, Loader2, Send, Save, PenLine } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
 import {
@@ -11,15 +11,17 @@ import InvoicePreview from './InvoicePreview';
 interface Props {
   invoice?: Invoice | null;
   settings: InvoiceSettings | null;
+  tenantName?: string;
   onSaved: (inv: Invoice) => void;
-  onCancel: () => void;
+  onCancel?: () => void;
+  onBack?: () => void;
 }
 
 function newLine(sort: number): InvoiceLineItemDraft {
   return { id: crypto.randomUUID(), sort_order: sort, description: '', quantity: 1, unit_price: 0, tax_rate: 0, discount_rate: 0 };
 }
 
-export default function InvoiceEditor({ invoice, settings, onSaved, onCancel }: Props) {
+export default function InvoiceEditor({ invoice, settings, onSaved, onCancel, onBack }: Props) {
   const { currentTenant, user } = useAuth();
 
   const [form, setForm] = useState({
@@ -38,6 +40,7 @@ export default function InvoiceEditor({ invoice, settings, onSaved, onCancel }: 
     notes: invoice?.notes ?? '',
     terms: invoice?.terms ?? (settings?.default_terms ?? ''),
     footer: invoice?.footer ?? (settings?.default_footer ?? ''),
+    signature_required: invoice?.signature_required ?? false,
   });
 
   const [items, setItems] = useState<InvoiceLineItemDraft[]>(
@@ -90,6 +93,7 @@ export default function InvoiceEditor({ invoice, settings, onSaved, onCancel }: 
         status: sendAfter ? 'sent' : (invoice?.status ?? 'draft'),
         sent_at: sendAfter ? new Date().toISOString() : (invoice?.sent_at ?? null),
         created_by: user?.id ?? null,
+        signature_required: form.signature_required,
       };
 
       let savedInvoice: Invoice;
@@ -415,13 +419,35 @@ export default function InvoiceEditor({ invoice, settings, onSaved, onCancel }: 
                 className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-cyan-500"
               />
             </div>
+            <div className="sm:col-span-2">
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, signature_required: !prev.signature_required }))}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg border transition-colors text-sm ${
+                  form.signature_required
+                    ? 'bg-cyan-500/10 border-cyan-500/40 text-cyan-300'
+                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 border-2 transition-colors ${
+                  form.signature_required ? 'bg-cyan-500 border-cyan-500' : 'border-slate-600'
+                }`}>
+                  {form.signature_required && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                </div>
+                <PenLine className="w-4 h-4 shrink-0" />
+                <div className="text-left">
+                  <div className="font-medium">Require Client Signature</div>
+                  <div className="text-xs opacity-70 mt-0.5">Client will be prompted to sign when they view this invoice online</div>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Action buttons */}
         <div className="flex items-center gap-3 pt-2">
           <button
-            onClick={onCancel}
+            onClick={onCancel ?? onBack}
             className="px-4 py-2 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm transition-colors"
           >
             Cancel
@@ -458,6 +484,16 @@ export default function InvoiceEditor({ invoice, settings, onSaved, onCancel }: 
                 accent_color: settings?.accent_color,
                 number_prefix: settings?.number_prefix,
                 payment_instructions: settings?.payment_instructions,
+                business_name: settings?.business_name,
+                business_address_line1: settings?.business_address_line1,
+                business_address_line2: settings?.business_address_line2,
+                business_city: settings?.business_city,
+                business_state: settings?.business_state,
+                business_zip: settings?.business_zip,
+                business_country: settings?.business_country,
+                business_phone: settings?.business_phone,
+                business_email: settings?.business_email,
+                business_tax_id: settings?.business_tax_id,
               }}
             />
           </div>

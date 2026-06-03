@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { lazy, Suspense } from 'react';
 import {
   Plus, Search, Filter, Download, RefreshCw, Receipt,
-  ChevronDown, X, ArrowUpDown, DollarSign, FileText, Clock, CheckCircle,
-  Loader2, AlertCircle, Settings,
+  ChevronDown, X, ArrowUpDown, Settings,
+  Loader2, AlertCircle,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
-import { Invoice, InvoiceSettings, InvoiceStatus, formatCurrency, STATUS_CONFIG } from './types';
+import { Invoice, InvoiceSettings, InvoiceStatus, formatCurrency } from './types';
 import InvoiceStatusBadge from './InvoiceStatusBadge';
 
 const InvoiceEditor = lazy(() => import('./InvoiceEditor'));
@@ -221,6 +221,7 @@ export default function InvoiceManager() {
         <InvoiceDetail
           invoice={activeInvoice}
           settings={settings}
+          tenantName={tenantName}
           onBack={() => { setActiveInvoice(null); setView('list'); loadData(); }}
           onEdit={() => setView('editor')}
           onRefresh={(inv) => setActiveInvoice(inv)}

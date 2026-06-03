@@ -12,7 +12,8 @@ export type AppRoute =
   | 'investors'
   | 'contact'
   | 'vault'
-  | 'investor-report';
+  | 'investor-report'
+  | 'invoice-public';
 
 function detectRoute(): AppRoute {
   const params = new URLSearchParams(window.location.search);
@@ -29,6 +30,7 @@ function detectRoute(): AppRoute {
   if (path === '/contact')          return 'contact';
   if (path === '/vault')            return 'vault';
   if (path === '/vault/report')    return 'investor-report';
+  if (path.startsWith('/invoice/')) return 'invoice-public';
   return 'landing';
 }
 

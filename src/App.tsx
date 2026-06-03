@@ -42,6 +42,7 @@ const InvestorPage = lazyWithReload(() => import('./components/InvestorPage'));
 const ContactPage = lazyWithReload(() => import('./components/ContactPage'));
 const InvestorVault = lazyWithReload(() => import('./components/InvestorVault'));
 const InvestorReport = lazyWithReload(() => import('./components/InvestorReport'));
+const InvoicePublicView = lazyWithReload(() => import('./components/manager/invoicing/InvoicePublicView'));
 
 function AppContent() {
   const { user, loading, roleCategory, currentTenant } = useAuth();
@@ -157,6 +158,15 @@ function AppContent() {
     );
   }
 
+  if (route === 'invoice-public') {
+    const token = window.location.pathname.replace('/invoice/', '').split('/')[0];
+    return (
+      <Suspense fallback={<Fallback />}>
+        <InvoicePublicView token={token} />
+      </Suspense>
+    );
+  }
+
   if (user && roleCategory) {
     switch (roleCategory) {
       case 'superadmin':
@@ -203,7 +213,7 @@ function App() {
     const path = window.location.pathname;
     const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/contact', '/vault', '/vault/report'];
 
-    if (!specialPaths.includes(path) && !tenantParam) {
+    if (!specialPaths.includes(path) && !path.startsWith('/invoice/') && !tenantParam) {
       const defaultTenant = import.meta.env.VITE_DEFAULT_DEV_TENANT || 'arkline';
       window.location.replace(
         `${window.location.protocol}//${window.location.host}${path}?tenant=${defaultTenant}`

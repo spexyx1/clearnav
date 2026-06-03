@@ -12,13 +12,61 @@ interface SendInvoicePayload {
   resend?: boolean;
 }
 
-function buildInvoiceHtml(invoice: any, items: any[], settings: any, tenantName: string): string {
+function buildInvoiceHtml(invoice: any, items: any[], settings: any, tenantName: string, origin: string): string {
   const accent = settings?.accent_color || '#0891b2';
   const currency = invoice.currency || 'USD';
+  const senderName = settings?.business_name || tenantName;
 
   function fmt(n: number) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 2 }).format(n);
   }
+
+  // Sender address block
+  const addrLines = [
+    settings?.business_address_line1,
+    settings?.business_address_line2,
+    [settings?.business_city, settings?.business_state, settings?.business_zip].filter(Boolean).join(' '),
+    settings?.business_country,
+  ].filter(Boolean);
+
+  const senderAddressHtml = addrLines.length > 0
+    ? `<div style="font-size:11px;color:#94a3b8;line-height:1.5;">${addrLines.join('<br>')}</div>`
+    : '';
+
+  const senderContactHtml = [
+    settings?.business_phone ? `<span>${settings.business_phone}</span>` : '',
+    settings?.business_email ? `<span>${settings.business_email}</span>` : '',
+    settings?.business_website ? `<span>${settings.business_website}</span>` : '',
+  ].filter(Boolean).join('<span style="margin:0 6px;color:#cbd5e1;">·</span>');
+
+  const taxIdHtml = settings?.business_tax_id
+    ? `<div style="font-size:10px;color:#94a3b8;margin-top:2px;">Tax ID: ${settings.business_tax_id}</div>`
+    : '';
+
+  // Bank details block
+  const bankRows = [
+    settings?.bank_account_name ? ['Account Name', settings.bank_account_name] : null,
+    settings?.bank_name ? ['Bank', settings.bank_name] : null,
+    settings?.bank_account_number ? ['Account Number', settings.bank_account_number] : null,
+    settings?.bank_routing_number ? ['Routing / BSB', settings.bank_routing_number] : null,
+    settings?.bank_swift_bic ? ['SWIFT / BIC', settings.bank_swift_bic] : null,
+    settings?.bank_iban ? ['IBAN', settings.bank_iban] : null,
+  ].filter(Boolean) as [string, string][];
+
+  const bankHtml = bankRows.length > 0 ? `
+    <div style="padding:0 32px 16px;">
+      <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Bank Transfer Details</div>
+      <table style="border-collapse:collapse;font-size:12px;width:100%;background:#f8fafc;border-radius:8px;overflow:hidden;">
+        ${bankRows.map(([label, value]) => `
+          <tr>
+            <td style="padding:5px 12px;color:#64748b;width:35%;">${label}</td>
+            <td style="padding:5px 12px;font-weight:600;font-family:monospace;color:#1e293b;">${value}</td>
+          </tr>
+        `).join('')}
+      </table>
+      ${settings?.bank_extra_instructions ? `<p style="font-size:11px;color:#64748b;font-style:italic;margin:6px 0 0;">${settings.bank_extra_instructions}</p>` : ''}
+    </div>
+  ` : '';
 
   const itemRows = items.map((item: any) => `
     <tr>
@@ -30,18 +78,36 @@ function buildInvoiceHtml(invoice: any, items: any[], settings: any, tenantName:
     </tr>
   `).join('');
 
-  const publicUrl = `${Deno.env.get('SUPABASE_URL')?.replace('/rest/v1', '') || ''}/invoice/${invoice.public_view_token}`;
+  const publicUrl = `${origin}/invoice/${invoice.public_view_token}`;
+  const needsSignature = invoice.signature_required && !invoice.signed_at;
+
+  const ctaButtonHtml = needsSignature
+    ? `<a href="${publicUrl}" style="display:inline-block;padding:12px 28px;background:${accent};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Review &amp; Sign Invoice</a>
+       <div style="margin-top:8px;font-size:11px;color:#94a3b8;">This invoice requires your signature to be completed.</div>`
+    : `<a href="${publicUrl}" style="display:inline-block;padding:12px 28px;background:${accent};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">View Invoice Online</a>`;
 
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="font-family:system-ui,sans-serif;margin:0;padding:24px;background:#f8fafc;color:#1e293b;">
-  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+  <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
     <!-- Header -->
     <div style="padding:24px 32px;border-bottom:3px solid ${accent};">
       <table width="100%"><tr>
-        <td>${settings?.logo_url ? `<img src="${settings.logo_url}" style="height:36px;object-fit:contain;">` : `<span style="font-size:18px;font-weight:700;">${tenantName}</span>`}</td>
-        <td style="text-align:right;">
+        <td style="vertical-align:top;">
+          ${settings?.logo_url
+            ? `<img src="${settings.logo_url}" style="height:36px;object-fit:contain;display:block;margin-bottom:4px;">`
+            : `<span style="font-size:18px;font-weight:700;">${senderName}</span>`
+          }
+          ${settings?.logo_url && settings?.business_name
+            ? `<div style="font-size:14px;font-weight:600;color:#334155;">${settings.business_name}</div>`
+            : ''
+          }
+          ${senderAddressHtml}
+          ${senderContactHtml ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">${senderContactHtml}</div>` : ''}
+          ${taxIdHtml}
+        </td>
+        <td style="text-align:right;vertical-align:top;">
           <div style="font-size:22px;font-weight:700;color:${accent};">INVOICE</div>
           <div style="font-size:12px;color:#94a3b8;margin-top:2px;">${invoice.invoice_number}</div>
         </td>
@@ -55,7 +121,9 @@ function buildInvoiceHtml(invoice: any, items: any[], settings: any, tenantName:
           <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Bill To</div>
           <div style="font-weight:600;">${invoice.to_name}</div>
           ${invoice.to_company ? `<div style="color:#64748b;">${invoice.to_company}</div>` : ''}
+          ${invoice.to_address ? `<div style="font-size:12px;color:#94a3b8;white-space:pre-line;">${invoice.to_address}</div>` : ''}
           ${invoice.to_email ? `<div style="font-size:12px;color:#94a3b8;">${invoice.to_email}</div>` : ''}
+          ${invoice.to_phone ? `<div style="font-size:12px;color:#94a3b8;">${invoice.to_phone}</div>` : ''}
         </td>
         <td style="text-align:right;vertical-align:top;">
           <div style="font-size:12px;color:#64748b;">Issue Date: <strong>${invoice.issue_date}</strong></div>
@@ -93,13 +161,19 @@ function buildInvoiceHtml(invoice: any, items: any[], settings: any, tenantName:
       </table>
     </div>
 
-    <!-- Notes / Terms / Payment Instructions -->
+    <!-- Notes / Terms -->
     ${invoice.notes ? `<div style="padding:0 32px 16px;"><div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Notes</div><p style="font-size:12px;color:#64748b;margin:0;white-space:pre-wrap;">${invoice.notes}</p></div>` : ''}
+    ${invoice.terms ? `<div style="padding:0 32px 16px;"><div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Terms &amp; Conditions</div><p style="font-size:12px;color:#64748b;margin:0;white-space:pre-wrap;">${invoice.terms}</p></div>` : ''}
+
+    <!-- Bank details -->
+    ${bankHtml}
+
+    <!-- Additional payment instructions -->
     ${settings?.payment_instructions ? `<div style="padding:0 32px 16px;"><div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Payment Instructions</div><p style="font-size:12px;color:#64748b;margin:0;white-space:pre-wrap;">${settings.payment_instructions}</p></div>` : ''}
 
     <!-- CTA -->
     <div style="padding:20px 32px;text-align:center;background:#f8fafc;border-top:1px solid #e2e8f0;">
-      <a href="${publicUrl}" style="display:inline-block;padding:12px 28px;background:${accent};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">View Invoice Online</a>
+      ${ctaButtonHtml}
       <p style="font-size:11px;color:#94a3b8;margin:12px 0 0;">${invoice.footer || `Thank you for your business, ${invoice.to_name}.`}</p>
     </div>
   </div>
@@ -163,8 +237,12 @@ Deno.serve(async (req: Request) => {
     const settings = settingsRes.data;
     const tenantName = tenantRes.data?.name || "Your Company";
 
-    const htmlBody = buildInvoiceHtml(invoice, invoice.line_items || [], settings, tenantName);
-    const subject = `Invoice ${invoice.invoice_number} from ${tenantName}`;
+    // Derive the origin from the request or fall back to the Supabase URL root
+    const reqOrigin = req.headers.get("origin") || req.headers.get("referer")?.replace(/\/$/, '') || '';
+    const origin = reqOrigin || (Deno.env.get("SUPABASE_URL") || '').replace('/rest/v1', '');
+
+    const htmlBody = buildInvoiceHtml(invoice, invoice.line_items || [], settings, tenantName, origin);
+    const subject = `Invoice ${invoice.invoice_number} from ${settings?.business_name || tenantName}`;
 
     // Get Resend API key
     let resendKey = Deno.env.get("RESEND_API_KEY") || null;
@@ -181,9 +259,11 @@ Deno.serve(async (req: Request) => {
     let providerError: string | null = null;
 
     if (resendKey && invoice.to_email) {
-      const fromAddress = settings?.logo_url
-        ? `${tenantName} <invoices@resend.dev>`
-        : `${tenantName} <invoices@resend.dev>`;
+      const fromName = settings?.business_name || tenantName;
+      const fromEmail = settings?.business_email
+        ? settings.business_email
+        : 'invoices@resend.dev';
+      const fromAddress = `${fromName} <${fromEmail}>`;
 
       const resendRes = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -204,13 +284,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Update invoice status to sent and record sent_at
+    // Update invoice status to sent
     const now = new Date().toISOString();
     await supabase
       .from("invoices")
       .update({ status: "sent", sent_at: now })
       .eq("id", invoice_id)
-      .eq("status", "draft"); // Only transition from draft → sent (not from paid, etc.)
+      .eq("status", "draft");
 
     // Log activity
     await supabase.from("invoice_activity").insert({

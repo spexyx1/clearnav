@@ -8,6 +8,16 @@ interface PreviewProps {
     accent_color?: string;
     number_prefix?: string;
     payment_instructions?: string;
+    business_name?: string | null;
+    business_address_line1?: string | null;
+    business_address_line2?: string | null;
+    business_city?: string | null;
+    business_state?: string | null;
+    business_zip?: string | null;
+    business_country?: string | null;
+    business_phone?: string | null;
+    business_email?: string | null;
+    business_tax_id?: string | null;
   };
   tenantName?: string;
 }
@@ -23,15 +33,39 @@ export default function InvoicePreview({ invoice, items, settings, tenantName }:
   }, 0);
   const total = subtotal - discountTotal + taxTotal;
 
+  const senderName = settings.business_name || tenantName || 'Your Company';
+  const addressParts = [
+    settings.business_address_line1,
+    settings.business_address_line2,
+    [settings.business_city, settings.business_state, settings.business_zip].filter(Boolean).join(' '),
+    settings.business_country,
+  ].filter(Boolean);
+
   return (
     <div className="bg-white rounded-xl shadow-2xl overflow-hidden text-slate-800 text-sm font-sans min-h-[600px]">
       {/* Header band */}
       <div className="px-8 py-6 flex items-start justify-between" style={{ borderBottom: `3px solid ${accent}` }}>
-        <div>
+        <div className="space-y-0.5">
           {settings.logo_url ? (
-            <img src={settings.logo_url} alt="" className="h-10 mb-2 object-contain" />
+            <img src={settings.logo_url} alt="" className="h-10 mb-1 object-contain" />
           ) : (
-            <div className="text-lg font-bold text-slate-900">{tenantName || 'Your Company'}</div>
+            <div className="text-lg font-bold text-slate-900">{senderName}</div>
+          )}
+          {settings.logo_url && settings.business_name && (
+            <div className="text-sm font-semibold text-slate-700">{settings.business_name}</div>
+          )}
+          {addressParts.length > 0 && (
+            <div className="text-xs text-slate-500 whitespace-pre-line leading-relaxed">
+              {addressParts.join('\n')}
+            </div>
+          )}
+          {(settings.business_phone || settings.business_email) && (
+            <div className="text-xs text-slate-500">
+              {[settings.business_phone, settings.business_email].filter(Boolean).join('  ·  ')}
+            </div>
+          )}
+          {settings.business_tax_id && (
+            <div className="text-xs text-slate-400">Tax ID: {settings.business_tax_id}</div>
           )}
         </div>
         <div className="text-right">

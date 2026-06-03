@@ -1,17 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft, Download, Send, Copy, CheckCircle, Trash2, DollarSign,
-  Clock, Eye, Mail, MessageSquare, Loader2, X, FileText, AlertCircle,
+  Clock, Eye, Mail, Loader2, X, FileText,
+  PenLine, PenTool,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
 import { Invoice, InvoicePayment, InvoiceActivity, InvoiceSettings, formatCurrency, PaymentMethod } from './types';
 import InvoiceStatusBadge from './InvoiceStatusBadge';
 import InvoicePreview from './InvoicePreview';
+import InvoicePrintLayout from './InvoicePrintLayout';
 
 interface Props {
   invoice: Invoice;
   settings: InvoiceSettings | null;
+  tenantName: string;
   onBack: () => void;
   onEdit: () => void;
   onRefresh: (inv: Invoice) => void;
@@ -35,10 +38,11 @@ function ActivityIcon({ action }: { action: string }) {
   if (action === 'voided') return <X className="w-4 h-4 text-red-400" />;
   if (action === 'payment_recorded') return <DollarSign className="w-4 h-4 text-emerald-400" />;
   if (action === 'reminder_sent') return <Mail className="w-4 h-4 text-amber-400" />;
+  if (action === 'signed') return <PenTool className="w-4 h-4 text-cyan-400" />;
   return <Clock className="w-4 h-4 text-slate-500" />;
 }
 
-export default function InvoiceDetail({ invoice: initialInvoice, settings, onBack, onEdit, onRefresh }: Props) {
+export default function InvoiceDetail({ invoice: initialInvoice, settings, tenantName, onBack, onEdit, onRefresh }: Props) {
   const { user } = useAuth();
   const [invoice, setInvoice] = useState(initialInvoice);
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
@@ -49,6 +53,7 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, onBac
   const [copying, setCopying] = useState(false);
   const [sending, setSending] = useState(false);
   const [voiding, setVoiding] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
 
   const [payment, setPayment] = useState({
     amount: invoice.balance_due,
@@ -75,7 +80,7 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, onBac
 
   async function recordPayment() {
     if (!payment.amount || payment.amount <= 0) return;
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('invoice_payments')
       .insert({
         invoice_id: invoice.id,
@@ -169,35 +174,52 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, onBac
     setTimeout(() => setCopying(false), 1500);
   }
 
-  async function downloadPDF() {
-    // Client-side: open preview in a new window and trigger print-to-PDF
+  function downloadPDF() {
+    if (!printRef.current) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-    // Simple HTML representation
-    printWindow.document.write(`
-      <html><head><title>Invoice ${invoice.invoice_number}</title>
-      <style>body{font-family:system-ui,sans-serif;margin:40px;color:#1e293b}
-      table{width:100%;border-collapse:collapse}th,td{padding:8px;text-align:left}
-      th{background:#f1f5f9;font-weight:600}tr:nth-child(even){background:#f8fafc}
-      .total{font-weight:700;font-size:1.1em}</style></head><body>
-      <h1>Invoice ${invoice.invoice_number}</h1>
-      <p><strong>To:</strong> ${invoice.to_name}${invoice.to_company ? ` — ${invoice.to_company}` : ''}</p>
-      <p><strong>Email:</strong> ${invoice.to_email}</p>
-      <p><strong>Issue Date:</strong> ${invoice.issue_date} &nbsp; <strong>Due:</strong> ${invoice.due_date ?? '—'}</p>
-      <br/>
-      <table><thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>
-      ${(invoice.line_items ?? []).map(li => `<tr><td>${li.description}</td><td>${li.quantity}</td><td>${formatCurrency(li.unit_price, invoice.currency)}</td><td>${formatCurrency(li.line_total, invoice.currency)}</td></tr>`).join('')}
-      </tbody></table>
-      <br/><div class="total">Total: ${formatCurrency(invoice.total, invoice.currency)}</div>
-      ${invoice.notes ? `<p><strong>Notes:</strong> ${invoice.notes}</p>` : ''}
-      </body></html>
-    `);
+
+    // Grab all stylesheets from the current page
+    const styles = Array.from(document.styleSheets)
+      .map(sheet => {
+        try {
+          return Array.from(sheet.cssRules).map(r => r.cssText).join('\n');
+        } catch {
+          return sheet.href ? `@import url('${sheet.href}');` : '';
+        }
+      })
+      .join('\n');
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Invoice ${invoice.invoice_number}</title>
+  <style>${styles}</style>
+</head>
+<body class="bg-white m-0 p-0">
+  ${printRef.current.innerHTML}
+  <script>
+    window.onload = function() {
+      setTimeout(function() { window.print(); }, 300);
+    };
+  </script>
+</body>
+</html>`);
     printWindow.document.close();
-    printWindow.print();
   }
 
   const isVoid = invoice.status === 'void';
   const isPaid = invoice.status === 'paid';
+  const isSigned = !!invoice.signed_at;
+  const needsSignature = invoice.signature_required && !isSigned;
+
+  const printData = {
+    invoice,
+    items: invoice.line_items ?? [],
+    settings,
+    tenantName,
+  };
 
   return (
     <div className="space-y-6">
@@ -208,9 +230,21 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, onBac
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-xl font-bold text-white">{invoice.invoice_number}</h2>
               <InvoiceStatusBadge status={invoice.status as any} />
+              {isSigned && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                  <PenTool className="w-3 h-3" />
+                  Signed
+                </span>
+              )}
+              {needsSignature && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                  <PenLine className="w-3 h-3" />
+                  Awaiting Signature
+                </span>
+              )}
             </div>
             <p className="text-slate-400 text-sm mt-0.5">
               {invoice.to_name}{invoice.to_company ? ` · ${invoice.to_company}` : ''} · {invoice.to_email}
@@ -250,7 +284,7 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, onBac
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors"
           >
             <Download className="w-4 h-4" />
-            PDF
+            Download PDF
           </button>
           {!isVoid && invoice.status === 'draft' && (
             <button
@@ -272,6 +306,20 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, onBac
           )}
         </div>
       </div>
+
+      {/* Signature status banner */}
+      {isSigned && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-cyan-500/10 border border-cyan-500/20 rounded-xl">
+          <PenTool className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <span className="font-semibold text-cyan-300">Signed by {invoice.signed_by_name}</span>
+            <span className="text-cyan-400 ml-2">· {invoice.signed_at ? new Date(invoice.signed_at).toLocaleString() : ''}</span>
+            {invoice.signed_by_choice && (
+              <span className="text-cyan-500 ml-2 capitalize">({invoice.signed_by_choice} signature)</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -339,7 +387,6 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, onBac
 
         {/* Activity + Payments */}
         <div className="space-y-4">
-          {/* Payments */}
           {payments.length > 0 && (
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5">
               <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wide mb-3">Payments Recorded</h3>
@@ -357,7 +404,6 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, onBac
             </div>
           )}
 
-          {/* Activity timeline */}
           <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wide mb-3">Activity</h3>
             {loading ? (
@@ -366,7 +412,7 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, onBac
               <p className="text-slate-500 text-sm">No activity yet.</p>
             ) : (
               <div className="space-y-3">
-                {activity.map((act, idx) => (
+                {activity.map(act => (
                   <div key={act.id} className="flex items-start gap-3">
                     <div className="mt-0.5 flex-shrink-0">
                       <ActivityIcon action={act.action} />
@@ -380,6 +426,9 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, onBac
                         <div className="text-xs text-slate-500">
                           {formatCurrency(act.metadata.amount, invoice.currency)} via {act.metadata.method}
                         </div>
+                      )}
+                      {act.metadata?.signed_by_name && (
+                        <div className="text-xs text-slate-500">by {act.metadata.signed_by_name}</div>
                       )}
                     </div>
                     <div className="text-xs text-slate-600 flex-shrink-0">
@@ -413,11 +462,26 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, onBac
                 logo_url: settings?.logo_url,
                 accent_color: settings?.accent_color,
                 payment_instructions: settings?.payment_instructions,
+                business_name: settings?.business_name,
+                business_address_line1: settings?.business_address_line1,
+                business_address_line2: settings?.business_address_line2,
+                business_city: settings?.business_city,
+                business_state: settings?.business_state,
+                business_zip: settings?.business_zip,
+                business_country: settings?.business_country,
+                business_phone: settings?.business_phone,
+                business_email: settings?.business_email,
+                business_tax_id: settings?.business_tax_id,
               }}
             />
           </div>
         </div>
       )}
+
+      {/* Hidden print node */}
+      <div className="hidden" ref={printRef}>
+        <InvoicePrintLayout data={printData} forScreen={false} />
+      </div>
 
       {/* Record payment modal */}
       {showPaymentForm && (
