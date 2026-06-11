@@ -42,6 +42,7 @@ const InvestorPage = lazyWithReload(() => import('./components/InvestorPage'));
 const ContactPage = lazyWithReload(() => import('./components/ContactPage'));
 const InvestorVault = lazyWithReload(() => import('./components/InvestorVault'));
 const InvestorReport = lazyWithReload(() => import('./components/InvestorReport'));
+const InvestorApplicationForm = lazyWithReload(() => import('./components/vault/InvestorApplicationForm'));
 const InvoicePublicView = lazyWithReload(() => import('./components/manager/invoicing/InvoicePublicView'));
 
 function AppContent() {
@@ -142,6 +143,7 @@ function AppContent() {
           <InvestorVault
             onBack={() => navigate('/')}
             onOpenReport={(passphrase) => { setVaultPassphrase(passphrase); navigate('/vault/report'); }}
+            onApply={(passphrase) => { setVaultPassphrase(passphrase); navigate('/vault/apply'); }}
           />
         </Suspense>
       </ErrorBoundary>
@@ -153,6 +155,16 @@ function AppContent() {
       <ErrorBoundary>
         <Suspense fallback={<Fallback />}>
           <InvestorReport onBack={() => navigate('/vault')} passphrase={vaultPassphrase} />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  if (route === 'vault-apply') {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<Fallback />}>
+          <InvestorApplicationForm onBack={() => navigate('/vault')} passphrase={vaultPassphrase} />
         </Suspense>
       </ErrorBoundary>
     );
@@ -211,7 +223,7 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const tenantParam = params.get('tenant');
     const path = window.location.pathname;
-    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/contact', '/vault', '/vault/report'];
+    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/contact', '/vault', '/vault/report', '/vault/apply'];
 
     if (!specialPaths.includes(path) && !path.startsWith('/invoice/') && !tenantParam) {
       const defaultTenant = import.meta.env.VITE_DEFAULT_DEV_TENANT || 'arkline';

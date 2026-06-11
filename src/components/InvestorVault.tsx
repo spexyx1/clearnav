@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Lock, Unlock, FileText, Download, ExternalLink, AlertCircle, Loader2, MapPin, Mail, ChevronLeft, BookOpen } from 'lucide-react';
+import { Lock, Unlock, FileText, Download, ExternalLink, AlertCircle, Loader2, MapPin, Mail, ChevronLeft, BookOpen, ClipboardList } from 'lucide-react';
 
 interface VaultDocument {
   id: string;
@@ -14,6 +14,7 @@ interface VaultDocument {
 interface InvestorVaultProps {
   onBack: () => void;
   onOpenReport: (passphrase: string) => void;
+  onApply: (passphrase: string) => void;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
@@ -36,7 +37,7 @@ const DOC_TYPE_ICONS: Record<string, string> = {
   other:           '📎',
 };
 
-export default function InvestorVault({ onBack, onOpenReport }: InvestorVaultProps) {
+export default function InvestorVault({ onBack, onOpenReport, onApply }: InvestorVaultProps) {
   const [phase, setPhase] = useState<'gate' | 'loading' | 'documents' | 'error'>('gate');
   const [passphrase, setPassphrase] = useState('');
   const [authError, setAuthError] = useState('');
@@ -366,6 +367,38 @@ export default function InvestorVault({ onBack, onOpenReport }: InvestorVaultPro
               <p className="text-xs opacity-25">
                 Document links expire after 2 hours. Refresh this page and re-enter your passphrase to regenerate them.
               </p>
+            </div>
+
+            {/* Apply Online CTA */}
+            <div
+              className="mt-14 rounded-sm border p-8 flex flex-col md:flex-row items-center gap-6"
+              style={{ borderColor: 'rgba(184,147,74,0.25)', backgroundColor: 'rgba(184,147,74,0.05)' }}
+            >
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: 'rgba(184,147,74,0.15)', border: '1px solid rgba(184,147,74,0.3)' }}
+              >
+                <ClipboardList size={24} style={{ color: '#B8934A' }} />
+              </div>
+              <div className="flex-1 text-center md:text-left">
+                <h2
+                  className="text-xl font-semibold mb-1"
+                  style={{ fontFamily: '"Cormorant Garamond", Georgia, serif' }}
+                >
+                  Ready to Invest?
+                </h2>
+                <p className="text-sm opacity-55 leading-relaxed max-w-lg">
+                  Complete your application online. The form guides you through each section based on your investor type — individual, joint, company, or trust.
+                </p>
+              </div>
+              <button
+                onClick={() => onApply(passphrase)}
+                className="flex-shrink-0 flex items-center gap-2 px-6 py-3 rounded-sm text-sm font-semibold tracking-wide transition-all hover:brightness-110"
+                style={{ backgroundColor: '#B8934A', color: '#0E2219' }}
+              >
+                <ClipboardList size={15} />
+                Apply Online
+              </button>
             </div>
           </div>
         )}

@@ -13,6 +13,7 @@ export type AppRoute =
   | 'contact'
   | 'vault'
   | 'investor-report'
+  | 'vault-apply'
   | 'invoice-public';
 
 function detectRoute(): AppRoute {
@@ -30,6 +31,7 @@ function detectRoute(): AppRoute {
   if (path === '/contact')          return 'contact';
   if (path === '/vault')            return 'vault';
   if (path === '/vault/report')    return 'investor-report';
+  if (path === '/vault/apply')     return 'vault-apply';
   if (path.startsWith('/invoice/')) return 'invoice-public';
   return 'landing';
 }
