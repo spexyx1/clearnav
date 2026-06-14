@@ -172,21 +172,18 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
     if (!profile?.username) { setSecError('No username found on your account.'); return; }
 
     setSecSaving(true);
-    const guestEmail = `${profile.username.toLowerCase()}@guest.clearnav.cv`;
 
-    const { error: updateAuthErr } = await supabase.auth.updateUser({ email: guestEmail, password: secPassword });
-    if (updateAuthErr) { setSecError(updateAuthErr.message); setSecSaving(false); return; }
+    const { data: fnData, error: fnErr } = await supabase.functions.invoke('invoice-app-auth', {
+      body: { mode: 'secure_guest', password: secPassword },
+    });
 
-    const { data: updatedProfile, error: updateProfileErr } = await supabase
-      .from('invoice_app_profiles')
-      .update({ is_guest: false })
-      .eq('user_id', userId)
-      .select()
-      .single();
+    if (fnErr || fnData?.error) {
+      setSecError(fnData?.error || fnErr?.message || 'Failed to secure account.');
+      setSecSaving(false);
+      return;
+    }
 
-    if (updateProfileErr) { setSecError(updateProfileErr.message); setSecSaving(false); return; }
-
-    if (updatedProfile) onProfileUpdate(updatedProfile as InvoiceAppProfile);
+    if (fnData?.profile) onProfileUpdate(fnData.profile as InvoiceAppProfile);
     setSecSaved(true);
     setSecPassword('');
     setSecConfirm('');

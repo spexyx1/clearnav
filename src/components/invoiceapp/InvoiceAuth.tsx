@@ -52,23 +52,19 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
       const result = lookup as { exists: boolean; is_guest: boolean; has_password: boolean } | null;
 
       if (!result?.exists) {
-        // New username — create anonymous session + profile immediately
-        const { data: anonData, error: anonErr } = await supabase.auth.signInAnonymously();
-        if (anonErr) throw anonErr;
+        // New username — create pre-confirmed guest user via edge function
+        const { data: fnData, error: fnErr } = await supabase.functions.invoke('invoice-app-auth', {
+          body: { mode: 'guest_create', username: trimmed },
+        });
+        if (fnErr) throw new Error(fnErr.message);
+        if (fnData?.error) throw new Error(fnData.error);
 
-        const userId = anonData.user?.id;
-        if (!userId) throw new Error('Failed to create guest session');
-
-        const { error: profileErr } = await supabase
-          .from('invoice_app_profiles')
-          .upsert({
-            user_id: userId,
-            username: trimmed.toLowerCase(),
-            display_name: trimmed,
-            is_guest: true,
-            onboarding_complete: true,
-          }, { onConflict: 'user_id' });
-        if (profileErr) throw profileErr;
+        // Exchange magic-link token for a real session
+        const { error: verifyErr } = await supabase.auth.verifyOtp({
+          token_hash: fnData.token_hash,
+          type: 'magiclink',
+        });
+        if (verifyErr) throw verifyErr;
 
         const guestToken = localStorage.getItem('invoice_guest_token');
         if (guestToken) {
@@ -81,10 +77,8 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
       }
 
       if (result.has_password) {
-        // Username exists and is secured — ask for password
         setMode('password-required');
       } else {
-        // Username exists but not secured — device-bound, can't recover here
         setError(
           'This username is saved on another device. ' +
           'Open Settings → Secure Account on that device to set a password, ' +
@@ -131,25 +125,27 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
     if (!nameInput.trim()) { setError('Please enter your name.'); return; }
     setLoading(true);
     setError(null);
-    const { data, error: err } = await supabase.auth.signUp({
+
+    // Create user via edge function (bypasses email confirmation requirement)
+    const { data: fnData, error: fnErr } = await supabase.functions.invoke('invoice-app-auth', {
+      body: { mode: 'email_signup', email: emailInput, password, name: nameInput },
+    });
+    if (fnErr) { setError(fnErr.message); setLoading(false); return; }
+    if (fnData?.error) { setError(fnData.error); setLoading(false); return; }
+
+    // Sign in immediately (user is pre-confirmed)
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
       email: emailInput,
       password,
-      options: { data: { full_name: nameInput } },
     });
-    if (err) { setError(err.message); setLoading(false); return; }
-    if (data.user) {
-      await supabase.from('invoice_app_profiles').upsert({
-        user_id: data.user.id,
-        display_name: nameInput,
-        is_guest: false,
-        onboarding_complete: false,
-      }, { onConflict: 'user_id' });
-      const guestToken = localStorage.getItem('invoice_guest_token');
-      if (guestToken) {
-        await supabase.rpc('claim_guest_invoices', { p_guest_token: guestToken });
-        localStorage.removeItem('invoice_guest_token');
-      }
+    if (signInErr) { setError(signInErr.message); setLoading(false); return; }
+
+    const guestToken = localStorage.getItem('invoice_guest_token');
+    if (guestToken) {
+      await supabase.rpc('claim_guest_invoices', { p_guest_token: guestToken });
+      localStorage.removeItem('invoice_guest_token');
     }
+
     onAuthenticated();
   }
 
