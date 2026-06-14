@@ -1,50 +1,149 @@
 import { useState } from 'react';
-import { FileText, Mail, Lock, User, Eye, EyeOff, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import {
+  FileText, Lock, User, Eye, EyeOff,
+  AlertCircle, Loader2, ArrowRight, Mail, ChevronDown, ChevronUp,
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface Props {
   onAuthenticated: () => void;
 }
 
+type Mode = 'username' | 'password-required' | 'email-signin' | 'email-signup';
+
+const GUEST_DOMAIN = 'guest.clearnav.cv';
+function guestEmail(username: string) {
+  return `${username.toLowerCase().trim()}@${GUEST_DOMAIN}`;
+}
+
+function validateUsername(u: string): string | null {
+  const s = u.trim();
+  if (s.length < 2) return 'Username must be at least 2 characters.';
+  if (s.length > 30) return 'Username must be 30 characters or fewer.';
+  if (!/^[a-zA-Z0-9_-]+$/.test(s)) return 'Only letters, numbers, underscores and hyphens allowed.';
+  return null;
+}
+
 export default function InvoiceAuth({ onAuthenticated }: Props) {
-  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
-  const [email, setEmail] = useState('');
+  const [mode, setMode] = useState<Mode>('username');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [emailInput, setEmailInput] = useState('');
+  const [nameInput, setNameInput] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [emailExpanded, setEmailExpanded] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleUsernameSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = username.trim();
+    const validErr = validateUsername(trimmed);
+    if (validErr) { setError(validErr); return; }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data: lookup, error: lookupErr } = await supabase
+        .rpc('invoice_app_username_lookup', { p_username: trimmed });
+      if (lookupErr) throw lookupErr;
+
+      const result = lookup as { exists: boolean; is_guest: boolean; has_password: boolean } | null;
+
+      if (!result?.exists) {
+        // New username — create anonymous session + profile immediately
+        const { data: anonData, error: anonErr } = await supabase.auth.signInAnonymously();
+        if (anonErr) throw anonErr;
+
+        const userId = anonData.user?.id;
+        if (!userId) throw new Error('Failed to create guest session');
+
+        const { error: profileErr } = await supabase
+          .from('invoice_app_profiles')
+          .upsert({
+            user_id: userId,
+            username: trimmed.toLowerCase(),
+            display_name: trimmed,
+            is_guest: true,
+            onboarding_complete: true,
+          }, { onConflict: 'user_id' });
+        if (profileErr) throw profileErr;
+
+        const guestToken = localStorage.getItem('invoice_guest_token');
+        if (guestToken) {
+          await supabase.rpc('claim_guest_invoices', { p_guest_token: guestToken });
+          localStorage.removeItem('invoice_guest_token');
+        }
+
+        onAuthenticated();
+        return;
+      }
+
+      if (result.has_password) {
+        // Username exists and is secured — ask for password
+        setMode('password-required');
+      } else {
+        // Username exists but not secured — device-bound, can't recover here
+        setError(
+          'This username is saved on another device. ' +
+          'Open Settings → Secure Account on that device to set a password, ' +
+          'then you can sign in from anywhere — or choose a different username.'
+        );
+      }
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePasswordSignIn(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    const { error: err } = await supabase.auth.signInWithPassword({
+      email: guestEmail(username),
+      password,
+    });
+    if (err) {
+      setError('Incorrect password. Try again.');
+      setLoading(false);
+      return;
+    }
+    onAuthenticated();
+  }
+
+  async function handleEmailSignIn(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    const { error: err } = await supabase.auth.signInWithPassword({
+      email: emailInput,
+      password,
+    });
     if (err) { setError(err.message); setLoading(false); return; }
     onAuthenticated();
   }
 
-  async function handleSignup(e: React.FormEvent) {
+  async function handleEmailSignUp(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) { setError('Please enter your name.'); return; }
+    if (!nameInput.trim()) { setError('Please enter your name.'); return; }
     setLoading(true);
     setError(null);
     const { data, error: err } = await supabase.auth.signUp({
-      email,
+      email: emailInput,
       password,
-      options: { data: { full_name: name } },
+      options: { data: { full_name: nameInput } },
     });
     if (err) { setError(err.message); setLoading(false); return; }
     if (data.user) {
-      // create profile row
       await supabase.from('invoice_app_profiles').upsert({
         user_id: data.user.id,
-        display_name: name,
+        display_name: nameInput,
+        is_guest: false,
         onboarding_complete: false,
       }, { onConflict: 'user_id' });
-
-      // claim any guest invoices
       const guestToken = localStorage.getItem('invoice_guest_token');
       if (guestToken) {
         await supabase.rpc('claim_guest_invoices', { p_guest_token: guestToken });
@@ -54,21 +153,8 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
     onAuthenticated();
   }
 
-  async function handleForgot(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/`,
-    });
-    if (err) { setError(err.message); setLoading(false); return; }
-    setSuccess('Check your email for a password reset link.');
-    setLoading(false);
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
       <div className="flex items-center px-8 py-5 bg-white border-b border-gray-200">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -80,31 +166,171 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
         </div>
       </div>
 
-      {/* Main */}
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-            {mode === 'login' && (
+
+            {/* Username entry */}
+            {mode === 'username' && (
               <>
                 <div className="mb-6">
-                  <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-                  <p className="text-gray-500 text-sm mt-1">Sign in to manage your invoices</p>
+                  <h1 className="text-2xl font-bold text-gray-900">Create or retrieve invoices</h1>
+                  <p className="text-gray-500 text-sm mt-1">
+                    Enter a username to get started — no email required.
+                  </p>
                 </div>
+
+                {error && (
+                  <div className="flex items-start gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm mb-4">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleUsernameSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={username}
+                        onChange={e => { setUsername(e.target.value); setError(null); }}
+                        required
+                        autoFocus
+                        placeholder="e.g. johndoe or my_business"
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
+                      />
+                    </div>
+                    <p className="mt-1.5 text-xs text-gray-400">
+                      Letters, numbers, underscores and hyphens · 2–30 chars
+                    </p>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading || !username.trim()}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors text-sm disabled:opacity-50"
+                  >
+                    {loading
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <ArrowRight className="w-4 h-4" />}
+                    Continue
+                  </button>
+                </form>
+
+                {/* Secondary email option */}
+                <div className="mt-6 border-t border-gray-100 pt-5">
+                  <button
+                    onClick={() => { setEmailExpanded(v => !v); setError(null); }}
+                    className="w-full flex items-center justify-between text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    <span>Have an email account?</span>
+                    {emailExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+
+                  {emailExpanded && (
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        onClick={() => { setMode('email-signin'); setError(null); }}
+                        className="flex-1 py-2 px-3 border border-gray-300 rounded-xl text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Sign in
+                      </button>
+                      <button
+                        onClick={() => { setMode('email-signup'); setError(null); }}
+                        className="flex-1 py-2 px-3 border border-gray-300 rounded-xl text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Create account
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Password required for existing username */}
+            {mode === 'password-required' && (
+              <>
+                <div className="mb-6">
+                  <h1 className="text-2xl font-bold text-gray-900">Welcome back, {username}</h1>
+                  <p className="text-gray-500 text-sm mt-1">This username is password-protected.</p>
+                </div>
+
                 {error && (
                   <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm mb-4">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     {error}
                   </div>
                 )}
-                <form onSubmit={handleLogin} className="space-y-4">
+
+                <form onSubmit={handlePasswordSignIn} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type={showPw ? 'text' : 'password'}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        required
+                        autoFocus
+                        placeholder="••••••••"
+                        className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPw(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors text-sm disabled:opacity-50"
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                    Sign In
+                  </button>
+                </form>
+
+                <div className="mt-4 text-sm text-center">
+                  <button
+                    onClick={() => { setMode('username'); setPassword(''); setError(null); }}
+                    className="text-blue-600 hover:underline"
+                  >
+                    Use a different username
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Email sign-in */}
+            {mode === 'email-signin' && (
+              <>
+                <div className="mb-6">
+                  <h1 className="text-2xl font-bold text-gray-900">Sign in</h1>
+                  <p className="text-gray-500 text-sm mt-1">Sign in with your email and password</p>
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm mb-4">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {error}
+                  </div>
+                )}
+
+                <form onSubmit={handleEmailSignIn} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="email"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
+                        value={emailInput}
+                        onChange={e => setEmailInput(e.target.value)}
                         required
                         placeholder="you@example.com"
                         className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
@@ -141,38 +367,39 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
                     Sign In
                   </button>
                 </form>
-                <div className="mt-4 flex items-center justify-between text-sm">
-                  <button onClick={() => { setMode('forgot'); setError(null); }} className="text-blue-600 hover:underline">
-                    Forgot password?
-                  </button>
-                  <button onClick={() => { setMode('signup'); setError(null); }} className="text-gray-600 hover:text-gray-900">
-                    No account? <span className="text-blue-600 font-medium">Sign up</span>
+
+                <div className="mt-4 text-sm text-center">
+                  <button onClick={() => { setMode('username'); setError(null); }} className="text-blue-600 hover:underline">
+                    Back
                   </button>
                 </div>
               </>
             )}
 
-            {mode === 'signup' && (
+            {/* Email sign-up */}
+            {mode === 'email-signup' && (
               <>
                 <div className="mb-6">
                   <h1 className="text-2xl font-bold text-gray-900">Create an account</h1>
-                  <p className="text-gray-500 text-sm mt-1">Start sending professional invoices</p>
+                  <p className="text-gray-500 text-sm mt-1">Sign up with email and password</p>
                 </div>
+
                 {error && (
                   <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm mb-4">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     {error}
                   </div>
                 )}
-                <form onSubmit={handleSignup} className="space-y-4">
+
+                <form onSubmit={handleEmailSignUp} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Your Name</label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="text"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
+                        value={nameInput}
+                        onChange={e => setNameInput(e.target.value)}
                         required
                         placeholder="Jane Smith"
                         className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
@@ -185,8 +412,8 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="email"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
+                        value={emailInput}
+                        onChange={e => setEmailInput(e.target.value)}
                         required
                         placeholder="you@example.com"
                         className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
@@ -224,59 +451,10 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
                     Create Account
                   </button>
                 </form>
-                <div className="mt-4 text-sm text-center">
-                  <button onClick={() => { setMode('login'); setError(null); }} className="text-gray-600 hover:text-gray-900">
-                    Already have an account? <span className="text-blue-600 font-medium">Sign in</span>
-                  </button>
-                </div>
-              </>
-            )}
 
-            {mode === 'forgot' && (
-              <>
-                <div className="mb-6">
-                  <h1 className="text-2xl font-bold text-gray-900">Reset password</h1>
-                  <p className="text-gray-500 text-sm mt-1">We'll send you a link to reset it</p>
-                </div>
-                {error && (
-                  <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm mb-4">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    {error}
-                  </div>
-                )}
-                {success ? (
-                  <div className="px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm mb-4">
-                    {success}
-                  </div>
-                ) : (
-                  <form onSubmit={handleForgot} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={e => setEmail(e.target.value)}
-                          required
-                          placeholder="you@example.com"
-                          className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
-                        />
-                      </div>
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors text-sm disabled:opacity-50"
-                    >
-                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                      Send Reset Link
-                    </button>
-                  </form>
-                )}
                 <div className="mt-4 text-sm text-center">
-                  <button onClick={() => { setMode('login'); setError(null); setSuccess(null); }} className="text-blue-600 hover:underline">
-                    Back to sign in
+                  <button onClick={() => { setMode('username'); setError(null); }} className="text-blue-600 hover:underline">
+                    Back
                   </button>
                 </div>
               </>

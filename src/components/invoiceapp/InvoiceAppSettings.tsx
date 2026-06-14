@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, CreditCard, FileText, Plus, Trash2, CreditCard as Edit2, Loader2, X, AlertCircle, CheckCircle, Save, Globe, Phone, Mail, Hash, Palette, DollarSign, Percent } from 'lucide-react';
+import { Building2, CreditCard, FileText, Plus, Trash2, CreditCard as Edit2, Loader2, X, AlertCircle, CheckCircle, Save, Globe, Phone, Mail, Hash, Palette, DollarSign, Percent, Shield, Eye, EyeOff, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { InvoiceSettings, CURRENCIES } from '../manager/invoicing/types';
 import { InvoiceAppProfile, TermsTemplate } from './types';
@@ -10,7 +10,7 @@ interface Props {
   onProfileUpdate: (p: InvoiceAppProfile) => void;
 }
 
-type Tab = 'business' | 'payment' | 'defaults' | 'terms';
+type Tab = 'business' | 'payment' | 'defaults' | 'terms' | 'security';
 
 function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
@@ -44,6 +44,14 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
   const [templateSaving, setTemplateSaving] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
   const [deletingTemplate, setDeletingTemplate] = useState<string | null>(null);
+
+  // Security (guest account protection)
+  const [secPassword, setSecPassword] = useState('');
+  const [secConfirm, setSecConfirm] = useState('');
+  const [secShowPass, setSecShowPass] = useState(false);
+  const [secSaving, setSecSaving] = useState(false);
+  const [secSaved, setSecSaved] = useState(false);
+  const [secError, setSecError] = useState<string | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -157,6 +165,34 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
     setTemplates(prev => prev.filter(t => t.id !== id));
   }
 
+  async function secureAccount() {
+    setSecError(null);
+    if (secPassword.length < 8) { setSecError('Password must be at least 8 characters.'); return; }
+    if (secPassword !== secConfirm) { setSecError('Passwords do not match.'); return; }
+    if (!profile?.username) { setSecError('No username found on your account.'); return; }
+
+    setSecSaving(true);
+    const guestEmail = `${profile.username.toLowerCase()}@guest.clearnav.cv`;
+
+    const { error: updateAuthErr } = await supabase.auth.updateUser({ email: guestEmail, password: secPassword });
+    if (updateAuthErr) { setSecError(updateAuthErr.message); setSecSaving(false); return; }
+
+    const { data: updatedProfile, error: updateProfileErr } = await supabase
+      .from('invoice_app_profiles')
+      .update({ is_guest: false })
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (updateProfileErr) { setSecError(updateProfileErr.message); setSecSaving(false); return; }
+
+    if (updatedProfile) onProfileUpdate(updatedProfile as InvoiceAppProfile);
+    setSecSaved(true);
+    setSecPassword('');
+    setSecConfirm('');
+    setSecSaving(false);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -178,9 +214,12 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
         <TabButton label="Payment" active={tab === 'payment'} onClick={() => setTab('payment')} />
         <TabButton label="Defaults" active={tab === 'defaults'} onClick={() => setTab('defaults')} />
         <TabButton label="Terms Templates" active={tab === 'terms'} onClick={() => setTab('terms')} />
+        {profile?.is_guest && (
+          <TabButton label="Secure Account" active={tab === 'security'} onClick={() => setTab('security')} />
+        )}
       </div>
 
-      {tab !== 'terms' && (
+      {tab !== 'terms' && tab !== 'security' && (
         <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
           {error && (
             <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
@@ -549,6 +588,91 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Security tab (guest users only) */}
+      {tab === 'security' && profile?.is_guest && (
+        <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5 max-w-lg">
+          {secSaved ? (
+            <div className="text-center py-8 space-y-3">
+              <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto">
+                <CheckCircle className="w-7 h-7 text-emerald-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Account Secured</h3>
+              <p className="text-sm text-gray-500">
+                Your invoices are now protected with a password. Sign in with your username and password from any device.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Shield className="w-5 h-5 text-amber-500" />
+                  <h2 className="text-base font-bold text-gray-900">Secure Your Account</h2>
+                </div>
+                <p className="text-sm text-gray-500">
+                  Set a password to protect your invoices and access them from any device using your username.
+                </p>
+              </div>
+
+              <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl">
+                <p className="text-xs text-gray-500 mb-0.5">Your username</p>
+                <p className="text-sm font-semibold text-gray-900">@{profile.username}</p>
+              </div>
+
+              {secError && (
+                <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {secError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <SettingField label="New Password">
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type={secShowPass ? 'text' : 'password'}
+                      value={secPassword}
+                      onChange={e => setSecPassword(e.target.value)}
+                      placeholder="At least 8 characters"
+                      className={`${inputCls} pl-9 pr-9`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSecShowPass(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {secShowPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </SettingField>
+
+                <SettingField label="Confirm Password">
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type={secShowPass ? 'text' : 'password'}
+                      value={secConfirm}
+                      onChange={e => setSecConfirm(e.target.value)}
+                      placeholder="Repeat your password"
+                      className={`${inputCls} pl-9`}
+                    />
+                  </div>
+                </SettingField>
+              </div>
+
+              <button
+                onClick={secureAccount}
+                disabled={secSaving}
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+              >
+                {secSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+                Set Password & Secure Account
+              </button>
+            </>
           )}
         </div>
       )}

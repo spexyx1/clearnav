@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import {
   FileText, LayoutDashboard, Users, Package, Settings,
-  Plus, LogOut, ChevronDown, Menu, X, User,
+  Plus, LogOut, ChevronDown, Menu, X, User, Shield,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
@@ -79,7 +79,7 @@ function AuthedApp({ session, profile, onProfileUpdate }: AuthedAppProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const user = session.user;
 
-  const displayName = profile?.display_name || user.email?.split('@')[0] || 'Account';
+  const displayName = profile?.username || profile?.display_name || user.email?.split('@')[0] || 'Account';
 
   function isActive(v: AppView | string): boolean {
     if (typeof view === 'string') return view === v;
@@ -269,6 +269,21 @@ function AuthedApp({ session, profile, onProfileUpdate }: AuthedAppProps) {
 
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            {profile?.is_guest && (
+              <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl mb-5 text-sm">
+                <Shield className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="text-amber-800">
+                  Your invoices are saved to this browser.{' '}
+                  <button
+                    onClick={() => setView('settings')}
+                    className="underline font-medium"
+                  >
+                    Add a password
+                  </button>{' '}
+                  to access from any device.
+                </span>
+              </div>
+            )}
             {renderContent()}
           </div>
         </main>
@@ -327,13 +342,19 @@ function InvoiceAppContainer() {
     return <InvoiceAuth onAuthenticated={() => {}} />;
   }
 
-  if (!profile || !profile.onboarding_complete) {
+  // Guest users skip onboarding (profile created with onboarding_complete=true)
+  // Non-guest users without onboarding go through the setup flow
+  if (profile && !profile.onboarding_complete && !profile.is_guest) {
     return (
       <InvoiceOnboarding
         userId={session.user.id}
         onComplete={() => loadProfile(session.user.id)}
       />
     );
+  }
+
+  if (!profile) {
+    return <FullPageLoader />;
   }
 
   return (

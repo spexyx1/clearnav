@@ -36,6 +36,8 @@ export interface InvoiceAppProfile {
   user_id: string;
   display_name: string | null;
   avatar_url: string | null;
+  username: string | null;
+  is_guest: boolean;
   onboarding_complete: boolean;
   created_at: string;
   updated_at: string;
