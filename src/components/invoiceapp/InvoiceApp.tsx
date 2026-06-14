@@ -278,11 +278,6 @@ function AuthedApp({ session, profile, onProfileUpdate }: AuthedAppProps) {
 }
 
 export default function InvoiceApp() {
-  const [session, setSession] = useState<Session | null | undefined>(undefined);
-  const [profile, setProfile] = useState<InvoiceAppProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
-
-  // Handle public invoice token route first
   const path = window.location.pathname;
   if (path.startsWith('/invoice/')) {
     const token = path.replace('/invoice/', '').split('/')[0];
@@ -292,6 +287,13 @@ export default function InvoiceApp() {
       </Suspense>
     );
   }
+  return <InvoiceAppContainer />;
+}
+
+function InvoiceAppContainer() {
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [profile, setProfile] = useState<InvoiceAppProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -325,7 +327,6 @@ export default function InvoiceApp() {
     return <InvoiceAuth onAuthenticated={() => {}} />;
   }
 
-  // Show onboarding if profile doesn't exist or not complete
   if (!profile || !profile.onboarding_complete) {
     return (
       <InvoiceOnboarding
