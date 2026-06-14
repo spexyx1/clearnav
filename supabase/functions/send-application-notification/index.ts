@@ -1,10 +1,21 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-};
+const ALLOWED_ORIGINS = [
+  "https://arklinetrust.com",
+  "https://www.arklinetrust.com",
+  "https://arkline.vercel.app",
+];
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+    "Vary": "Origin",
+  };
+}
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 
@@ -20,8 +31,9 @@ const INVESTOR_TYPE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-function row(label: string, value: string | null | undefined) {
-  if (!value) return "";
+// deno-lint-ignore no-explicit-any
+function row(label: string, value: any) {
+  if (value === null || value === undefined || value === "") return "";
   return `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;white-space:nowrap;vertical-align:top;">${label}</td><td style="padding:4px 0;color:#111827;">${value}</td></tr>`;
 }
 
@@ -34,96 +46,132 @@ function section(title: string, rows: string) {
 }
 
 Deno.serve(async (req: Request) => {
+  const origin = req.headers.get("origin");
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const body = await req.json();
-    const { application_id, form } = body;
+    const { application_id } = body;
 
-    if (!form) {
-      return new Response(JSON.stringify({ error: "Missing form data" }), {
+    if (!application_id) {
+      return new Response(JSON.stringify({ error: "Missing application_id" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const investorTypeLabel = INVESTOR_TYPE_LABELS[form.investor_type] ?? form.investor_type ?? "Unknown";
+    // Fetch the application from the database using the service role key
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
 
-    // Determine primary name for subject
-    let primaryName = "";
-    if (form.investor_type === "individual" || form.investor_type === "joint") {
-      primaryName = [form.a_given_names, form.a_surname].filter(Boolean).join(" ");
-    } else if (form.investor_type?.includes("company")) {
-      primaryName = form.c_company_name ?? "";
-    } else if (form.investor_type?.includes("trust")) {
-      primaryName = form.d_trust_name ?? "";
+    const { data: app, error: dbError } = await supabase
+      .from("investor_applications")
+      .select("*")
+      .eq("id", application_id)
+      .single();
+
+    if (dbError || !app) {
+      console.error("DB fetch error:", dbError);
+      return new Response(JSON.stringify({ error: "Application not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
-    if (!primaryName) primaryName = [form.contact_given_names, form.contact_surname].filter(Boolean).join(" ");
+
+    const investorTypeLabel = INVESTOR_TYPE_LABELS[app.investor_type] ?? app.investor_type ?? "Unknown";
+
+    // Determine primary display name
+    let primaryName = "";
+    if (app.investor_type === "individual" || app.investor_type === "joint") {
+      primaryName = [app.a_given_names, app.a_surname].filter(Boolean).join(" ");
+    } else if (app.investor_type?.includes("company")) {
+      primaryName = app.c_company_name ?? "";
+    } else if (app.investor_type?.includes("trust")) {
+      primaryName = app.d_trust_name ?? "";
+    }
+    if (!primaryName) primaryName = [app.contact_given_names, app.contact_surname].filter(Boolean).join(" ");
 
     // Build investment summary
     const investments: string[] = [];
-    if (form.invest_class_a && form.amount_class_a) investments.push(`Class A: A$${form.amount_class_a}`);
-    if (form.invest_class_b && form.amount_class_b) investments.push(`Class B: A$${form.amount_class_b}`);
-    if (form.invest_class_c && form.amount_class_c) investments.push(`Class C: A$${form.amount_class_c}`);
+    if (app.invest_class_a && app.amount_class_a) investments.push(`Class A: A$${app.amount_class_a}`);
+    if (app.invest_class_b && app.amount_class_b) investments.push(`Class B: A$${app.amount_class_b}`);
+    if (app.invest_class_c && app.amount_class_c) investments.push(`Class C: A$${app.amount_class_c}`);
 
     const contactRows = [
-      row("Name", [form.contact_given_names, form.contact_surname].filter(Boolean).join(" ")),
-      row("Email", form.contact_email),
-      row("Phone", form.contact_phone),
-      row("Address", [form.postal_address, form.postal_suburb, form.postal_state, form.postal_postcode, form.postal_country].filter(Boolean).join(", ")),
+      row("Name", [app.contact_given_names, app.contact_surname].filter(Boolean).join(" ")),
+      row("Email", app.contact_email),
+      row("Phone", app.contact_phone),
+      row("Address", [app.postal_address, app.postal_suburb, app.postal_state, app.postal_postcode, app.postal_country].filter(Boolean).join(", ")),
     ].join("");
 
     const investmentRows = [
       row("Investor Type", investorTypeLabel),
       row("Investment", investments.join(" | ") || "—"),
-      row("Reinvest Distributions", form.bank_reinvest === true ? "Yes" : form.bank_reinvest === false ? "No" : ""),
+      row("Reinvest Distributions", app.bank_reinvest === true ? "Yes" : app.bank_reinvest === false ? "No" : ""),
     ].join("");
 
-    const bankRows = [
-      row("Institution", form.bank_institution_name),
-      row("Account Name", form.bank_account_name),
-      row("BSB", form.bank_bsb),
-      row("Account No.", form.bank_account_number),
-      form.bank_swift ? row("SWIFT", form.bank_swift) : "",
-    ].join("");
-
-    // Section A individual details
+    // Section A — TFN deliberately excluded
     let sectionARows = "";
-    if (form.a_given_names || form.a_surname) {
+    if (app.a_given_names || app.a_surname) {
       sectionARows = [
-        row("Name", [form.a_title, form.a_given_names, form.a_surname].filter(Boolean).join(" ")),
-        row("DOB", form.a_dob),
-        row("Email", form.a_email),
-        row("Address", [form.a_residential_address, form.a_suburb, form.a_state, form.a_postcode, form.a_country].filter(Boolean).join(", ")),
-        row("TFN", form.a_tfn),
-        row("PEP", form.a_pep === true ? "Yes" : form.a_pep === false ? "No" : ""),
+        row("Name", [app.a_title, app.a_given_names, app.a_surname].filter(Boolean).join(" ")),
+        row("DOB", app.a_dob),
+        row("Email", app.a_email),
+        row("Address", [app.a_residential_address, app.a_suburb, app.a_state, app.a_postcode, app.a_country].filter(Boolean).join(", ")),
+        row("PEP", app.a_pep === true ? "Yes" : app.a_pep === false ? "No" : ""),
       ].join("");
     }
 
-    // Section C company details
+    // Section B — joint investor, TFN excluded
+    let sectionBRows = "";
+    if (app.b_given_names || app.b_surname) {
+      sectionBRows = [
+        row("Name", [app.b_title, app.b_given_names, app.b_surname].filter(Boolean).join(" ")),
+        row("DOB", app.b_dob),
+        row("Email", app.b_email),
+        row("PEP", app.b_pep === true ? "Yes" : app.b_pep === false ? "No" : ""),
+      ].join("");
+    }
+
+    // Section C — company, TFN/ACN shown only masked
     let sectionCRows = "";
-    if (form.c_company_name) {
+    if (app.c_company_name) {
       sectionCRows = [
-        row("Company Name", form.c_company_name),
-        row("ABN/TFN", form.c_abn_tfn),
-        row("ACN", form.c_acn),
-        row("Address", [form.c_registered_address, form.c_suburb, form.c_state, form.c_postcode, form.c_country].filter(Boolean).join(", ")),
+        row("Company Name", app.c_company_name),
+        row("ACN", app.c_acn),
+        row("Address", [app.c_registered_address, app.c_suburb, app.c_state, app.c_postcode, app.c_country].filter(Boolean).join(", ")),
       ].join("");
     }
 
-    // Section D trust details
+    // Section D — trust, TFN excluded
     let sectionDRows = "";
-    if (form.d_trust_name) {
+    if (app.d_trust_name) {
       sectionDRows = [
-        row("Trust Name", form.d_trust_name),
-        row("ABN/TFN", form.d_abn_tfn),
-        row("Trust Type", form.d_trust_type),
-        row("Settlor", form.d_settlor),
-        row("Country Established", form.d_country_established),
+        row("Trust Name", app.d_trust_name),
+        row("Trust Type", app.d_trust_type),
+        row("Settlor", app.d_settlor),
+        row("Country Established", app.d_country_established),
       ].join("");
     }
+
+    // Bank section — account number and BSB excluded; only institution and account name shown
+    const bankRows = [
+      row("Institution", app.bank_institution_name),
+      row("Account Name", app.bank_account_name),
+    ].join("");
 
     const htmlBody = `
 <!DOCTYPE html>
@@ -154,11 +202,18 @@ Deno.serve(async (req: Request) => {
       ${section("Contact Details", contactRows)}
       ${section("Investment Details", investmentRows)}
       ${sectionARows ? section("Individual / Applicant A", sectionARows) : ""}
+      ${sectionBRows ? section("Joint Applicant B", sectionBRows) : ""}
       ${sectionCRows ? section("Company Details", sectionCRows) : ""}
       ${sectionDRows ? section("Trust Details", sectionDRows) : ""}
       ${bankRows ? section("Bank Account", bankRows) : ""}
 
-      <div style="margin-top:32px;padding:16px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;">
+      <div style="margin-top:32px;padding:16px;background:#fff8ed;border-radius:6px;border:1px solid #f3e0b5;">
+        <p style="margin:0;font-size:13px;color:#92600a;">
+          <strong>Sensitive fields omitted from this email.</strong> TFN, bank account numbers, and BSB are stored securely and must be accessed via the admin portal.
+        </p>
+      </div>
+
+      <div style="margin-top:12px;padding:16px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;">
         <p style="margin:0;font-size:13px;color:#6b7280;">
           Log in to the Arkline admin portal to review the full application and attached documents.
         </p>
@@ -175,7 +230,7 @@ Deno.serve(async (req: Request) => {
 </body>
 </html>`;
 
-    const textBody = `New Arkline Trust Application\n\nApplicant: ${primaryName || "—"}\nType: ${investorTypeLabel}\nEmail: ${form.contact_email || "—"}\nPhone: ${form.contact_phone || "—"}\nInvestment: ${investments.join(", ") || "—"}\n\nApplication ID: ${application_id || "N/A"}\n\nPlease log in to the admin portal to review the full application.`;
+    const textBody = `New Arkline Trust Application\n\nApplicant: ${primaryName || "—"}\nType: ${investorTypeLabel}\nEmail: ${app.contact_email || "—"}\nPhone: ${app.contact_phone || "—"}\nInvestment: ${investments.join(", ") || "—"}\n\nApplication ID: ${application_id}\n\nSensitive fields (TFN, bank details) are excluded from this notification.\nLog in to the admin portal to review the full application.`;
 
     const emailPayload = {
       from: "Arkline Trust <applications@clearnav.cv>",
