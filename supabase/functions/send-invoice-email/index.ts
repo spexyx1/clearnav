@@ -228,18 +228,26 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Load settings + tenant name
-    const [settingsRes, tenantRes] = await Promise.all([
-      supabase.from("invoice_settings").select("*").eq("tenant_id", invoice.tenant_id).maybeSingle(),
-      supabase.from("platform_tenants").select("name").eq("id", invoice.tenant_id).maybeSingle(),
-    ]);
+    // Load settings — user-scoped invoices use user_id, tenant invoices use tenant_id
+    const settingsQuery = invoice.user_id
+      ? supabase.from("invoice_settings").select("*").eq("user_id", invoice.user_id).maybeSingle()
+      : supabase.from("invoice_settings").select("*").eq("tenant_id", invoice.tenant_id).maybeSingle();
+
+    const tenantQuery = invoice.tenant_id
+      ? supabase.from("platform_tenants").select("name").eq("id", invoice.tenant_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null });
+
+    const [settingsRes, tenantRes] = await Promise.all([settingsQuery, tenantQuery]);
 
     const settings = settingsRes.data;
-    const tenantName = tenantRes.data?.name || "Your Company";
+    const tenantName = tenantRes.data?.name || settings?.business_name || "Your Company";
 
-    // Derive the origin from the request or fall back to the Supabase URL root
+    // For user-scoped invoices use the invoice app subdomain for public links
+    const isInvoiceApp = !!invoice.user_id && !invoice.tenant_id;
     const reqOrigin = req.headers.get("origin") || req.headers.get("referer")?.replace(/\/$/, '') || '';
-    const origin = reqOrigin || (Deno.env.get("SUPABASE_URL") || '').replace('/rest/v1', '');
+    const origin = isInvoiceApp
+      ? 'https://invoice.clearnav.cv'
+      : (reqOrigin || (Deno.env.get("SUPABASE_URL") || '').replace('/rest/v1', ''));
 
     const htmlBody = buildInvoiceHtml(invoice, invoice.line_items || [], settings, tenantName, origin);
     const subject = `Invoice ${invoice.invoice_number} from ${settings?.business_name || tenantName}`;
@@ -260,9 +268,9 @@ Deno.serve(async (req: Request) => {
 
     if (resendKey && invoice.to_email) {
       const fromName = settings?.business_name || tenantName;
-      const fromEmail = settings?.business_email
-        ? settings.business_email
-        : 'invoices@resend.dev';
+      const fromEmail = isInvoiceApp
+        ? 'info@clearnav.cv'
+        : (settings?.business_email || 'invoices@resend.dev');
       const fromAddress = `${fromName} <${fromEmail}>`;
 
       const resendRes = await fetch("https://api.resend.com/emails", {

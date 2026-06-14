@@ -1,4 +1,5 @@
 const ROOT_HOSTNAMES = ['clearnav.cv', 'www.clearnav.cv'];
+const INVOICE_APP_HOSTNAMES = ['invoice.clearnav.cv', 'www.invoice.clearnav.cv'];
 
 export function isLocalHost(hostname: string): boolean {
   return (
@@ -38,6 +39,14 @@ export function isPlatformRootDomain(hostname: string): boolean {
     ROOT_HOSTNAMES.some(d => d.replace(/^www\./, '') === host) ||
     host.endsWith('.vercel.app')
   );
+}
+
+/**
+ * Returns true when the current host is the standalone invoice app subdomain.
+ */
+export function isInvoiceAppDomain(hostname: string): boolean {
+  const host = hostname.split(':')[0].toLowerCase().replace(/^www\./, '');
+  return INVOICE_APP_HOSTNAMES.some(d => d.replace(/^www\./, '') === host);
 }
 
 /**
