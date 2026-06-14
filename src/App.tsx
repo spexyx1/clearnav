@@ -87,6 +87,8 @@ function AppContent() {
     }
   }, [user, loading, isPlatformRoot]);
 
+  const Fallback = () => <FullPageLoader />;
+
   // On the platform root, don't block on auth loading for unauthenticated visitors —
   // ClearNAVLandingPage doesn't need auth and can paint immediately.
   if (loading && !isPlatformRoot && !isInvoiceApp) return <FullPageLoader />;
@@ -95,8 +97,6 @@ function AppContent() {
   if (isInvoiceApp) {
     return <Suspense fallback={<Fallback />}><InvoiceApp /></Suspense>;
   }
-
-  const Fallback = () => <FullPageLoader />;
 
   if (route === 'debug' && import.meta.env.DEV) {
     return <Suspense fallback={<Fallback />}><DebugLogin /></Suspense>;
