@@ -78,41 +78,20 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
 
   async function uploadLogo(file: File) {
     setLogoError(null);
-    if (file.size > 2 * 1024 * 1024) {
-      setLogoError('Logo must be under 2 MB.');
+    if (file.size > 1 * 1024 * 1024) {
+      setLogoError('Logo must be under 1 MB.');
       return;
     }
     setLogoUploading(true);
 
-    // Convert file to base64
-    const base64 = await new Promise<string>((resolve, reject) => {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1]); // strip data:...;base64, prefix
-      };
+      reader.onload = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
 
-    const { data, error: fnErr } = await supabase.functions.invoke('invoice-app-auth', {
-      body: {
-        mode: 'upload_logo',
-        file_base64: base64,
-        file_name: file.name,
-        content_type: file.type || 'image/png',
-      },
-    });
-
-    if (fnErr || !data?.public_url) {
-      let msg = 'Upload failed.';
-      try { const b = await (fnErr as any)?.context?.json?.(); if (b?.error) msg = b.error; } catch {}
-      setLogoError(data?.error || msg);
-      setLogoUploading(false);
-      return;
-    }
-
-    setField('logo_url', `${data.public_url}?t=${Date.now()}`);
+    setField('logo_url', dataUrl);
     setLogoUploading(false);
   }
 
@@ -406,7 +385,7 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
                         <AlertCircle className="w-3 h-3 shrink-0" />{logoError}
                       </p>
                     )}
-                    <p className="text-xs text-gray-400">PNG, JPG, SVG or WebP — max 2 MB</p>
+                    <p className="text-xs text-gray-400">PNG, JPG, SVG or WebP — max 1 MB</p>
                   </div>
                 </SettingField>
                 <SettingField label="Accent Color">
