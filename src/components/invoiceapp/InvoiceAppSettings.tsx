@@ -83,23 +83,36 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
       return;
     }
     setLogoUploading(true);
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-    const path = `${userId}/logo.${ext}`;
 
-    const { error: upErr } = await supabase.storage
-      .from('invoice-logos')
-      .upload(path, file, { upsert: true, contentType: file.type });
+    // Convert file to base64
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(',')[1]); // strip data:...;base64, prefix
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
-    if (upErr) {
-      setLogoError(upErr.message);
+    const { data, error: fnErr } = await supabase.functions.invoke('invoice-app-auth', {
+      body: {
+        mode: 'upload_logo',
+        file_base64: base64,
+        file_name: file.name,
+        content_type: file.type || 'image/png',
+      },
+    });
+
+    if (fnErr || !data?.public_url) {
+      let msg = 'Upload failed.';
+      try { const b = await (fnErr as any)?.context?.json?.(); if (b?.error) msg = b.error; } catch {}
+      setLogoError(data?.error || msg);
       setLogoUploading(false);
       return;
     }
 
-    const { data: urlData } = supabase.storage.from('invoice-logos').getPublicUrl(path);
-    // Bust cache so the new image shows immediately
-    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
-    setField('logo_url', publicUrl);
+    setField('logo_url', `${data.public_url}?t=${Date.now()}`);
     setLogoUploading(false);
   }
 

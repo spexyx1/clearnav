@@ -186,5 +186,40 @@ Deno.serve(async (req: Request) => {
     return ok({ success: true, profile: updatedProfile });
   }
 
+  // ── upload_logo ───────────────────────────────────────────────────────────────
+  if (mode === "upload_logo") {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return err("Authorization header required.", 401);
+
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: userErr } = await callerClient.auth.getUser();
+    if (userErr || !user) return err("Invalid or expired session.", 401);
+
+    const { file_base64, file_name, content_type } = body;
+    if (!file_base64 || !file_name || !content_type) {
+      return err("file_base64, file_name, and content_type are required.");
+    }
+
+    // Decode base64 → Uint8Array
+    const binaryStr = atob(file_base64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+    const ext = file_name.split(".").pop()?.toLowerCase() || "png";
+    const path = `${user.id}/logo.${ext}`;
+
+    // Use service-role client to bypass RLS
+    const { error: upErr } = await adminClient.storage
+      .from("invoice-logos")
+      .upload(path, bytes, { contentType: content_type, upsert: true });
+
+    if (upErr) return err(upErr.message, 500);
+
+    const { data: urlData } = adminClient.storage.from("invoice-logos").getPublicUrl(path);
+    return ok({ public_url: urlData.publicUrl });
+  }
+
   return err("Unknown mode.");
 });
