@@ -102,25 +102,11 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
       setError(null);
 
       const { data: accessData, error: accessError } = await supabase
-        .from('email_account_access')
-        .select(`
-          account_id,
-          access_level,
-          email_accounts (
-            id,
-            email_address,
-            display_name,
-            account_type,
-            is_active
-          )
-        `)
-        .eq('user_id', user.id);
+        .rpc('get_user_email_accounts', { p_user_id: user.id });
 
       if (accessError) throw accessError;
 
-      const accountsList = (accessData || [])
-        .filter((a: any) => a.email_accounts)
-        .map((a: any) => a.email_accounts as EmailAccount);
+      const accountsList = (accessData || []) as EmailAccount[];
 
       setAccounts(accountsList);
       if (accountsList.length > 0) {
