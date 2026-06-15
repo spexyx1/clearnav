@@ -185,11 +185,14 @@ export default function InvoiceAppEditor({ userId, invoiceId, onSaved, onBack }:
   }
 
   function applyProduct(lineId: string, product: SavedProduct) {
+    const desc = product.notes
+      ? `${product.description}\n${product.notes}`
+      : product.description;
     setItems(prev => prev.map(i =>
       i.id === lineId
         ? {
             ...i,
-            description: product.description,
+            description: desc,
             unit_price: product.default_price,
             tax_rate: product.default_tax_rate,
             quantity: product.default_quantity,

@@ -1,0 +1,1 @@
+ALTER TABLE invoice_saved_products ADD COLUMN IF NOT EXISTS notes text;

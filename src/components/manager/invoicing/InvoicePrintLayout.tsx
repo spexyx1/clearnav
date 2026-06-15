@@ -14,9 +14,19 @@ interface Props {
   forScreen?: boolean;
 }
 
+function contrastSafe(hex: string, fallback = '#0891b2'): string {
+  const c = hex.replace('#', '');
+  if (c.length < 3) return fallback;
+  const r = parseInt(c.length === 3 ? c[0] + c[0] : c.slice(0, 2), 16);
+  const g = parseInt(c.length === 3 ? c[1] + c[1] : c.slice(2, 4), 16);
+  const b = parseInt(c.length === 3 ? c[2] + c[2] : c.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.85 ? '#1e293b' : hex;
+}
+
 export default function InvoicePrintLayout({ data, forScreen = true }: Props) {
   const { invoice, items, settings, tenantName } = data;
-  const accent = settings?.accent_color || '#0891b2';
+  const accent = contrastSafe(settings?.accent_color || '#0891b2');
   const currency = invoice.currency || 'USD';
 
   const senderName = settings?.business_name || tenantName;

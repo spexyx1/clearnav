@@ -10,6 +10,7 @@ interface Props {
 
 const EMPTY_FORM = {
   description: '',
+  notes: '',
   default_price: '',
   default_tax_rate: '',
   default_quantity: '1',
@@ -53,6 +54,7 @@ export default function InvoiceAppProducts({ userId }: Props) {
     setEditing(product);
     setForm({
       description: product.description,
+      notes: product.notes ?? '',
       default_price: String(product.default_price),
       default_tax_rate: String(product.default_tax_rate),
       default_quantity: String(product.default_quantity),
@@ -70,6 +72,7 @@ export default function InvoiceAppProducts({ userId }: Props) {
     const payload = {
       user_id: userId,
       description: form.description.trim(),
+      notes: form.notes.trim() || null,
       default_price: parseFloat(form.default_price) || 0,
       default_tax_rate: parseFloat(form.default_tax_rate) || 0,
       default_quantity: parseFloat(form.default_quantity) || 1,
@@ -187,7 +190,12 @@ export default function InvoiceAppProducts({ userId }: Props) {
                       <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
                         <Package className="w-4 h-4 text-blue-600" />
                       </div>
-                      <span className="font-medium text-gray-900">{product.description}</span>
+                      <div>
+                        <div className="font-medium text-gray-900">{product.description}</div>
+                        {product.notes && (
+                          <div className="text-xs text-gray-400 mt-0.5 line-clamp-1">{product.notes}</div>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-5 py-3.5 text-right text-gray-700 font-medium hidden sm:table-cell">
@@ -251,12 +259,22 @@ export default function InvoiceAppProducts({ userId }: Props) {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Description *</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Name / Title *</label>
                 <input
                   value={form.description}
                   onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
                   placeholder="e.g. Web Design, Consulting Hour, Monthly Retainer"
                   className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Description / Notes</label>
+                <textarea
+                  value={form.notes}
+                  onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="Optional details shown on the invoice line item..."
+                  rows={3}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">

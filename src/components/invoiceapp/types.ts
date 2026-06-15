@@ -18,6 +18,7 @@ export interface SavedProduct {
   default_tax_rate: number;
   default_quantity: number;
   unit: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
