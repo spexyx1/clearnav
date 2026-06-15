@@ -41,17 +41,26 @@ export default function InvoicePrintLayout({ data, forScreen = true }: Props) {
   const isSigned = !!invoice.signed_at;
 
   const wrapper = forScreen
-    ? 'bg-white text-slate-800 font-sans text-sm rounded-xl shadow-2xl overflow-hidden min-h-[900px]'
+    ? 'bg-white text-slate-800 font-sans text-sm rounded-xl shadow-2xl overflow-hidden'
     : 'bg-white text-slate-800 font-sans text-sm';
 
   return (
     <div className={wrapper} id="invoice-print-root">
       <style>{`
         @media print {
-          @page { size: A4; margin: 12mm 14mm; }
+          @page { size: A4 portrait; margin: 0; }
+          html, body { margin: 0 !important; padding: 0 !important; }
           body * { visibility: hidden; }
           #invoice-print-root, #invoice-print-root * { visibility: visible; }
-          #invoice-print-root { position: absolute; inset: 0; box-shadow: none !important; border-radius: 0 !important; }
+          #invoice-print-root {
+            position: fixed !important;
+            top: 0 !important; left: 0 !important; right: 0 !important;
+            padding: 10mm 12mm !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
         }
       `}</style>
 

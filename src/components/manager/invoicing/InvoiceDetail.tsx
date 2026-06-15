@@ -196,8 +196,27 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, tenan
   <meta charset="utf-8">
   <title>Invoice ${invoice.invoice_number}</title>
   <style>${styles}</style>
+  <style>
+    @page { size: A4 portrait; margin: 8mm 11mm; }
+    html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+    @media print {
+      body * { visibility: visible !important; }
+      #invoice-print-root {
+        position: static !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        zoom: 0.82;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+    }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  </style>
 </head>
-<body class="bg-white m-0 p-0">
+<body>
   ${printRef.current.innerHTML}
   <script>
     window.onload = function() {
