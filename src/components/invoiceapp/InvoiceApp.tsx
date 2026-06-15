@@ -1,13 +1,11 @@
-import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
+import { useState, useEffect, lazy, Suspense, useRef, useCallback } from 'react';
 import {
   FileText, LayoutDashboard, Users, Package, Settings,
-  Plus, LogOut, ChevronDown, Menu, X, User, Shield,
+  Plus, LogOut, ChevronDown, Menu, X, User, Shield, AlertCircle, RefreshCw,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { FullPageLoader } from '../shared/Spinner';
-import InvoiceAuth from './InvoiceAuth';
-import InvoiceOnboarding from './InvoiceOnboarding';
 import { InvoiceAppProfile } from './types';
 
 const InvoiceDashboard = lazy(() => import('./InvoiceDashboard'));
@@ -308,7 +306,8 @@ export default function InvoiceApp() {
 function InvoiceAppContainer() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [profile, setProfile] = useState<InvoiceAppProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
+  const [provisionError, setProvisionError] = useState<string | null>(null);
+  const provisioning = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -319,41 +318,96 @@ function InvoiceAppContainer() {
   }, []);
 
   const loadProfile = useCallback(async (userId: string) => {
-    setProfileLoading(true);
     const { data } = await supabase
       .from('invoice_app_profiles')
       .select('*')
       .eq('user_id', userId)
       .maybeSingle();
     setProfile(data as InvoiceAppProfile | null);
-    setProfileLoading(false);
   }, []);
 
   useEffect(() => {
-    if (session?.user) loadProfile(session.user.id);
-    else setProfile(null);
+    if (session?.user) {
+      loadProfile(session.user.id);
+    } else if (session === null && !provisioning.current) {
+      provisioning.current = true;
+      autoSignIn();
+    }
   }, [session, loadProfile]);
 
-  if (session === undefined || (session && profileLoading)) {
-    return <FullPageLoader />;
+  async function autoSignIn() {
+    setProvisionError(null);
+    try {
+      // Re-use saved credentials from a previous visit (avoids calling edge function every time)
+      const saved = localStorage.getItem('invoice_app_creds');
+      if (saved) {
+        try {
+          const { email, temp_password } = JSON.parse(saved);
+          const { error } = await supabase.auth.signInWithPassword({ email, password: temp_password });
+          if (!error) return; // onAuthStateChange fires → session updates → app renders
+        } catch { /* corrupt json */ }
+        localStorage.removeItem('invoice_app_creds');
+      }
+
+      // First visit — create a guest account automatically, user never sees a form
+      const suffix = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+      const username = `u${suffix}`;
+
+      const { data: fnData, error: fnErr } = await supabase.functions.invoke('invoice-app-auth', {
+        body: { mode: 'guest_create', username },
+      });
+
+      if (fnErr || !fnData?.email || !fnData?.temp_password) {
+        let msg = 'Could not start your session. Please refresh the page.';
+        try { const b = await (fnErr as any)?.context?.json?.(); if (b?.error) msg = b.error; } catch {}
+        throw new Error(msg);
+      }
+
+      localStorage.setItem('invoice_app_creds', JSON.stringify({
+        email: fnData.email,
+        temp_password: fnData.temp_password,
+      }));
+
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: fnData.email,
+        password: fnData.temp_password,
+      });
+      if (signInErr) throw signInErr;
+    } catch (err: any) {
+      setProvisionError(err.message || 'Could not start your session. Please refresh the page.');
+      provisioning.current = false;
+    }
   }
 
-  if (!session) {
-    return <InvoiceAuth onAuthenticated={() => {}} />;
+  function retry() {
+    provisioning.current = false;
+    setProvisionError(null);
+    setSession(null); // triggers the effect which calls autoSignIn again
   }
 
-  // Guest users skip onboarding (profile created with onboarding_complete=true)
-  // Non-guest users without onboarding go through the setup flow
-  if (profile && !profile.onboarding_complete && !profile.is_guest) {
+  if (provisionError) {
     return (
-      <InvoiceOnboarding
-        userId={session.user.id}
-        onComplete={() => loadProfile(session.user.id)}
-      />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 max-w-sm w-full text-center">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-6 h-6 text-red-600" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Connection error</h2>
+          <p className="text-sm text-gray-500 mb-6">{provisionError}</p>
+          <button
+            onClick={retry}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Try Again
+          </button>
+        </div>
+      </div>
     );
   }
 
-  if (!profile) {
+  if (session === undefined || session === null || !profile) {
     return <FullPageLoader />;
   }
 

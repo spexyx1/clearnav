@@ -195,6 +195,19 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
     }
 
     if (fnData?.profile) onProfileUpdate(fnData.profile as InvoiceAppProfile);
+
+    // Update saved credentials so auto-sign-in on this device uses the new password
+    try {
+      const saved = localStorage.getItem('invoice_app_creds');
+      if (saved) {
+        const creds = JSON.parse(saved);
+        localStorage.setItem('invoice_app_creds', JSON.stringify({
+          ...creds,
+          temp_password: secPassword,
+        }));
+      }
+    } catch { /* ignore */ }
+
     setSecSaved(true);
     setSecPassword('');
     setSecConfirm('');
