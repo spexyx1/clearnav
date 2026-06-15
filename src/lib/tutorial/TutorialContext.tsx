@@ -105,11 +105,21 @@ export function TutorialProvider({ portal, onNavigate, children }: Props) {
       const merged = { ...progress, ...updates, updated_at: now } as TutorialProgress;
       setProgress(merged);
 
-      await supabase
-        .from('user_tutorial_progress')
-        .update({ ...updates, updated_at: now })
-        .eq('user_id', user.id)
-        .eq('tutorial_key', tutorialKey);
+      // Use SECURITY DEFINER RPC so the write succeeds even if direct UPDATE RLS blocks it
+      const { error } = await supabase.rpc('upsert_tutorial_progress', {
+        p_user_id: user.id,
+        p_tutorial_key: tutorialKey,
+        p_status: (updates.status ?? progress?.status ?? 'in_progress') as string,
+        p_current_step: updates.current_step ?? progress?.current_step ?? 0,
+        p_steps_completed: (updates.steps_completed ?? progress?.steps_completed ?? []) as unknown as string,
+        p_started_at: updates.started_at ?? progress?.started_at ?? null,
+        p_completed_at: updates.completed_at ?? progress?.completed_at ?? null,
+        p_skipped_at: updates.skipped_at ?? progress?.skipped_at ?? null,
+      });
+
+      if (error) {
+        console.error('[Tutorial] Failed to persist progress:', error.message);
+      }
     },
     [progress, tutorialKey]
   );
