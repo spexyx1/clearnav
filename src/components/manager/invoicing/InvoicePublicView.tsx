@@ -60,6 +60,8 @@ export default function InvoicePublicView({ token }: Props) {
 
     const invoiceNum = data?.invoice.invoice_number || 'invoice';
 
+    const cleanHtml = printRef.current.innerHTML.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+
     printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
@@ -67,27 +69,20 @@ export default function InvoicePublicView({ token }: Props) {
   <title>Invoice ${invoiceNum}</title>
   <style>${styles}</style>
   <style>
-    @page { size: A4 portrait; margin: 8mm 11mm; }
+    @page { size: A4 portrait; margin: 10mm 13mm; }
     html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
-    @media print {
-      body * { visibility: visible !important; }
-      #invoice-print-root {
-        position: static !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-        zoom: 0.82;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-        page-break-inside: avoid;
-        break-inside: avoid;
-      }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    #invoice-print-root {
+      zoom: 0.82;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
-    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   </style>
 </head>
 <body>
-  ${printRef.current.innerHTML}
+  ${cleanHtml}
   <script>
     window.onload = function() { setTimeout(function() { window.print(); }, 300); };
   </script>
