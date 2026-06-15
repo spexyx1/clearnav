@@ -62,7 +62,11 @@ function formatDate(dateString: string | null) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function EmailClient() {
+interface EmailClientProps {
+  initialAccountId?: string;
+}
+
+export default function EmailClient({ initialAccountId }: EmailClientProps = {}) {
   const { user, isTenantAdmin, isPlatformAdmin } = useAuth();
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<EmailAccount | null>(null);
@@ -119,8 +123,11 @@ export default function EmailClient() {
         .map((a: any) => a.email_accounts as EmailAccount);
 
       setAccounts(accountsList);
-      if (accountsList.length > 0 && !selectedAccount) {
-        setSelectedAccount(accountsList[0]);
+      if (accountsList.length > 0) {
+        const preferred = initialAccountId
+          ? accountsList.find(a => a.id === initialAccountId) ?? accountsList[0]
+          : accountsList[0];
+        setSelectedAccount(prev => prev ?? preferred);
       }
     } catch (err: any) {
       console.error('Error loading email accounts:', err);
@@ -128,7 +135,7 @@ export default function EmailClient() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, initialAccountId]);
 
   const loadMessages = useCallback(async () => {
     if (!selectedAccount) return;
