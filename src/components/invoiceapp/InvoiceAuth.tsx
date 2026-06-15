@@ -24,6 +24,14 @@ function validateUsername(u: string): string | null {
   return null;
 }
 
+async function extractFnError(fnErr: unknown, fallback = 'Something went wrong. Please try again.'): Promise<string> {
+  try {
+    const body = await (fnErr as any).context?.json?.();
+    if (body?.error) return body.error;
+  } catch { /* ignore */ }
+  return (fnErr as any)?.message || fallback;
+}
+
 export default function InvoiceAuth({ onAuthenticated }: Props) {
   const [mode, setMode] = useState<Mode>('username');
   const [username, setUsername] = useState('');
@@ -56,15 +64,16 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
         const { data: fnData, error: fnErr } = await supabase.functions.invoke('invoice-app-auth', {
           body: { mode: 'guest_create', username: trimmed },
         });
-        if (fnErr) throw new Error(fnErr.message);
+
+        if (fnErr) throw new Error(await extractFnError(fnErr));
         if (fnData?.error) throw new Error(fnData.error);
 
-        // Exchange magic-link token for a real session
-        const { error: verifyErr } = await supabase.auth.verifyOtp({
-          token_hash: fnData.token_hash,
-          type: 'magiclink',
+        // Sign in immediately with the server-generated temporary password
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: fnData.email,
+          password: fnData.temp_password,
         });
-        if (verifyErr) throw verifyErr;
+        if (signInErr) throw signInErr;
 
         const guestToken = localStorage.getItem('invoice_guest_token');
         if (guestToken) {
@@ -77,63 +86,67 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
       }
 
       if (result.has_password) {
+        // Username exists and is secured — ask for password
         setMode('password-required');
       } else {
+        // Username exists but not secured — device-bound until a password is set
         setError(
-          'This username is saved on another device. ' +
-          'Open Settings → Secure Account on that device to set a password, ' +
+          'This username is linked to another device. ' +
+          'Go to Settings → Security on that device and set a password, ' +
           'then you can sign in from anywhere — or choose a different username.'
         );
       }
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong. Please try again.');
+    } catch (e: any) {
+      setError(e.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
   }
 
-  async function handlePasswordSignIn(e: React.FormEvent) {
-    e.preventDefault();
+  async function handlePasswordSignIn(ev: React.FormEvent) {
+    ev.preventDefault();
     setLoading(true);
     setError(null);
-    const { error: err } = await supabase.auth.signInWithPassword({
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
       email: guestEmail(username),
       password,
     });
-    if (err) {
-      setError('Incorrect password. Try again.');
+    if (signInErr) {
+      setError('Incorrect password. Please try again.');
       setLoading(false);
       return;
     }
     onAuthenticated();
   }
 
-  async function handleEmailSignIn(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleEmailSignIn(ev: React.FormEvent) {
+    ev.preventDefault();
     setLoading(true);
     setError(null);
-    const { error: err } = await supabase.auth.signInWithPassword({
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
       email: emailInput,
       password,
     });
-    if (err) { setError(err.message); setLoading(false); return; }
+    if (signInErr) { setError(signInErr.message); setLoading(false); return; }
     onAuthenticated();
   }
 
   async function handleEmailSignUp(e: React.FormEvent) {
     e.preventDefault();
     if (!nameInput.trim()) { setError('Please enter your name.'); return; }
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
     setLoading(true);
     setError(null);
 
-    // Create user via edge function (bypasses email confirmation requirement)
+    // Create pre-confirmed user via edge function (bypasses email confirmation)
     const { data: fnData, error: fnErr } = await supabase.functions.invoke('invoice-app-auth', {
       body: { mode: 'email_signup', email: emailInput, password, name: nameInput },
     });
-    if (fnErr) { setError(fnErr.message); setLoading(false); return; }
+
+    if (fnErr) { setError(await extractFnError(fnErr)); setLoading(false); return; }
     if (fnData?.error) { setError(fnData.error); setLoading(false); return; }
 
-    // Sign in immediately (user is pre-confirmed)
+    // Sign in immediately (user is already confirmed)
     const { error: signInErr } = await supabase.auth.signInWithPassword({
       email: emailInput,
       password,
@@ -207,14 +220,11 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
                     disabled={loading || !username.trim()}
                     className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors text-sm disabled:opacity-50"
                   >
-                    {loading
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : <ArrowRight className="w-4 h-4" />}
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                     Continue
                   </button>
                 </form>
 
-                {/* Secondary email option */}
                 <div className="mt-6 border-t border-gray-100 pt-5">
                   <button
                     onClick={() => { setEmailExpanded(v => !v); setError(null); }}
@@ -308,7 +318,7 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
               <>
                 <div className="mb-6">
                   <h1 className="text-2xl font-bold text-gray-900">Sign in</h1>
-                  <p className="text-gray-500 text-sm mt-1">Sign in with your email and password</p>
+                  <p className="text-gray-500 text-sm mt-1">Sign in with your email and password.</p>
                 </div>
 
                 {error && (
@@ -328,6 +338,7 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
                         value={emailInput}
                         onChange={e => setEmailInput(e.target.value)}
                         required
+                        autoFocus
                         placeholder="you@example.com"
                         className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
                       />
@@ -377,7 +388,7 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
               <>
                 <div className="mb-6">
                   <h1 className="text-2xl font-bold text-gray-900">Create an account</h1>
-                  <p className="text-gray-500 text-sm mt-1">Sign up with email and password</p>
+                  <p className="text-gray-500 text-sm mt-1">Sign up with your email and a password.</p>
                 </div>
 
                 {error && (
@@ -397,6 +408,7 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
                         value={nameInput}
                         onChange={e => setNameInput(e.target.value)}
                         required
+                        autoFocus
                         placeholder="Jane Smith"
                         className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
                       />

@@ -177,8 +177,19 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
       body: { mode: 'secure_guest', password: secPassword },
     });
 
-    if (fnErr || fnData?.error) {
-      setSecError(fnData?.error || fnErr?.message || 'Failed to secure account.');
+    if (fnErr) {
+      let msg = 'Failed to secure account.';
+      try {
+        const body = await (fnErr as any).context?.json?.();
+        if (body?.error) msg = body.error;
+      } catch { /* ignore */ }
+      setSecError(msg);
+      setSecSaving(false);
+      return;
+    }
+
+    if (fnData?.error) {
+      setSecError(fnData.error);
       setSecSaving(false);
       return;
     }

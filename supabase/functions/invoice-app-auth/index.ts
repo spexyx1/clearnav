@@ -12,8 +12,15 @@ function guestEmail(username: string) {
   return `${username.toLowerCase().trim()}@${GUEST_DOMAIN}`;
 }
 
-function jsonResponse(data: object, status = 200) {
+function ok(data: object) {
   return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function err(message: string, status = 400) {
+  return new Response(JSON.stringify({ error: message }), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
@@ -26,8 +33,10 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
   const { createClient } = await import("jsr:@supabase/supabase-js@2");
+
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -36,22 +45,24 @@ Deno.serve(async (req: Request) => {
   try {
     body = await req.json();
   } catch {
-    return jsonResponse({ error: "Invalid JSON" }, 400);
+    return err("Invalid JSON body");
   }
 
   const { mode } = body;
 
-  // ── guest_create: new username → create pre-confirmed user + magic link token ──
+  // ── guest_create ──────────────────────────────────────────────────────────────
+  // Creates a new pre-confirmed guest user identified by username.
+  // Returns { email, temp_password } for immediate signInWithPassword on client.
   if (mode === "guest_create") {
     const { username } = body;
     if (!username || !/^[a-zA-Z0-9_-]{2,30}$/.test(username.trim())) {
-      return jsonResponse({ error: "Invalid username. Use 2-30 letters, numbers, underscores or hyphens." }, 400);
+      return err("Invalid username. Use 2–30 letters, numbers, underscores or hyphens.");
     }
 
     const trimmed = username.trim().toLowerCase();
     const email = guestEmail(trimmed);
 
-    // Check uniqueness before creating (race-condition safe via DB unique index)
+    // Check uniqueness first (DB unique index is the final guard)
     const { data: existing } = await adminClient
       .from("invoice_app_profiles")
       .select("user_id")
@@ -59,20 +70,23 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (existing) {
-      return jsonResponse({ error: "Username already taken. Try a different one." }, 409);
+      return err("Username already taken. Please choose a different one.", 409);
     }
 
-    // Create pre-confirmed user (no password — guest only signs in via token)
+    // Random temp password — user never sees this; replaced via Secure Account
+    const tempPassword = `${crypto.randomUUID()}-${crypto.randomUUID()}`;
+
     const { data: userData, error: createErr } = await adminClient.auth.admin.createUser({
       email,
+      password: tempPassword,
       email_confirm: true,
     });
 
     if (createErr) {
-      if (createErr.message?.includes("already been registered")) {
-        return jsonResponse({ error: "Username already taken. Try a different one." }, 409);
+      if (createErr.message?.toLowerCase().includes("already been registered")) {
+        return err("Username already taken. Please choose a different one.", 409);
       }
-      return jsonResponse({ error: createErr.message }, 400);
+      return err(createErr.message);
     }
 
     const userId = userData.user.id;
@@ -87,50 +101,38 @@ Deno.serve(async (req: Request) => {
     });
 
     if (profileErr) {
-      // Roll back user creation on profile failure
+      // Roll back auth user on profile failure
       await adminClient.auth.admin.deleteUser(userId);
-      return jsonResponse({ error: "Failed to create profile: " + profileErr.message }, 500);
+      return err("Failed to create profile: " + profileErr.message, 500);
     }
 
-    // Generate a magic-link token the client can exchange for a session
-    const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-    });
-
-    if (linkErr) {
-      return jsonResponse({ error: linkErr.message }, 500);
-    }
-
-    return jsonResponse({
-      token_hash: linkData.properties.hashed_token,
-      email,
-    });
+    return ok({ email, temp_password: tempPassword });
   }
 
-  // ── email_signup: create real account with instant confirmation ──
+  // ── email_signup ──────────────────────────────────────────────────────────────
+  // Creates a pre-confirmed real account. Client calls signInWithPassword after.
   if (mode === "email_signup") {
     const { email, password, name } = body;
 
     if (!email || !password || password.length < 6) {
-      return jsonResponse({ error: "Email and password (min 6 chars) are required." }, 400);
+      return err("Email and password (min 6 characters) are required.");
     }
 
     const { data: userData, error: createErr } = await adminClient.auth.admin.createUser({
       email: email.toLowerCase().trim(),
       password,
       email_confirm: true,
-      user_metadata: { full_name: name || null },
+      user_metadata: { full_name: name?.trim() || null },
     });
 
     if (createErr) {
-      if (createErr.message?.includes("already been registered")) {
-        return jsonResponse({ error: "An account with this email already exists." }, 409);
+      if (createErr.message?.toLowerCase().includes("already been registered")) {
+        return err("An account with this email already exists.", 409);
       }
-      return jsonResponse({ error: createErr.message }, 400);
+      return err(createErr.message);
     }
 
-    // Create profile (onboarding_complete: false → goes through onboarding flow)
+    // Create profile (onboarding_complete: false → goes through onboarding)
     await adminClient.from("invoice_app_profiles").insert({
       user_id: userData.user.id,
       display_name: name?.trim() || null,
@@ -138,45 +140,45 @@ Deno.serve(async (req: Request) => {
       onboarding_complete: false,
     });
 
-    return jsonResponse({ success: true });
+    return ok({ success: true });
   }
 
-  // ── secure_guest: convert anonymous session → password-protected account ──
-  // Called with the user's valid JWT in the Authorization header
+  // ── secure_guest ──────────────────────────────────────────────────────────────
+  // Sets a real password on an existing guest account so it can be accessed
+  // from any device. Requires a valid session (Authorization header).
   if (mode === "secure_guest") {
     const { password } = body;
     if (!password || password.length < 8) {
-      return jsonResponse({ error: "Password must be at least 8 characters." }, 400);
+      return err("Password must be at least 8 characters.");
     }
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return jsonResponse({ error: "Authorization header required." }, 401);
+      return err("Authorization header required.", 401);
     }
 
     // Verify caller's session
-    const callerClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: userErr } = await callerClient.auth.getUser();
     if (userErr || !user) {
-      return jsonResponse({ error: "Invalid session." }, 401);
+      return err("Invalid or expired session.", 401);
     }
 
-    // Get the guest username from their profile
+    // Confirm this is a guest account
     const { data: profile } = await adminClient
       .from("invoice_app_profiles")
       .select("username, is_guest")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (!profile?.is_guest || !profile.username) {
-      return jsonResponse({ error: "Not a guest account." }, 400);
+    if (!profile?.is_guest) {
+      return err("Not a guest account.");
     }
 
-    const email = guestEmail(profile.username);
-
-    // Update user: set email + password, keep confirmed
+    // Set email + password via admin API (bypasses email confirmation)
+    const email = profile.username ? guestEmail(profile.username) : user.email!;
     const { error: updateErr } = await adminClient.auth.admin.updateUserById(user.id, {
       email,
       email_confirm: true,
@@ -184,10 +186,10 @@ Deno.serve(async (req: Request) => {
     });
 
     if (updateErr) {
-      return jsonResponse({ error: updateErr.message }, 500);
+      return err(updateErr.message, 500);
     }
 
-    // Mark profile as non-guest
+    // Mark profile as non-guest (secured)
     const { data: updatedProfile, error: profileErr } = await adminClient
       .from("invoice_app_profiles")
       .update({ is_guest: false })
@@ -196,11 +198,11 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (profileErr) {
-      return jsonResponse({ error: profileErr.message }, 500);
+      return err(profileErr.message, 500);
     }
 
-    return jsonResponse({ success: true, profile: updatedProfile });
+    return ok({ success: true, profile: updatedProfile });
   }
 
-  return jsonResponse({ error: "Invalid mode." }, 400);
+  return err("Unknown mode.");
 });
