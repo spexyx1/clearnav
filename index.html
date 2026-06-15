@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Loading...</title>
+    <title>ClearNAV Invoicing</title>
     <meta name="description" content="" />
 
     <!-- Preconnect to Supabase so DNS+TLS is resolved during HTML parse -->
@@ -88,6 +88,16 @@
         }
 
         // ─── Detect tenant ─────────────────────────────────────────────────
+        // Set title for invoice subdomain before React loads
+        var _host = location.hostname.replace(/^www\./, '');
+        if (_host === 'invoice.clearnav.cv') {
+          document.title = 'ClearNAV Invoicing';
+        } else if (_host !== 'clearnav.cv' && !_host.endsWith('.vercel.app') && _host !== 'localhost') {
+          document.title = 'Loading...';
+        } else {
+          document.title = 'ClearNAV';
+        }
+
         var domain = getCookie('tenant-domain');
         if (!domain) {
           var host = location.hostname.replace(/^www\./, '');

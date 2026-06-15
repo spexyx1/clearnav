@@ -291,6 +291,7 @@ function AuthedApp({ session, profile, onProfileUpdate }: AuthedAppProps) {
 }
 
 export default function InvoiceApp() {
+  useEffect(() => { document.title = 'ClearNAV Invoicing'; }, []);
   const path = window.location.pathname;
   if (path.startsWith('/invoice/')) {
     const token = path.replace('/invoice/', '').split('/')[0];
