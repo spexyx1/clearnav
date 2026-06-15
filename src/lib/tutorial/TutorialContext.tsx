@@ -74,8 +74,9 @@ export function TutorialProvider({ portal, onNavigate, children }: Props) {
       setProgress(prog);
       setCurrentStep(prog.current_step ?? 0);
 
-      // Auto-launch after 1.5s if not started, skipped or in_progress
-      if (prog.status === 'not_started' || prog.status === 'in_progress') {
+      // Auto-launch only on the very first login (not_started). In-progress, skipped,
+      // and completed tutorials never auto-relaunch — the user can restart manually.
+      if (prog.status === 'not_started') {
         launchTimerRef.current = setTimeout(() => {
           if (!cancelled) setIsOpen(true);
         }, 1500);
