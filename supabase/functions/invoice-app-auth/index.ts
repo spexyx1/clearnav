@@ -70,7 +70,9 @@ Deno.serve(async (req: Request) => {
       return err("Username already taken. Please choose a different one.", 409);
     }
 
-    const tempPassword = `${crypto.randomUUID()}-${crypto.randomUUID()}`;
+    // 32-char hex password — well within bcrypt's 72-char limit, no email sent
+    const tempPassword = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map(b => b.toString(16).padStart(2, "0")).join("");
 
     const { data: userData, error: createErr } = await adminClient.auth.admin.createUser({
       email,
@@ -79,26 +81,20 @@ Deno.serve(async (req: Request) => {
     });
 
     if (createErr) {
-      if (createErr.message?.toLowerCase().includes("already been registered")) {
+      const msg = createErr.message ?? "";
+      if (msg.toLowerCase().includes("already been registered") || msg.toLowerCase().includes("already exists")) {
         return err("Username already taken. Please choose a different one.", 409);
       }
-      return err(createErr.message);
+      return err(`Failed to create account: ${msg}`, 500);
     }
 
-    const userId = userData.user.id;
-
-    const { error: profileErr } = await adminClient.from("invoice_app_profiles").insert({
-      user_id: userId,
+    await adminClient.from("invoice_app_profiles").insert({
+      user_id: userData.user.id,
       username: trimmed,
       display_name: trimmed,
       is_guest: true,
       onboarding_complete: true,
     });
-
-    if (profileErr) {
-      await adminClient.auth.admin.deleteUser(userId);
-      return err("Failed to create profile: " + profileErr.message, 500);
-    }
 
     return ok({ email, temp_password: tempPassword });
   }
