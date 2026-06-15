@@ -129,22 +129,13 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
     try {
       setMessagesLoading(true);
 
-      let query = supabase
-        .from('email_messages')
-        .select('id, from_address, from_name, to_addresses, cc_addresses, subject, body_html, body_text, folder, is_read, is_starred, is_draft, has_attachments, received_at, sent_at, created_at')
-        .eq('account_id', selectedAccount.id)
-        .eq('folder', currentFolder)
-        .order('received_at', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (searchQuery.trim()) {
-        query = query.or(`subject.ilike.%${searchQuery}%,from_address.ilike.%${searchQuery}%,body_text.ilike.%${searchQuery}%`);
-      }
-
-      const { data, error } = await query;
+      const { data, error } = await supabase.rpc('get_email_messages', {
+        p_account_id: selectedAccount.id,
+        p_folder: currentFolder,
+        p_search: searchQuery.trim() || null,
+      });
       if (error) throw error;
-      setMessages(data || []);
+      setMessages((data as EmailMessage[]) || []);
     } catch (err: any) {
       console.error('Error loading messages:', err);
     } finally {
@@ -155,14 +146,16 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
   const loadFolderCounts = useCallback(async () => {
     if (!selectedAccount) return;
 
-    const { count } = await supabase
-      .from('email_messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('account_id', selectedAccount.id)
-      .eq('folder', 'inbox')
-      .eq('is_read', false);
-
-    setFolderCounts((prev) => ({ ...prev, inbox: count || 0 }));
+    const { data } = await supabase.rpc('get_email_folder_counts', {
+      p_account_id: selectedAccount.id,
+    });
+    if (data) {
+      const counts: Record<string, number> = {};
+      for (const row of data as { folder: string; unread_count: number }[]) {
+        counts[row.folder] = row.unread_count;
+      }
+      setFolderCounts(counts);
+    }
   }, [selectedAccount]);
 
   useEffect(() => {
