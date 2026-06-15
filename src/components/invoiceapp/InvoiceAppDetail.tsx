@@ -8,6 +8,7 @@ import {
 import InvoiceStatusBadge from '../manager/invoicing/InvoiceStatusBadge';
 import InvoicePreview from '../manager/invoicing/InvoicePreview';
 import InvoicePrintLayout from '../manager/invoicing/InvoicePrintLayout';
+import { buildInvoicePrintHTML } from '../manager/invoicing/buildInvoicePrintHTML';
 
 interface Props {
   userId: string;
@@ -195,46 +196,12 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
   }
 
   function downloadPDF() {
-    if (!printRef.current || !invoice) return;
+    if (!invoice) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-    const styles = Array.from(document.styleSheets)
-      .map(sheet => {
-        try {
-          return Array.from(sheet.cssRules).map(r => r.cssText).join('\n');
-        } catch {
-          return sheet.href ? `@import url('${sheet.href}');` : '';
-        }
-      })
-      .join('\n');
-
-    // Strip the embedded <style> tag (designed for in-page printing, not this dedicated window)
-    const cleanHtml = printRef.current.innerHTML.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-
-    printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Invoice ${invoice.invoice_number}</title>
-  <style>${styles}</style>
-  <style>
-    @page { size: A4 portrait; margin: 10mm 13mm; }
-    html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    #invoice-print-root {
-      zoom: 0.82;
-      box-shadow: none !important;
-      border-radius: 0 !important;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-  </style>
-</head>
-<body>
-  ${cleanHtml}
-  <script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
-</body>
-</html>`);
+    printWindow.document.write(
+      buildInvoicePrintHTML(invoice, invoice.line_items ?? [], settings, settings?.business_name ?? '')
+    );
     printWindow.document.close();
   }
 

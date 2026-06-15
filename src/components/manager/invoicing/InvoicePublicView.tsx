@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { Invoice, InvoiceLineItem, InvoiceSettings } from './types';
 import InvoicePrintLayout, { PrintInvoiceData } from './InvoicePrintLayout';
+import { buildInvoicePrintHTML } from './buildInvoicePrintHTML';
 import {
   Loader2, Download, PenLine, CheckCircle, AlertCircle, X,
   Pen, Type,
@@ -44,50 +45,12 @@ export default function InvoicePublicView({ token }: Props) {
   useEffect(() => { load(); }, [load]);
 
   function downloadPDF() {
-    if (!printRef.current) return;
+    if (!data) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-
-    const styles = Array.from(document.styleSheets)
-      .map(sheet => {
-        try {
-          return Array.from(sheet.cssRules).map(r => r.cssText).join('\n');
-        } catch {
-          return sheet.href ? `@import url('${sheet.href}');` : '';
-        }
-      })
-      .join('\n');
-
-    const invoiceNum = data?.invoice.invoice_number || 'invoice';
-
-    const cleanHtml = printRef.current.innerHTML.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-
-    printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Invoice ${invoiceNum}</title>
-  <style>${styles}</style>
-  <style>
-    @page { size: A4 portrait; margin: 10mm 13mm; }
-    html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    #invoice-print-root {
-      zoom: 0.82;
-      box-shadow: none !important;
-      border-radius: 0 !important;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-  </style>
-</head>
-<body>
-  ${cleanHtml}
-  <script>
-    window.onload = function() { setTimeout(function() { window.print(); }, 300); };
-  </script>
-</body>
-</html>`);
+    printWindow.document.write(
+      buildInvoicePrintHTML(data.invoice, data.line_items, data.settings, data.tenant_name)
+    );
     printWindow.document.close();
   }
 

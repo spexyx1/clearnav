@@ -10,6 +10,7 @@ import { Invoice, InvoicePayment, InvoiceActivity, InvoiceSettings, formatCurren
 import InvoiceStatusBadge from './InvoiceStatusBadge';
 import InvoicePreview from './InvoicePreview';
 import InvoicePrintLayout from './InvoicePrintLayout';
+import { buildInvoicePrintHTML } from './buildInvoicePrintHTML';
 
 interface Props {
   invoice: Invoice;
@@ -175,51 +176,11 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, tenan
   }
 
   function downloadPDF() {
-    if (!printRef.current) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-
-    // Grab all stylesheets from the current page
-    const styles = Array.from(document.styleSheets)
-      .map(sheet => {
-        try {
-          return Array.from(sheet.cssRules).map(r => r.cssText).join('\n');
-        } catch {
-          return sheet.href ? `@import url('${sheet.href}');` : '';
-        }
-      })
-      .join('\n');
-
-    const cleanHtml = printRef.current.innerHTML.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-
-    printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Invoice ${invoice.invoice_number}</title>
-  <style>${styles}</style>
-  <style>
-    @page { size: A4 portrait; margin: 10mm 13mm; }
-    html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    #invoice-print-root {
-      zoom: 0.82;
-      box-shadow: none !important;
-      border-radius: 0 !important;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-  </style>
-</head>
-<body>
-  ${cleanHtml}
-  <script>
-    window.onload = function() {
-      setTimeout(function() { window.print(); }, 300);
-    };
-  </script>
-</body>
-</html>`);
+    printWindow.document.write(
+      buildInvoicePrintHTML(invoice, invoice.line_items ?? [], settings, settings?.business_name ?? '')
+    );
     printWindow.document.close();
   }
 
