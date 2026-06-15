@@ -125,6 +125,8 @@ export function buildInvoicePrintHTML(
         </div>`}
     </div>` : '';
 
+  const isPaid = invoice.status === 'paid';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -138,7 +140,15 @@ export function buildInvoicePrintHTML(
     print-color-adjust: exact;
   </style>
 </head>
-<body style="-webkit-print-color-adjust:exact;print-color-adjust:exact">
+<body style="-webkit-print-color-adjust:exact;print-color-adjust:exact;position:relative">
+
+  ${isPaid ? `<!-- ── PAID STAMP ── -->
+  <div style="position:fixed;top:38%;left:50%;transform:translate(-50%,-50%) rotate(-28deg);pointer-events:none;z-index:100;text-align:center;opacity:0.18">
+    <div style="border:6px solid #dc2626;border-radius:8px;padding:8px 28px;display:inline-block">
+      <div style="font-size:72px;font-weight:900;color:#dc2626;letter-spacing:6px;line-height:1;text-transform:uppercase">PAID</div>
+      <div style="font-size:22px;color:#dc2626;font-family:'Brush Script MT',cursive;margin-top:2px;letter-spacing:2px">paid in full</div>
+    </div>
+  </div>` : ''}
 
   <!-- ── HEADER ── -->
   <table style="width:100%;border-collapse:collapse;border-bottom:3px solid ${accent};padding-bottom:14px;margin-bottom:14px">
@@ -158,7 +168,7 @@ export function buildInvoicePrintHTML(
         ${settings?.business_tax_id ? `<div style="font-size:10px;color:#9ca3af;margin-top:2px">Tax ID: ${esc(settings.business_tax_id)}</div>` : ''}
       </td>
       <td style="vertical-align:top;text-align:right;padding-bottom:14px;white-space:nowrap">
-        <div style="font-size:28px;font-weight:900;letter-spacing:-0.5px;color:${accent}">INVOICE</div>
+        <div style="font-size:18px;font-weight:900;letter-spacing:0.5px;color:${accent};text-transform:uppercase">INVOICE</div>
         <div style="font-size:14px;font-weight:600;color:#374151;margin-top:2px">${esc(invoice.invoice_number)}</div>
         <table style="margin-top:10px;border-collapse:collapse;margin-left:auto">
           ${row('Issue Date:', invoice.issue_date, '#374151')}

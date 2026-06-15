@@ -39,10 +39,11 @@ export default function InvoicePrintLayout({ data, forScreen = true }: Props) {
   );
 
   const isSigned = !!invoice.signed_at;
+  const isPaid = invoice.status === 'paid';
 
   const wrapper = forScreen
-    ? 'bg-white text-slate-800 font-sans text-sm rounded-xl shadow-2xl overflow-hidden'
-    : 'bg-white text-slate-800 font-sans text-sm';
+    ? 'relative bg-white text-slate-800 font-sans text-sm rounded-xl shadow-2xl overflow-hidden'
+    : 'relative bg-white text-slate-800 font-sans text-sm';
 
   return (
     <div className={wrapper} id="invoice-print-root">
@@ -64,6 +65,19 @@ export default function InvoicePrintLayout({ data, forScreen = true }: Props) {
           }
         }
       `}</style>
+
+      {/* ── PAID Stamp ── */}
+      {isPaid && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10" style={{ top: '30%' }}>
+          <div
+            className="border-[6px] border-red-600 rounded-lg px-7 py-2 text-center"
+            style={{ transform: 'rotate(-28deg)', opacity: 0.18 }}
+          >
+            <div className="text-7xl font-black text-red-600 tracking-widest leading-none uppercase">PAID</div>
+            <div className="text-xl text-red-600 mt-1 tracking-wide" style={{ fontFamily: "'Brush Script MT', cursive" }}>paid in full</div>
+          </div>
+        </div>
+      )}
 
       {/* ── Header ── */}
       <div className="px-10 py-7 flex items-start justify-between" style={{ borderBottom: `3px solid ${accent}` }}>
@@ -100,7 +114,7 @@ export default function InvoicePrintLayout({ data, forScreen = true }: Props) {
         </div>
 
         <div className="text-right">
-          <div className="text-3xl font-extrabold tracking-tight" style={{ color: accent }}>INVOICE</div>
+          <div className="text-xl font-extrabold tracking-wide uppercase" style={{ color: accent }}>INVOICE</div>
           <div className="text-base font-semibold text-slate-700 mt-1">{invoice.invoice_number}</div>
           <div className="mt-3 space-y-0.5 text-xs text-slate-500">
             <div><span className="font-medium text-slate-600">Issue Date:</span> {invoice.issue_date}</div>

@@ -228,7 +228,7 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, tenan
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {!isVoid && !isPaid && (
+          {!isVoid && (
             <button
               onClick={() => setShowPaymentForm(true)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 text-sm transition-colors border border-emerald-600/30"
@@ -261,7 +261,7 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, tenan
             <Download className="w-4 h-4" />
             Download PDF
           </button>
-          {!isVoid && invoice.status === 'draft' && (
+          {!isVoid && (
             <button
               onClick={onEdit}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm transition-colors"

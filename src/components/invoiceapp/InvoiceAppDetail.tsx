@@ -281,7 +281,7 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {!isVoid && !isPaid && (
+          {!isVoid && (
             <button
               onClick={() => setShowPaymentForm(true)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm transition-colors border border-emerald-200"
@@ -321,7 +321,7 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
             <Download className="w-4 h-4" />
             PDF
           </button>
-          {!isVoid && (invoice.status === 'draft' || invoice.status === 'sent') && (
+          {!isVoid && (
             <button
               onClick={() => onEdit(invoice.id)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm transition-colors"
