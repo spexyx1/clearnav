@@ -375,15 +375,18 @@ function InvoiceAppContainer() {
       });
       if (signInErr) throw signInErr;
     } catch (err: any) {
-      setProvisionError(err.message || 'Could not start your session. Please refresh the page.');
+      const msg = typeof err?.message === 'string' && err.message
+        ? err.message
+        : 'Could not start your session. Please refresh the page.';
+      setProvisionError(msg);
       provisioning.current = false;
     }
   }
 
   function retry() {
-    provisioning.current = false;
+    provisioning.current = true;
     setProvisionError(null);
-    setSession(null); // triggers the effect which calls autoSignIn again
+    autoSignIn();
   }
 
   if (provisionError) {
