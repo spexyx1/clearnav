@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Building2, CreditCard, FileText, Plus, Trash2, CreditCard as Edit2, Loader2, X, AlertCircle, CheckCircle, Save, Globe, Phone, Mail, Hash, Palette, DollarSign, Percent, Shield, Eye, EyeOff, Lock } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Building2, CreditCard, FileText, Plus, Trash2, CreditCard as Edit2, Loader2, X, AlertCircle, CheckCircle, Save, Globe, Phone, Mail, Hash, Palette, Percent, Shield, Eye, EyeOff, Lock, Upload, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { InvoiceSettings, CURRENCIES } from '../manager/invoicing/types';
 import { InvoiceAppProfile, TermsTemplate } from './types';
@@ -36,6 +36,11 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Logo upload
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+
   // Terms templates
   const [templates, setTemplates] = useState<TermsTemplate[]>([]);
   const [templateModal, setTemplateModal] = useState(false);
@@ -69,6 +74,33 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
     }
     setTemplates(templatesRes.data ?? []);
     setLoading(false);
+  }
+
+  async function uploadLogo(file: File) {
+    setLogoError(null);
+    if (file.size > 2 * 1024 * 1024) {
+      setLogoError('Logo must be under 2 MB.');
+      return;
+    }
+    setLogoUploading(true);
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+    const path = `${userId}/logo.${ext}`;
+
+    const { error: upErr } = await supabase.storage
+      .from('invoice-logos')
+      .upload(path, file, { upsert: true, contentType: file.type });
+
+    if (upErr) {
+      setLogoError(upErr.message);
+      setLogoUploading(false);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from('invoice-logos').getPublicUrl(path);
+    // Bust cache so the new image shows immediately
+    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+    setField('logo_url', publicUrl);
+    setLogoUploading(false);
   }
 
   function setField(k: keyof InvoiceSettings, v: string | number | null) {
@@ -304,13 +336,65 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
                     />
                   </div>
                 </SettingField>
-                <SettingField label="Logo URL">
-                  <input
-                    value={settings.logo_url ?? ''}
-                    onChange={e => setField('logo_url', e.target.value)}
-                    placeholder="https://yourcompany.com/logo.png"
-                    className={inputCls}
-                  />
+                <SettingField label="Logo">
+                  <div className="space-y-2">
+                    {/* Preview */}
+                    {settings.logo_url ? (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                        <img
+                          src={settings.logo_url}
+                          alt="Business logo"
+                          className="h-12 max-w-[160px] object-contain rounded"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setField('logo_url', null)}
+                          className="ml-auto p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
+                          title="Remove logo"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-20 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl text-gray-400">
+                        <div className="flex flex-col items-center gap-1">
+                          <ImageIcon className="w-6 h-6" />
+                          <span className="text-xs">No logo uploaded</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Upload button */}
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/svg+xml"
+                      className="hidden"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadLogo(file);
+                        e.target.value = '';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => logoInputRef.current?.click()}
+                      disabled={logoUploading}
+                      className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 w-full justify-center"
+                    >
+                      {logoUploading
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <Upload className="w-4 h-4" />
+                      }
+                      {logoUploading ? 'Uploading…' : settings.logo_url ? 'Replace Logo' : 'Upload Logo'}
+                    </button>
+                    {logoError && (
+                      <p className="text-xs text-red-600 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />{logoError}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-400">PNG, JPG, SVG or WebP — max 2 MB</p>
+                  </div>
                 </SettingField>
                 <SettingField label="Accent Color">
                   <div className="flex items-center gap-3">
