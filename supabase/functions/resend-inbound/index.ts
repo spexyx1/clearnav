@@ -112,9 +112,33 @@ Deno.serve(async (req: Request) => {
     const to   = parseAddress(rawTo);
 
     const subject: string  = email.subject ?? "(no subject)";
-    const bodyHtml: string | null = email.html ?? null;
-    const bodyText: string | null = email.text ?? null;
     const receivedAt: string      = email.created_at ?? new Date().toISOString();
+
+    // Resend's email.received webhook omits the body — fetch it separately
+    // using the email_id field that IS present in the payload.
+    let bodyHtml: string | null = email.html ?? null;
+    let bodyText: string | null = email.text ?? null;
+
+    const resendEmailId: string | null = email.email_id ?? providerId ?? null;
+    if (!bodyHtml && !bodyText && resendEmailId) {
+      const resendApiKey = Deno.env.get("RESEND_API_KEY");
+      if (resendApiKey) {
+        try {
+          const emailRes = await fetch(`https://api.resend.com/emails/${resendEmailId}`, {
+            headers: { Authorization: `Bearer ${resendApiKey}` },
+          });
+          if (emailRes.ok) {
+            const emailData = await emailRes.json();
+            bodyHtml = emailData.html ?? null;
+            bodyText = emailData.text ?? null;
+          } else {
+            console.warn("Resend email fetch returned", emailRes.status, "for id", resendEmailId);
+          }
+        } catch (fetchErr) {
+          console.warn("Failed to fetch email body from Resend API:", fetchErr);
+        }
+      }
+    }
     const headers: object         = email.headers ?? {};
 
     if (!to.email) {
