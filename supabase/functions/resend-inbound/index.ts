@@ -8,26 +8,27 @@ import { createClient } from "npm:@supabase/supabase-js@2";
  * a clearnav.cv address that matches the inbound routing rule configured in
  * the Resend dashboard.
  *
- * Resend inbound payload shape (simplified):
+ * Resend email.received webhook payload shape:
  * {
- *   "id": "evt_...",
- *   "type": "email.received",           // may also be present
+ *   "type": "email.received",
+ *   "created_at": "2026-06-23T12:00:00.000Z",
  *   "data": {
- *     "id": "msg_...",
+ *     "email_id": "50bb636f-ff42-4c3e-ab46-b1e30ba32bf2",  // <-- the key ID
  *     "from": "Sender Name <sender@example.com>",
  *     "to": ["recipient@clearnav.cv"],
- *     "reply_to": ["reply@example.com"],
+ *     "reply_to": "reply@example.com",
  *     "subject": "Hello",
- *     "html": "<p>...</p>",
- *     "text": "...",
- *     "headers": { ... },
- *     "created_at": "2026-04-26T12:00:00.000Z"
+ *     "headers": { ... }
  *   }
  * }
  *
- * Resend does NOT sign inbound webhooks with a secret the same way outbound
- * webhooks work — it is authenticated by the URL being secret. We additionally
- * validate the RESEND_INBOUND_SECRET query-param if configured.
+ * NOTE: the webhook sends metadata only — no HTML/text body. The full content
+ * must be fetched separately via GET /emails/{email_id} using the email_id
+ * from the payload.
+ *
+ * Resend does NOT sign inbound webhooks the same way as outbound — it is
+ * authenticated by the URL being secret. We additionally validate the
+ * RESEND_INBOUND_SECRET query-param if configured.
  */
 
 const corsHeaders = {
@@ -97,11 +98,13 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Resend wraps the email in a `data` key for webhook events
+    // Resend wraps the email data in a `data` key for webhook events
     const email = payload.data ?? payload;
 
-    // Extract fields
-    const providerId: string | null = email.id ?? payload.id ?? null;
+    // Resend's email.received webhook puts the identifier in `data.email_id`.
+    // The top-level `id` / `data.id` fields do not exist in inbound payloads.
+    const providerId: string | null = email.email_id ?? email.id ?? payload.id ?? null;
+
     const rawFrom: string = Array.isArray(email.from) ? email.from[0] : (email.from ?? "");
     const rawTo: string = Array.isArray(email.to) ? email.to[0] : (email.to ?? "");
     const rawReplyTo: string | null = Array.isArray(email.reply_to)
@@ -111,35 +114,39 @@ Deno.serve(async (req: Request) => {
     const from = parseAddress(rawFrom);
     const to   = parseAddress(rawTo);
 
-    const subject: string  = email.subject ?? "(no subject)";
-    const receivedAt: string      = email.created_at ?? new Date().toISOString();
+    const subject: string    = email.subject ?? "(no subject)";
+    const receivedAt: string = email.created_at ?? new Date().toISOString();
 
-    // Resend's email.received webhook omits the body — fetch it separately
-    // using the email_id field that IS present in the payload.
+    // The webhook sends metadata only. Fetch the full body from the Resend
+    // Received Emails API using the email_id from the payload.
     let bodyHtml: string | null = email.html ?? null;
     let bodyText: string | null = email.text ?? null;
 
-    const resendEmailId: string | null = email.email_id ?? providerId ?? null;
-    if (!bodyHtml && !bodyText && resendEmailId) {
+    if (!bodyHtml && !bodyText && providerId) {
       const resendApiKey = Deno.env.get("RESEND_API_KEY");
       if (resendApiKey) {
         try {
-          const emailRes = await fetch(`https://api.resend.com/emails/${resendEmailId}`, {
+          const emailRes = await fetch(`https://api.resend.com/emails/${providerId}`, {
             headers: { Authorization: `Bearer ${resendApiKey}` },
           });
           if (emailRes.ok) {
             const emailData = await emailRes.json();
-            bodyHtml = emailData.html ?? null;
-            bodyText = emailData.text ?? null;
+            // Guard against alternate field names in the received-email response
+            bodyHtml = emailData.html ?? emailData.html_body ?? null;
+            bodyText = emailData.text ?? emailData.text_body ?? null;
           } else {
-            console.warn("Resend email fetch returned", emailRes.status, "for id", resendEmailId);
+            const errText = await emailRes.text().catch(() => "");
+            console.error(
+              `Resend email fetch failed (${emailRes.status}) for id ${providerId}:`,
+              errText
+            );
           }
         } catch (fetchErr) {
-          console.warn("Failed to fetch email body from Resend API:", fetchErr);
+          console.error("Failed to fetch email body from Resend API:", fetchErr);
         }
       }
     }
-    const headers: object         = email.headers ?? {};
+    const headers: object = email.headers ?? {};
 
     if (!to.email) {
       return new Response(JSON.stringify({ error: "Missing to address" }), {
@@ -175,7 +182,7 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (logError) {
-      // If the error is a unique violation on provider_id, it is a duplicate delivery
+      // Unique violation on provider_id means this is a duplicate delivery
       if (logError.code === "23505") {
         return new Response(JSON.stringify({ ok: true, status: "duplicate" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -205,8 +212,8 @@ Deno.serve(async (req: Request) => {
 
     // ── 3. Update audit log with outcome ──────────────────────────────────────
     if (logId) {
-      const routed: boolean    = !routeError && routeResult?.routed === true;
-      const reason: string     = routeResult?.reason ?? (routeError?.message ?? "");
+      const routed: boolean = !routeError && routeResult?.routed === true;
+      const reason: string  = routeResult?.reason ?? (routeError?.message ?? "");
       const messageId: string | null = routeResult?.message_id ?? null;
 
       let finalStatus: string;
