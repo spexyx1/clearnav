@@ -148,6 +148,18 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Guard: skip emails not addressed to a platform-managed domain.
+    // Resend's MX capture routes ALL mail transiting the domain through this
+    // webhook, including outbound delivery echoes (from=info@clearnav.cv,
+    // to=external@gmail.com). Those create noise and waste DB writes.
+    const PLATFORM_DOMAINS = new Set(["clearnav.cv"]);
+    const toDomain = to.email.split("@")[1] ?? "";
+    if (!PLATFORM_DOMAINS.has(toDomain)) {
+      return new Response(JSON.stringify({ ok: true, status: "skipped" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── 1. Write audit log ────────────────────────────────────────────────────
     const { data: logEntry, error: logError } = await supabase
       .from("inbound_email_log")
