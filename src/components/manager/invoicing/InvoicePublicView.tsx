@@ -14,9 +14,8 @@ interface Props {
 
 interface TokenInvoiceData {
   invoice: Invoice;
-  line_items: InvoiceLineItem[];
+  items: InvoiceLineItem[];
   settings: InvoiceSettings;
-  tenant_name: string;
 }
 
 export default function InvoicePublicView({ token }: Props) {
@@ -48,8 +47,9 @@ export default function InvoicePublicView({ token }: Props) {
     if (!data) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
+    const senderName = data.settings?.business_name || '';
     printWindow.document.write(
-      buildInvoicePrintHTML(data.invoice, data.line_items, data.settings, data.tenant_name)
+      buildInvoicePrintHTML(data.invoice, data.items ?? [], data.settings, senderName)
     );
     printWindow.document.close();
   }
@@ -76,9 +76,9 @@ export default function InvoicePublicView({ token }: Props) {
 
   const printData: PrintInvoiceData = {
     invoice: data.invoice,
-    items: data.line_items,
+    items: data.items ?? [],
     settings: data.settings,
-    tenantName: data.tenant_name,
+    tenantName: data.settings?.business_name || '',
   };
 
   const isSigned = !!data.invoice.signed_at;
@@ -91,7 +91,7 @@ export default function InvoicePublicView({ token }: Props) {
         <div className="text-sm text-slate-500">
           Invoice <span className="font-semibold text-slate-800">{data.invoice.invoice_number}</span>
           <span className="mx-2 text-slate-300">·</span>
-          from <span className="font-medium text-slate-700">{data.settings?.business_name || data.tenant_name}</span>
+          from <span className="font-medium text-slate-700">{data.settings?.business_name || ''}</span>
         </div>
         <button
           onClick={downloadPDF}

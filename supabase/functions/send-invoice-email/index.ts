@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { PDFDocument, rgb, StandardFonts } from "npm:pdf-lib@1.17.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -181,6 +182,226 @@ function buildInvoiceHtml(invoice: any, items: any[], settings: any, tenantName:
 </html>`;
 }
 
+/**
+ * Generate a PDF invoice using pdf-lib and return it as a base64 string.
+ * This produces a clean, text-based PDF that renders consistently across
+ * email clients and does not require a headless browser.
+ */
+async function buildInvoicePdf(invoice: any, items: any[], settings: any, tenantName: string): Promise<string> {
+  const currency = invoice.currency || 'USD';
+  const senderName = settings?.business_name || tenantName;
+
+  function fmt(n: number) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 2 }).format(n);
+  }
+
+  const pdfDoc = await PDFDocument.create();
+  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const page = pdfDoc.addPage([595.28, 841.89]); // A4
+  const { width, height } = page.getSize();
+  const marginX = 50;
+  const marginTop = 780;
+
+  // Accent color (parse hex to rgb 0-1)
+  function hexToRgb(hex: string) {
+    const c = hex.replace('#', '');
+    const r = parseInt(c.slice(0, 2), 16) / 255;
+    const g = parseInt(c.slice(2, 4), 16) / 255;
+    const b = parseInt(c.slice(4, 6), 16) / 255;
+    return rgb(r, g, b);
+  }
+  const accentHex = (settings?.accent_color || '#0891b2').replace('#', '').padEnd(6, '0');
+  const accentColor = hexToRgb('#' + accentHex);
+  const slate800 = rgb(0.118, 0.149, 0.208);
+  const slate500 = rgb(0.376, 0.451, 0.561);
+  const slate400 = rgb(0.576, 0.635, 0.718);
+
+  let y = marginTop;
+
+  // ── Header ───────────────────────────────────────────────────────────────────
+  page.drawText(senderName, { x: marginX, y, font: helveticaBold, size: 16, color: slate800 });
+
+  // INVOICE label top-right
+  page.drawText('INVOICE', { x: width - marginX - 80, y, font: helveticaBold, size: 16, color: accentColor });
+
+  y -= 18;
+  page.drawText(invoice.invoice_number, { x: width - marginX - 80, y, font: helvetica, size: 10, color: slate500 });
+
+  // Sender address
+  const addrParts = [
+    settings?.business_address_line1,
+    settings?.business_address_line2,
+    [settings?.business_city, settings?.business_state, settings?.business_zip].filter(Boolean).join(' '),
+    settings?.business_country,
+  ].filter(Boolean) as string[];
+
+  for (const line of addrParts) {
+    y -= 13;
+    page.drawText(line, { x: marginX, y, font: helvetica, size: 9, color: slate500 });
+  }
+
+  if (settings?.business_phone || settings?.business_email) {
+    y -= 13;
+    const contact = [settings?.business_phone, settings?.business_email].filter(Boolean).join('  ·  ');
+    page.drawText(contact, { x: marginX, y, font: helvetica, size: 9, color: slate500 });
+  }
+  if (settings?.business_website) {
+    y -= 12;
+    page.drawText(settings.business_website, { x: marginX, y, font: helvetica, size: 9, color: slate500 });
+  }
+  if (settings?.business_tax_id) {
+    y -= 12;
+    page.drawText(`Tax ID: ${settings.business_tax_id}`, { x: marginX, y, font: helvetica, size: 8, color: slate400 });
+  }
+
+  // Accent rule
+  y -= 14;
+  page.drawLine({ start: { x: marginX, y }, end: { x: width - marginX, y }, thickness: 2, color: accentColor });
+
+  // ── Dates (right-aligned below INVOICE label) ─────────────────────────────
+  const datesY = y + 2;
+  page.drawText(`Issue Date: ${invoice.issue_date}`, { x: width - marginX - 120, y: datesY - 20, font: helvetica, size: 9, color: slate500 });
+  if (invoice.due_date) {
+    page.drawText(`Due Date:   ${invoice.due_date}`, { x: width - marginX - 120, y: datesY - 34, font: helvetica, size: 9, color: slate500 });
+  }
+
+  // ── Bill To ───────────────────────────────────────────────────────────────
+  y -= 22;
+  page.drawText('BILL TO', { x: marginX, y, font: helveticaBold, size: 8, color: slate400 });
+  y -= 14;
+  page.drawText(invoice.to_name || '', { x: marginX, y, font: helveticaBold, size: 11, color: slate800 });
+  if (invoice.to_company) {
+    y -= 13; page.drawText(invoice.to_company, { x: marginX, y, font: helvetica, size: 10, color: slate500 });
+  }
+  if (invoice.to_address) {
+    for (const line of invoice.to_address.split('\n')) {
+      if (line.trim()) { y -= 12; page.drawText(line.trim(), { x: marginX, y, font: helvetica, size: 9, color: slate500 }); }
+    }
+  }
+  if (invoice.to_email) { y -= 12; page.drawText(invoice.to_email, { x: marginX, y, font: helvetica, size: 9, color: slate500 }); }
+  if (invoice.to_phone) { y -= 12; page.drawText(invoice.to_phone, { x: marginX, y, font: helvetica, size: 9, color: slate500 }); }
+
+  // ── Items table ────────────────────────────────────────────────────────────
+  y -= 24;
+  const colDesc = marginX;
+  const colQty  = width - marginX - 220;
+  const colUnit = width - marginX - 160;
+  const colTax  = width - marginX - 90;
+  const colTotal= width - marginX - 5;
+
+  // Table header background
+  page.drawRectangle({ x: marginX, y: y - 4, width: width - 2 * marginX, height: 18, color: rgb(0.95, 0.97, 0.99) });
+  page.drawText('Description', { x: colDesc, y, font: helveticaBold, size: 8, color: slate500 });
+  page.drawText('Qty',   { x: colQty,   y, font: helveticaBold, size: 8, color: slate500 });
+  page.drawText('Price', { x: colUnit,  y, font: helveticaBold, size: 8, color: slate500 });
+  page.drawText('Tax',   { x: colTax,   y, font: helveticaBold, size: 8, color: slate500 });
+  page.drawText('Total', { x: colTotal - 25, y, font: helveticaBold, size: 8, color: slate500 });
+  y -= 18;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (i % 2 === 1) {
+      page.drawRectangle({ x: marginX, y: y - 4, width: width - 2 * marginX, height: 16, color: rgb(0.98, 0.99, 1) });
+    }
+    const desc = (item.description || '').slice(0, 55);
+    page.drawText(desc,                              { x: colDesc, y, font: helvetica, size: 9, color: slate800 });
+    page.drawText(String(item.quantity),             { x: colQty,  y, font: helvetica, size: 9, color: slate500 });
+    page.drawText(fmt(item.unit_price),              { x: colUnit, y, font: helvetica, size: 9, color: slate500 });
+    page.drawText(item.tax_rate > 0 ? `${item.tax_rate}%` : '-', { x: colTax, y, font: helvetica, size: 9, color: slate500 });
+    const totalStr = fmt(item.line_total);
+    page.drawText(totalStr, { x: colTotal - helvetica.widthOfTextAtSize(totalStr, 9), y, font: helveticaBold, size: 9, color: slate800 });
+    y -= 16;
+  }
+
+  // ── Totals ─────────────────────────────────────────────────────────────────
+  y -= 10;
+  page.drawLine({ start: { x: width - marginX - 130, y }, end: { x: width - marginX, y }, thickness: 0.5, color: rgb(0.88, 0.9, 0.93) });
+  y -= 14;
+
+  function drawTotalRow(label: string, value: string, bold = false, color = slate500) {
+    page.drawText(label, { x: width - marginX - 130, y, font: bold ? helveticaBold : helvetica, size: 10, color: bold ? slate800 : slate500 });
+    const vw = (bold ? helveticaBold : helvetica).widthOfTextAtSize(value, bold ? 12 : 10);
+    page.drawText(value, { x: width - marginX - vw, y, font: bold ? helveticaBold : helvetica, size: bold ? 12 : 10, color: bold ? accentColor : color });
+    y -= 14;
+  }
+
+  drawTotalRow('Subtotal', fmt(invoice.subtotal));
+  if (invoice.discount_total > 0) drawTotalRow('Discount', `−${fmt(invoice.discount_total)}`, false, rgb(0.063, 0.725, 0.506));
+  if (invoice.tax_total > 0) drawTotalRow('Tax', fmt(invoice.tax_total));
+  page.drawLine({ start: { x: width - marginX - 130, y: y + 10 }, end: { x: width - marginX, y: y + 10 }, thickness: 1.5, color: rgb(0.88, 0.9, 0.93) });
+  y -= 4;
+  drawTotalRow('Total', fmt(invoice.total), true);
+  if (invoice.amount_paid > 0) {
+    drawTotalRow('Amount Paid', `−${fmt(invoice.amount_paid)}`, false, rgb(0.063, 0.725, 0.506));
+    drawTotalRow('Balance Due', fmt(invoice.balance_due), true);
+  }
+
+  // ── Notes / Terms ──────────────────────────────────────────────────────────
+  y -= 10;
+  if (invoice.notes) {
+    page.drawText('NOTES', { x: marginX, y, font: helveticaBold, size: 8, color: slate400 });
+    y -= 14;
+    for (const line of invoice.notes.split('\n').slice(0, 5)) {
+      page.drawText(line.slice(0, 90), { x: marginX, y, font: helvetica, size: 9, color: slate500 });
+      y -= 12;
+    }
+    y -= 4;
+  }
+  if (invoice.terms) {
+    page.drawText('TERMS & CONDITIONS', { x: marginX, y, font: helveticaBold, size: 8, color: slate400 });
+    y -= 14;
+    for (const line of invoice.terms.split('\n').slice(0, 5)) {
+      page.drawText(line.slice(0, 90), { x: marginX, y, font: helvetica, size: 9, color: slate500 });
+      y -= 12;
+    }
+    y -= 4;
+  }
+
+  // ── Bank details ───────────────────────────────────────────────────────────
+  const bankRows = [
+    settings?.bank_account_name   ? ['Account Name', settings.bank_account_name]   : null,
+    settings?.bank_name           ? ['Bank',          settings.bank_name]           : null,
+    settings?.bank_account_number ? ['Account No.',   settings.bank_account_number] : null,
+    settings?.bank_routing_number ? ['Routing / BSB', settings.bank_routing_number] : null,
+    settings?.bank_swift_bic      ? ['SWIFT / BIC',   settings.bank_swift_bic]      : null,
+    settings?.bank_iban           ? ['IBAN',          settings.bank_iban]           : null,
+  ].filter(Boolean) as [string, string][];
+
+  if (bankRows.length > 0) {
+    y -= 6;
+    page.drawRectangle({ x: marginX, y: y - (bankRows.length * 14) - 8, width: width - 2 * marginX, height: (bankRows.length * 14) + 24, color: rgb(0.97, 0.98, 0.99), borderColor: rgb(0.88, 0.9, 0.93), borderWidth: 0.5 });
+    y -= 2;
+    page.drawText('BANK TRANSFER DETAILS', { x: marginX + 10, y, font: helveticaBold, size: 8, color: slate400 });
+    y -= 14;
+    for (const [label, value] of bankRows) {
+      page.drawText(label + ':', { x: marginX + 10, y, font: helvetica, size: 9, color: slate500 });
+      page.drawText(value,        { x: marginX + 110, y, font: helveticaBold, size: 9, color: slate800 });
+      y -= 14;
+    }
+    if (settings?.bank_extra_instructions) {
+      y -= 2;
+      page.drawText(settings.bank_extra_instructions.slice(0, 90), { x: marginX + 10, y, font: helvetica, size: 8, color: slate500 });
+      y -= 12;
+    }
+    y -= 6;
+  }
+
+  // ── Footer ─────────────────────────────────────────────────────────────────
+  const footerText = invoice.footer || `Thank you for your business.`;
+  page.drawLine({ start: { x: marginX, y: 40 }, end: { x: width - marginX, y: 40 }, thickness: 0.5, color: rgb(0.9, 0.92, 0.95) });
+  page.drawText(footerText.slice(0, 90), { x: marginX, y: 26, font: helvetica, size: 8, color: slate400 });
+
+  const pdfBytes = await pdfDoc.save();
+  // Convert Uint8Array to base64
+  let binary = '';
+  for (let i = 0; i < pdfBytes.length; i++) {
+    binary += String.fromCharCode(pdfBytes[i]);
+  }
+  return btoa(binary);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -249,8 +470,17 @@ Deno.serve(async (req: Request) => {
       ? 'https://invoice.clearnav.cv'
       : (reqOrigin || (Deno.env.get("SUPABASE_URL") || '').replace('/rest/v1', ''));
 
-    const htmlBody = buildInvoiceHtml(invoice, invoice.line_items || [], settings, tenantName, origin);
+    const lineItems = invoice.line_items || [];
+    const htmlBody = buildInvoiceHtml(invoice, lineItems, settings, tenantName, origin);
     const subject = `Invoice ${invoice.invoice_number} from ${settings?.business_name || tenantName}`;
+
+    // Generate PDF attachment
+    let pdfBase64: string | null = null;
+    try {
+      pdfBase64 = await buildInvoicePdf(invoice, lineItems, settings, tenantName);
+    } catch (pdfErr) {
+      console.error("PDF generation failed (email will send without attachment):", pdfErr);
+    }
 
     // Get Resend API key
     let resendKey = Deno.env.get("RESEND_API_KEY") || null;
@@ -273,15 +503,26 @@ Deno.serve(async (req: Request) => {
         : (settings?.business_email || 'invoices@resend.dev');
       const fromAddress = `${fromName} <${fromEmail}>`;
 
+      const emailPayload: any = {
+        from: fromAddress,
+        to: [invoice.to_email],
+        subject,
+        html: htmlBody,
+      };
+
+      if (pdfBase64) {
+        emailPayload.attachments = [
+          {
+            filename: `Invoice-${invoice.invoice_number}.pdf`,
+            content: pdfBase64,
+          },
+        ];
+      }
+
       const resendRes = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: fromAddress,
-          to: [invoice.to_email],
-          subject,
-          html: htmlBody,
-        }),
+        body: JSON.stringify(emailPayload),
       });
 
       if (resendRes.ok) {
