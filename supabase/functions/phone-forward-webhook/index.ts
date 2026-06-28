@@ -83,7 +83,7 @@ Deno.serve(async (req: Request) => {
       const direction: string = callPayload.direction ?? "inbound";
 
       if (direction === "inbound") {
-        // Look up the phone number record by the dialed number
+        // Look up the phone number record by the dialed number (tenant or user-scoped)
         const { data: phoneRecord } = await supabase
           .from("tenant_phone_numbers")
           .select("*")

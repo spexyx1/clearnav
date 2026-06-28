@@ -1,5 +1,6 @@
 const ROOT_HOSTNAMES = ['clearnav.cv', 'www.clearnav.cv'];
 const INVOICE_APP_HOSTNAMES = ['invoice.clearnav.cv', 'www.invoice.clearnav.cv'];
+const PHONE_APP_HOSTNAMES = ['phone.clearnav.cv', 'www.phone.clearnav.cv'];
 
 export function isLocalHost(hostname: string): boolean {
   return (
@@ -47,6 +48,14 @@ export function isPlatformRootDomain(hostname: string): boolean {
 export function isInvoiceAppDomain(hostname: string): boolean {
   const host = hostname.split(':')[0].toLowerCase().replace(/^www\./, '');
   return INVOICE_APP_HOSTNAMES.some(d => d.replace(/^www\./, '') === host);
+}
+
+/**
+ * Returns true when the current host is the standalone phone app subdomain.
+ */
+export function isPhoneAppDomain(hostname: string): boolean {
+  const host = hostname.split(':')[0].toLowerCase().replace(/^www\./, '');
+  return PHONE_APP_HOSTNAMES.some(d => d.replace(/^www\./, '') === host);
 }
 
 /**

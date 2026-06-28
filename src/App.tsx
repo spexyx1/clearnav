@@ -6,9 +6,10 @@ import ClearNAVLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
 import { PublicWebsite } from './components/public/PublicWebsite';
 import { resolveTenantFromDomain } from './lib/tenantResolver';
-import { isPlatformRootDomain, isInvoiceAppDomain } from './lib/hostUtils';
+import { isPlatformRootDomain, isInvoiceAppDomain, isPhoneAppDomain } from './lib/hostUtils';
 
 const InvoiceApp = lazyWithReload(() => import('./components/invoiceapp/InvoiceApp'));
+const PhoneApp = lazyWithReload(() => import('./components/phoneapp/PhoneApp'));
 import { FullPageLoader } from './components/shared/Spinner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useRoute } from './lib/useRoute';
@@ -57,13 +58,15 @@ function AppContent() {
   // there is never a public tenant — skip the network lookup entirely.
   const isPlatformRoot = isPlatformRootDomain(window.location.hostname);
   const isInvoiceApp = isInvoiceAppDomain(window.location.hostname);
-  const [tenantLoading, setTenantLoading] = useState(!isPlatformRoot && !isInvoiceApp);
+  const isPhoneApp = isPhoneAppDomain(window.location.hostname);
+  const [tenantLoading, setTenantLoading] = useState(!isPlatformRoot && !isInvoiceApp && !isPhoneApp);
 
   useEffect(() => {
     if (loading) return;
     // Platform root never has a tenant — no lookup needed
     if (isPlatformRoot) return;
     if (isInvoiceApp) return;
+    if (isPhoneApp) return;
 
     async function resolveTenant() {
       try {
@@ -80,7 +83,7 @@ function AppContent() {
     }
 
     if (!user) {
-      if (!isInvoiceApp) resolveTenant();
+      if (!isInvoiceApp && !isPhoneApp) resolveTenant();
       else setTenantLoading(false);
     } else {
       setTenantLoading(false);
@@ -91,7 +94,12 @@ function AppContent() {
 
   // On the platform root, don't block on auth loading for unauthenticated visitors —
   // ClearNAVLandingPage doesn't need auth and can paint immediately.
-  if (loading && !isPlatformRoot && !isInvoiceApp) return <FullPageLoader />;
+  if (loading && !isPlatformRoot && !isInvoiceApp && !isPhoneApp) return <FullPageLoader />;
+
+  // Phone app at phone.clearnav.cv — completely independent component tree
+  if (isPhoneApp) {
+    return <Suspense fallback={<Fallback />}><PhoneApp /></Suspense>;
+  }
 
   // Invoice app at invoice.clearnav.cv — completely independent component tree
   if (isInvoiceApp) {
@@ -235,7 +243,7 @@ function App() {
     const path = window.location.pathname;
     const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/contact', '/vault', '/vault/report', '/vault/apply'];
 
-    if (!specialPaths.includes(path) && !path.startsWith('/invoice/') && !tenantParam) {      const defaultTenant = import.meta.env.VITE_DEFAULT_DEV_TENANT || 'arkline';
+    if (!specialPaths.includes(path) && !path.startsWith('/invoice/') && !path.startsWith('/phone') && !tenantParam) {      const defaultTenant = import.meta.env.VITE_DEFAULT_DEV_TENANT || 'arkline';
       window.location.replace(
         `${window.location.protocol}//${window.location.host}${path}?tenant=${defaultTenant}`
       );

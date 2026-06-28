@@ -49,9 +49,11 @@ Deno.serve(async (req: Request) => {
   const { data: { user }, error: authError } = await supabase.auth.getUser(token);
   if (authError || !user) return err("Unauthorized", 401);
 
-  // Get tenant ID for this user
+  // Resolve owner: prefer tenant, fall back to user_id for standalone phone app users
   const { data: tenantId } = await supabase.rpc("get_user_tenant_id");
-  if (!tenantId) return err("Tenant not found", 403);
+  const ownerId: { tenant_id: string | null; user_id: string | null } = tenantId
+    ? { tenant_id: tenantId, user_id: null }
+    : { tenant_id: null, user_id: user.id };
 
   // Get platform Telnyx API key
   const telnyxApiKey = Deno.env.get("TELNYX_API_KEY");
@@ -80,6 +82,12 @@ Deno.serve(async (req: Request) => {
 
   const { action } = body;
 
+  // Ownership filter for queries — matches either tenant_id or user_id
+  function ownerFilter(query: any) {
+    if (ownerId.tenant_id) return query.eq("tenant_id", ownerId.tenant_id);
+    return query.eq("user_id", ownerId.user_id);
+  }
+
   try {
     // ── SEARCH ──────────────────────────────────────────────────────────────
     if (action === "search") {
@@ -91,8 +99,6 @@ Deno.serve(async (req: Request) => {
 
       if (number_type === "toll_free") {
         params.set("filter[phone_number_type]", "toll_free");
-      } else if (number_type === "international") {
-        params.set("filter[phone_number_type]", "local");
       } else {
         params.set("filter[phone_number_type]", "local");
       }
@@ -125,12 +131,14 @@ Deno.serve(async (req: Request) => {
       const { phone_number, label } = body;
       if (!phone_number) return err("phone_number required");
 
-      // Ensure tenant doesn't already own this number
-      const { data: existing } = await supabase
-        .from("tenant_phone_numbers")
-        .select("id")
-        .eq("phone_number_e164", phone_number)
-        .maybeSingle();
+      // Ensure this owner doesn't already own this number
+      const dupCheck = ownerFilter(
+        supabase
+          .from("tenant_phone_numbers")
+          .select("id")
+          .eq("phone_number_e164", phone_number)
+      );
+      const { data: existing } = await dupCheck.maybeSingle();
       if (existing) return err("You already own this phone number");
 
       // Get platform's Telnyx connection ID (if configured)
@@ -167,7 +175,7 @@ Deno.serve(async (req: Request) => {
       const { data: record, error: dbError } = await supabase
         .from("tenant_phone_numbers")
         .insert({
-          tenant_id: tenantId,
+          ...ownerId,
           phone_number: formatPhoneDisplay(e164),
           phone_number_e164: e164,
           telnyx_phone_number_id: telnyxId,
@@ -204,13 +212,12 @@ Deno.serve(async (req: Request) => {
         if (k in updates) safeUpdates[k] = updates[k];
       }
 
-      const { data: record, error: dbError } = await supabase
-        .from("tenant_phone_numbers")
-        .update(safeUpdates)
-        .eq("id", id)
-        .eq("tenant_id", tenantId)
-        .select()
-        .single();
+      const { data: record, error: dbError } = await ownerFilter(
+        supabase
+          .from("tenant_phone_numbers")
+          .update(safeUpdates)
+          .eq("id", id)
+      ).select().single();
 
       if (dbError) throw dbError;
       return ok({ success: true, phone_number: record });
@@ -221,12 +228,12 @@ Deno.serve(async (req: Request) => {
       const { id } = body;
       if (!id) return err("id required");
 
-      const { data: record } = await supabase
-        .from("tenant_phone_numbers")
-        .select("telnyx_phone_number_id")
-        .eq("id", id)
-        .eq("tenant_id", tenantId)
-        .single();
+      const { data: record } = await ownerFilter(
+        supabase
+          .from("tenant_phone_numbers")
+          .select("telnyx_phone_number_id")
+          .eq("id", id)
+      ).single();
 
       if (!record) return err("Phone number not found", 404);
 
@@ -240,13 +247,26 @@ Deno.serve(async (req: Request) => {
       }
 
       // Mark as released in DB
-      await supabase
-        .from("tenant_phone_numbers")
-        .update({ status: "released", released_at: new Date().toISOString() })
-        .eq("id", id)
-        .eq("tenant_id", tenantId);
+      await ownerFilter(
+        supabase
+          .from("tenant_phone_numbers")
+          .update({ status: "released", released_at: new Date().toISOString() })
+          .eq("id", id)
+      );
 
       return ok({ success: true });
+    }
+
+    // ── LIST (for phone app users who have no tenant) ─────────────────────
+    if (action === "list") {
+      const { data: numbers } = await ownerFilter(
+        supabase
+          .from("tenant_phone_numbers")
+          .select("*")
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+      );
+      return ok({ numbers: numbers || [] });
     }
 
     // ── OUTBOUND CALL ────────────────────────────────────────────────────────
@@ -254,13 +274,13 @@ Deno.serve(async (req: Request) => {
       const { phone_number_id, destination } = body;
       if (!phone_number_id || !destination) return err("phone_number_id and destination required");
 
-      const { data: ownNumber } = await supabase
-        .from("tenant_phone_numbers")
-        .select("*")
-        .eq("id", phone_number_id)
-        .eq("tenant_id", tenantId)
-        .eq("status", "active")
-        .single();
+      const { data: ownNumber } = await ownerFilter(
+        supabase
+          .from("tenant_phone_numbers")
+          .select("*")
+          .eq("id", phone_number_id)
+          .eq("status", "active")
+      ).single();
 
       if (!ownNumber) return err("Phone number not found", 404);
       if (!ownNumber.forward_to) return err("No forwarding number configured — set a forwarding number first");
@@ -270,23 +290,22 @@ Deno.serve(async (req: Request) => {
 
       const webhookUrl = `${Deno.env.get("SUPABASE_URL")!.replace("/rest/v1", "")}/functions/v1/phone-forward-webhook`;
 
-      // Initiate: first call the tenant's mobile, then bridge to destination
       const callResult = await telnyxRequest("/calls", "POST", {
         connection_id: connectionId,
         to: ownNumber.forward_to,
         from: ownNumber.phone_number_e164,
         webhook_url: webhookUrl,
-        client_state: Buffer.from(JSON.stringify({
+        client_state: btoa(JSON.stringify({
           type: "outbound_bridge",
           destination,
           phone_number_id,
-          tenant_id: tenantId,
-        })).toString("base64"),
+          tenant_id: ownerId.tenant_id,
+          user_id: ownerId.user_id,
+        })),
       });
 
-      // Log the outbound call
       await supabase.from("phone_number_call_log").insert({
-        tenant_id: tenantId,
+        tenant_id: ownerId.tenant_id,
         phone_number_id,
         telnyx_call_id: callResult.data?.call_control_id,
         direction: "outbound",
