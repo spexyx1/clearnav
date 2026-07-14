@@ -30,7 +30,7 @@ export function isProductionDomain(hostname: string): boolean {
 }
 
 /**
- * Returns true when the current host is the ClearNav platform root,
+ * Returns true when the current host is the ClearNAV platform root,
  * not a tenant subdomain or custom domain.
  */
 export function isPlatformRootDomain(hostname: string): boolean {

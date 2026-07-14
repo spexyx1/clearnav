@@ -130,7 +130,7 @@ export default function ClearNAVLandingPage({ onLoginClick }: ClearNAVLandingPag
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-teal-500 rounded-sm"></div>
               <span className="text-2xl font-light tracking-wider text-white">
-                Clear<span className="font-semibold">Nav</span>
+                Clear<span className="font-semibold">NAV</span>
               </span>
             </div>
             <div className="flex items-center space-x-6">
@@ -347,7 +347,7 @@ export default function ClearNAVLandingPage({ onLoginClick }: ClearNAVLandingPag
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-teal-500 rounded-sm"></div>
                 <span className="text-xl font-light tracking-wider text-white">
-                  Clear<span className="font-semibold">Nav</span>
+                  Clear<span className="font-semibold">NAV</span>
                 </span>
               </div>
               <p className="text-slate-400 text-sm max-w-xs">
