@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const vercelToken = Deno.env.get("VERCEL_API_TOKEN");
+    const vercelToken = Deno.env.get("VERCEL_API_TOKEN") || Deno.env.get("VERCEL_API_KEY");
     const vercelProjectId = Deno.env.get("VERCEL_PROJECT_ID");
     const vercelDeployHook = Deno.env.get("VERCEL_DEPLOY_HOOK_URL");
 
