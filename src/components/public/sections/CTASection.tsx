@@ -13,6 +13,14 @@ interface CTASectionProps {
   };
 }
 
+function handleInternalNav(href: string) {
+  window.history.pushState({}, '', href);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  window.scrollTo(0, 0);
+}
+
+const isExternal = (href?: string) => href?.startsWith('http') || href?.startsWith('//');
+
 export function CTASection({ content }: CTASectionProps) {
   const {
     heading = 'Ready to Get Started?',
@@ -83,6 +91,7 @@ export function CTASection({ content }: CTASectionProps) {
           {cta_text && (
             <a
               href={cta_href}
+              onClick={isExternal(cta_href) ? undefined : (e) => { e.preventDefault(); handleInternalNav(cta_href!); }}
               className="inline-flex items-center gap-2.5 px-8 py-3.5 text-sm font-semibold tracking-wide rounded-sm transition-all duration-200 hover:brightness-110 hover:shadow-lg active:scale-95"
               style={{
                 backgroundColor: 'var(--color-accent, #B8934A)',
@@ -97,6 +106,7 @@ export function CTASection({ content }: CTASectionProps) {
           {secondary_cta_text && (
             <a
               href={secondary_cta_href}
+              onClick={isExternal(secondary_cta_href) ? undefined : (e) => { e.preventDefault(); handleInternalNav(secondary_cta_href!); }}
               className="inline-flex items-center gap-2 px-8 py-3.5 text-sm font-semibold tracking-wide rounded-sm border transition-all duration-200 hover:bg-white/8"
               style={{
                 borderColor: isDark || isAccent ? 'rgba(255,255,255,0.30)' : 'var(--color-primary, #1B3A2D)',
