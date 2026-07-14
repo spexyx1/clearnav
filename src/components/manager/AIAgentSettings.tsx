@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Mail, Clock, User, Zap, TrendingUp, Save } from 'lucide-react';
+import { Settings, Mail, Clock, User, Zap, TrendingUp, Save, Link2, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useTenantInfo } from '../../lib/hooks';
 import EmailTemplateManager from './EmailTemplateManager';
 
-type SettingsTab = 'general' | 'templates' | 'cadence' | 'sender' | 'personalization' | 'optimization';
+type SettingsTab = 'general' | 'templates' | 'cadence' | 'sender' | 'personalization' | 'optimization' | 'integrations';
 
 export default function AIAgentSettings() {
   const { tenantInfo } = useTenantInfo();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [apolloKey, setApolloKey] = useState('');
+  const [apolloEnabled, setApolloEnabled] = useState(true);
+  const [apolloSaving, setApolloSaving] = useState(false);
+  const [apolloSaved, setApolloSaved] = useState(false);
+  const [showApolloKey, setShowApolloKey] = useState(false);
 
   const [globalSettings, setGlobalSettings] = useState({
     ai_model: 'gpt-4',
@@ -78,19 +83,55 @@ export default function AIAgentSettings() {
 
     setLoading(true);
     try {
-      const { data: settings, error } = await supabase
-        .from('ai_agent_global_settings')
-        .select('*')
-        .eq('tenant_id', tenantInfo.id)
-        .maybeSingle();
+      const [{ data: settings }, { data: apollo }] = await Promise.all([
+        supabase
+          .from('ai_agent_global_settings')
+          .select('*')
+          .eq('tenant_id', tenantInfo.id)
+          .maybeSingle(),
+        supabase
+          .from('tenant_integration_settings')
+          .select('api_key, is_enabled')
+          .eq('tenant_id', tenantInfo.id)
+          .eq('integration_name', 'apollo')
+          .maybeSingle(),
+      ]);
 
       if (settings) {
         setGlobalSettings(prev => ({ ...prev, ...settings }));
+      }
+      if (apollo) {
+        setApolloKey(apollo.api_key ?? '');
+        setApolloEnabled(apollo.is_enabled ?? true);
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveApolloIntegration = async () => {
+    if (!tenantInfo?.id) return;
+    setApolloSaving(true);
+    try {
+      const { error } = await supabase
+        .from('tenant_integration_settings')
+        .upsert({
+          tenant_id: tenantInfo.id,
+          integration_name: 'apollo',
+          api_key: apolloKey,
+          is_enabled: apolloEnabled,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'tenant_id,integration_name' });
+      if (error) throw error;
+      setApolloSaved(true);
+      setTimeout(() => setApolloSaved(false), 3000);
+    } catch (e) {
+      console.error('Error saving Apollo integration:', e);
+      alert('Failed to save integration settings');
+    } finally {
+      setApolloSaving(false);
     }
   };
 
@@ -185,6 +226,7 @@ export default function AIAgentSettings() {
     { id: 'sender' as SettingsTab, label: 'Sender Profile', icon: User },
     { id: 'personalization' as SettingsTab, label: 'Personalization', icon: Zap },
     { id: 'optimization' as SettingsTab, label: 'Optimization', icon: TrendingUp },
+    { id: 'integrations' as SettingsTab, label: 'Integrations', icon: Link2 },
   ];
 
   return (
@@ -822,6 +864,83 @@ export default function AIAgentSettings() {
                   <Save className="w-4 h-4" />
                   {saving ? 'Saving...' : 'Save Settings'}
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Integrations Panel */}
+          {activeTab === 'integrations' && (
+            <div className="p-6 space-y-8">
+              {/* Apollo.io */}
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center">
+                    <Link2 className="w-5 h-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900">Apollo.io</h3>
+                    <p className="text-sm text-slate-500">Search 280M+ B2B contacts and import directly into the lead queue</p>
+                  </div>
+                  <div className="ml-auto">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={apolloEnabled}
+                        onChange={e => setApolloEnabled(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pl-12">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Apollo API Key</label>
+                    <div className="relative">
+                      <input
+                        type={showApolloKey ? 'text' : 'password'}
+                        value={apolloKey}
+                        onChange={e => setApolloKey(e.target.value)}
+                        placeholder="Enter your Apollo.io API key"
+                        className="w-full pr-10 px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApolloKey(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showApolloKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1.5">
+                      Find your key at <span className="font-medium text-slate-700">apollo.io → Settings → Integrations → API</span>.
+                      Each account uses its own key — data stays isolated.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      onClick={saveApolloIntegration}
+                      disabled={apolloSaving}
+                      className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+                    >
+                      {apolloSaving
+                        ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        : apolloSaved
+                          ? <CheckCircle className="w-4 h-4" />
+                          : <Save className="w-4 h-4" />
+                      }
+                      {apolloSaved ? 'Saved!' : apolloSaving ? 'Saving…' : 'Save Integration'}
+                    </button>
+                    {apolloKey && (
+                      <span className="text-xs text-emerald-600 flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        API key configured
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}

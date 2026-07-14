@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart, Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe, CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Video as LucideIcon, Bot, Phone, PhoneCall, BarChart2, CreditCard, BookOpen, Star, HelpCircle, FileText, Calendar, UserPlus, Lock, Smartphone } from 'lucide-react';
+import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart, Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe, CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Video as LucideIcon, Bot, Phone, PhoneCall, BarChart2, CreditCard, BookOpen, Star, HelpCircle, FileText, Calendar, UserPlus, Lock, Smartphone, Target } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
-export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'invoices' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'business_phone' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'scheduler' | 'subscribers' | 'invitation_templates' | 'email_templates' | 'account_settings' | 'vault_docs';
+export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'invoices' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'lead_sourcing' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'business_phone' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'scheduler' | 'subscribers' | 'invitation_templates' | 'email_templates' | 'account_settings' | 'vault_docs';
 
 interface NavItem {
   id: TabType;
@@ -144,6 +144,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
         { id: 'contacts', label: t('nav.contacts'), icon: Contact },
         { id: 'onboarding', label: t('nav.onboarding'), icon: UserCheck },
         { id: 'clients', label: t('nav.clients'), icon: Users },
+        { id: 'lead_sourcing', label: 'Lead Sourcing', icon: Target },
       ],
     },
     {

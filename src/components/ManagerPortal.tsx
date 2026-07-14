@@ -62,6 +62,7 @@ const EmailTemplateManager = lazy(() => import('./manager/EmailTemplateManager')
 const InvoiceManager = lazy(() => import('./manager/invoicing/InvoiceManager'));
 const VaultDocumentManager = lazy(() => import('./manager/VaultDocumentManager'));
 const BusinessPhone = lazy(() => import('./manager/phone/BusinessPhone'));
+const LeadSourcing = lazy(() => import('./manager/LeadSourcing'));
 
 function TabFallback() {
   return <PanelLoader />;
@@ -197,6 +198,7 @@ export default function ManagerPortal() {
                 {activeTab === 'account_settings' && <AccountSettings />}
                 {activeTab === 'vault_docs' && <VaultDocumentManager />}
                 {activeTab === 'business_phone' && <BusinessPhone />}
+                {activeTab === 'lead_sourcing' && <LeadSourcing />}
               </Suspense>
             </div>
           </div>
