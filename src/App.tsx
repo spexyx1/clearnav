@@ -146,7 +146,7 @@ function AppContent() {
     );
   }
 
-  if (route === 'contact') {
+  if (route === 'contact' && isPlatformRoot) {
     return (
       <Suspense fallback={<Fallback />}>
         <ContactPage onBack={() => navigate('/')} />
@@ -241,7 +241,7 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const tenantParam = params.get('tenant');
     const path = window.location.pathname;
-    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/contact', '/vault', '/vault/report', '/vault/apply'];
+    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/vault', '/vault/report', '/vault/apply'];
 
     if (!specialPaths.includes(path) && !path.startsWith('/invoice/') && !path.startsWith('/phone') && !tenantParam) {      const defaultTenant = import.meta.env.VITE_DEFAULT_DEV_TENANT || 'arkline';
       window.location.replace(
