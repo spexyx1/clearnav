@@ -11,6 +11,8 @@ const corsHeaders = {
 interface SendInvoicePayload {
   invoice_id: string;
   resend?: boolean;
+  to_emails?: string[];
+  cc_emails?: string[];
 }
 
 function buildInvoiceHtml(invoice: any, items: any[], settings: any, tenantName: string, origin: string): string {
@@ -429,7 +431,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const payload: SendInvoicePayload = await req.json();
-    const { invoice_id } = payload;
+    const { invoice_id, to_emails, cc_emails } = payload;
     if (!invoice_id) {
       return new Response(JSON.stringify({ error: "invoice_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -496,7 +498,14 @@ Deno.serve(async (req: Request) => {
     let providerSuccess = false;
     let providerError: string | null = null;
 
-    if (resendKey && invoice.to_email) {
+    const resolvedToEmails = (to_emails && to_emails.length > 0)
+      ? to_emails.filter(Boolean)
+      : [invoice.to_email].filter(Boolean);
+    const resolvedCcEmails = (cc_emails && cc_emails.length > 0)
+      ? cc_emails.filter(Boolean)
+      : [];
+
+    if (resendKey && resolvedToEmails.length > 0) {
       const fromName = settings?.business_name || tenantName;
       const fromEmail = isInvoiceApp
         ? 'info@clearnav.cv'
@@ -505,10 +514,14 @@ Deno.serve(async (req: Request) => {
 
       const emailPayload: any = {
         from: fromAddress,
-        to: [invoice.to_email],
+        to: resolvedToEmails,
         subject,
         html: htmlBody,
       };
+
+      if (resolvedCcEmails.length > 0) {
+        emailPayload.cc = resolvedCcEmails;
+      }
 
       if (pdfBase64) {
         emailPayload.attachments = [
@@ -546,7 +559,7 @@ Deno.serve(async (req: Request) => {
       invoice_id,
       actor_id: user.id,
       action: "sent",
-      metadata: { to_email: invoice.to_email, provider_success: providerSuccess, provider_error: providerError },
+      metadata: { to_emails: resolvedToEmails, cc_emails: resolvedCcEmails, provider_success: providerSuccess, provider_error: providerError },
     });
 
     return new Response(

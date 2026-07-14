@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft, Download, Send, Copy, CheckCircle, Trash2, DollarSign,
   Clock, Eye, Mail, Loader2, X, FileText,
-  PenLine, PenTool,
+  PenLine, PenTool, Plus,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
@@ -51,10 +51,17 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, tenan
   const [loading, setLoading] = useState(true);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
   const [copying, setCopying] = useState(false);
   const [sending, setSending] = useState(false);
   const [voiding, setVoiding] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Send modal state
+  const [sendToEmails, setSendToEmails] = useState<string[]>([invoice.to_email].filter(Boolean));
+  const [sendCcInput, setSendCcInput] = useState('');
+  const [sendCcEmails, setSendCcEmails] = useState<string[]>([]);
+  const [sendPreviewTab, setSendPreviewTab] = useState<'compose' | 'preview'>('compose');
 
   const [payment, setPayment] = useState({
     amount: invoice.balance_due,
@@ -128,7 +135,11 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, tenan
   async function sendInvoice() {
     setSending(true);
     try {
-      await supabase.functions.invoke('send-invoice-email', { body: { invoice_id: invoice.id } });
+      const allTo = sendToEmails.filter(Boolean);
+      const allCc = sendCcEmails.filter(Boolean);
+      await supabase.functions.invoke('send-invoice-email', {
+        body: { invoice_id: invoice.id, to_emails: allTo, cc_emails: allCc },
+      });
       const { data } = await supabase
         .from('invoices')
         .update({ status: invoice.status === 'draft' ? 'sent' : invoice.status, sent_at: new Date().toISOString() })
@@ -139,13 +150,47 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, tenan
         invoice_id: invoice.id,
         actor_id: user?.id ?? null,
         action: 'sent',
-        metadata: { recipient: invoice.to_email },
+        metadata: { recipient: allTo.join(', '), cc: allCc.join(', ') || null },
       });
       if (data) { setInvoice(data as Invoice); onRefresh(data as Invoice); }
+      setShowSendModal(false);
       load();
     } finally {
       setSending(false);
     }
+  }
+
+  function openSendModal() {
+    setSendToEmails([invoice.to_email].filter(Boolean));
+    setSendCcEmails([]);
+    setSendCcInput('');
+    setSendPreviewTab('compose');
+    setShowSendModal(true);
+  }
+
+  function addCcEmail() {
+    const trimmed = sendCcInput.trim();
+    if (trimmed && !sendCcEmails.includes(trimmed)) {
+      setSendCcEmails(prev => [...prev, trimmed]);
+    }
+    setSendCcInput('');
+  }
+
+  function removeCcEmail(email: string) {
+    setSendCcEmails(prev => prev.filter(e => e !== email));
+  }
+
+  function addToEmail() {
+    const current = sendToEmails;
+    setSendToEmails([...current, '']);
+  }
+
+  function updateToEmail(index: number, value: string) {
+    setSendToEmails(prev => prev.map((e, i) => i === index ? value : e));
+  }
+
+  function removeToEmail(index: number) {
+    setSendToEmails(prev => prev.filter((_, i) => i !== index));
   }
 
   async function voidInvoice() {
@@ -239,11 +284,10 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, tenan
           )}
           {!isVoid && (
             <button
-              onClick={sendInvoice}
-              disabled={sending}
+              onClick={openSendModal}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-sm transition-colors border border-blue-600/30"
             >
-              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              <Send className="w-4 h-4" />
               {invoice.sent_at ? 'Resend' : 'Send'}
             </button>
           )}
@@ -457,6 +501,191 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, tenan
       <div className="hidden" ref={printRef}>
         <InvoicePrintLayout data={printData} forScreen={false} />
       </div>
+
+      {/* Send modal */}
+      {showSendModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+              <h3 className="text-lg font-bold text-white">Send Invoice</h3>
+              <button onClick={() => setShowSendModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-slate-800 px-6">
+              {(['compose', 'preview'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setSendPreviewTab(tab)}
+                  className={`py-3 px-4 text-sm font-medium border-b-2 -mb-px capitalize transition-colors ${
+                    sendPreviewTab === tab
+                      ? 'border-cyan-500 text-cyan-400'
+                      : 'border-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {tab === 'compose' ? 'Recipients' : 'PDF Preview'}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {sendPreviewTab === 'compose' ? (
+                <div className="p-6 space-y-5">
+                  {/* To */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">To</label>
+                      <button
+                        onClick={addToEmail}
+                        className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300"
+                      >
+                        <Plus className="w-3 h-3" /> Add recipient
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {sendToEmails.map((email, i) => (
+                        <div key={i} className="flex gap-2">
+                          <input
+                            type="email"
+                            value={email}
+                            onChange={e => updateToEmail(i, e.target.value)}
+                            placeholder="recipient@example.com"
+                            className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-cyan-500"
+                          />
+                          {sendToEmails.length > 1 && (
+                            <button
+                              onClick={() => removeToEmail(i)}
+                              className="p-2 text-slate-500 hover:text-red-400 transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* CC */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">CC</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        value={sendCcInput}
+                        onChange={e => setSendCcInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addCcEmail(); } }}
+                        placeholder="cc@example.com — press Enter to add"
+                        className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-cyan-500"
+                      />
+                      <button
+                        onClick={addCcEmail}
+                        className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    {sendCcEmails.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {sendCcEmails.map(email => (
+                          <span
+                            key={email}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-full text-xs text-slate-300"
+                          >
+                            {email}
+                            <button onClick={() => removeCcEmail(email)} className="text-slate-500 hover:text-white">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Summary */}
+                  <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Invoice</span>
+                      <span className="text-white font-medium">{invoice.invoice_number}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Amount</span>
+                      <span className="text-cyan-400 font-semibold">{formatCurrency(invoice.total, invoice.currency)}</span>
+                    </div>
+                    {invoice.due_date && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Due</span>
+                        <span className="text-white">{invoice.due_date}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-1 border-t border-slate-700/50 text-xs">
+                      <span className="text-slate-500">Includes PDF attachment</span>
+                      <span className="text-emerald-400">Yes</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6">
+                  <p className="text-xs text-slate-500 mb-4">This is the invoice as your recipient will see it. The PDF attachment mirrors this layout.</p>
+                  <InvoicePreview
+                    invoice={invoice}
+                    items={(invoice.line_items ?? []).map(li => ({
+                      id: li.id,
+                      sort_order: li.sort_order,
+                      description: li.description,
+                      quantity: li.quantity,
+                      unit_price: li.unit_price,
+                      tax_rate: li.tax_rate,
+                      discount_rate: li.discount_rate,
+                    }))}
+                    settings={{
+                      logo_url: settings?.logo_url,
+                      accent_color: settings?.accent_color,
+                      payment_instructions: settings?.payment_instructions,
+                      business_name: settings?.business_name,
+                      business_address_line1: settings?.business_address_line1,
+                      business_address_line2: settings?.business_address_line2,
+                      business_city: settings?.business_city,
+                      business_state: settings?.business_state,
+                      business_zip: settings?.business_zip,
+                      business_country: settings?.business_country,
+                      business_phone: settings?.business_phone,
+                      business_email: settings?.business_email,
+                      business_tax_id: settings?.business_tax_id,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between gap-3">
+              <div className="text-xs text-slate-500">
+                {sendToEmails.filter(Boolean).length} recipient{sendToEmails.filter(Boolean).length !== 1 ? 's' : ''}
+                {sendCcEmails.length > 0 && `, ${sendCcEmails.length} CC`}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowSendModal(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-700 text-slate-300 text-sm hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={sendInvoice}
+                  disabled={sending || sendToEmails.filter(Boolean).length === 0}
+                  className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm transition-colors disabled:opacity-50"
+                >
+                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {invoice.sent_at ? 'Resend Invoice' : 'Send Invoice'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Record payment modal */}
       {showPaymentForm && (
