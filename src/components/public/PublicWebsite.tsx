@@ -306,57 +306,40 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
         <PublicPageRouter tenantId={tenantId} path={currentPath} />
       </main>
 
-      <footer className="py-8 px-6" style={{ backgroundColor: primaryColor }}>
-        <div>
-          <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-6">
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span
-                  className="text-lg font-bold tracking-tight"
-                  style={{ color: accentColor, fontFamily: theme?.typography.headingFont || 'inherit' }}
+      <footer className="px-6 py-4 border-t" style={{ backgroundColor: primaryColor, borderColor: 'rgba(255,255,255,0.10)' }}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <span
+            className="text-base font-bold tracking-tight"
+            style={{ color: accentColor, fontFamily: theme?.typography.headingFont || 'inherit' }}
+          >
+            {displayName}
+          </span>
+
+          {footerNav.length > 0 && (
+            <div className="flex flex-wrap gap-x-6 gap-y-1">
+              {footerNav.map((item, i) => (
+                <button
+                  key={i}
+                  onClick={() => navigate(item.href, item.external)}
+                  className="text-xs transition-opacity hover:opacity-100"
+                  style={{ color: accentColor }}
                 >
-                  {displayName}
-                </span>
-              </div>
-              {branding.tagline && (
-                <p className="text-xs max-w-xs leading-relaxed tracking-wide" style={{ color: 'rgba(255,255,255,0.50)' }}>
-                  {branding.tagline}
-                </p>
-              )}
-              {branding.address && (
-                <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                  {branding.address}
-                </p>
-              )}
+                  {item.label}
+                </button>
+              ))}
             </div>
+          )}
 
-            {footerNav.length > 0 && (
-              <div className="flex flex-wrap gap-x-8 gap-y-3">
-                {footerNav.map((item, i) => (
-                  <button
-                    key={i}
-                    onClick={() => navigate(item.href, item.external)}
-                    className="text-sm transition-colors hover:opacity-100"
-                    style={{ color: accentColor }}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="pt-8 border-t" style={{ borderColor: 'rgba(255,255,255,0.10)' }}>
-            {branding.legal_disclaimer && (
-              <p className="text-[10px] leading-relaxed mb-5 max-w-4xl" style={{ color: 'rgba(255,255,255,0.28)' }}>
-                {branding.legal_disclaimer}
-              </p>
-            )}
-            <p className="text-[10px]" style={{ color: accentColor }}>
-              &copy; {new Date().getFullYear()} {displayName}. All rights reserved.
-            </p>
-          </div>
+          <p className="text-[10px]" style={{ color: accentColor }}>
+            &copy; {new Date().getFullYear()} {displayName}. All rights reserved.
+          </p>
         </div>
+
+        {branding.legal_disclaimer && (
+          <p className="text-[10px] leading-relaxed mt-2 max-w-4xl" style={{ color: 'rgba(255,255,255,0.28)' }}>
+            {branding.legal_disclaimer}
+          </p>
+        )}
       </footer>
     </div>
   );
