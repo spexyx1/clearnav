@@ -104,7 +104,13 @@
           if (TENANT_MAP[host]) domain = host;
         }
         var tenant = domain && TENANT_MAP[domain];
-        if (!tenant) return; // platform root — nothing to prime
+        if (!tenant) {
+          // Platform root — set dark background to match ClearNavLandingPage
+          var _root = document.documentElement;
+          _root.style.setProperty('--color-background', '#020617');
+          _root.style.setProperty('--color-accent', '#06B6D4');
+          return;
+        }
 
         // ─── Show pre-shell skeleton (hidden by default, only for tenants) ──
         var shell = document.getElementById('pre-shell');
@@ -129,6 +135,9 @@
         // ─── Swap favicon synchronously ────────────────────────────────────
         var fav = document.getElementById('favicon');
         if (fav && tenant.favicon) fav.setAttribute('href', tenant.favicon);
+
+        // ─── Expose tenant ID for React to use synchronously ──────────────
+        window.__PRIMED_TENANT__ = { id: tenant.tenantId, slug: domain };
 
         // ─── Fire parallel data fetch ──────────────────────────────────────
         // This runs NOW, in parallel with the React bundle download.

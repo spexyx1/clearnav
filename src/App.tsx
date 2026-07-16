@@ -52,7 +52,8 @@ const InvoicePublicView = lazyWithReload(() => import('./components/manager/invo
 function AppContent() {
   const { user, loading, roleCategory, currentTenant } = useAuth();
   const [route, navigate] = useRoute();
-  const [publicTenant, setPublicTenant] = useState<{ id: string; slug: string } | null>(null);
+  const primedTenant = (window as any).__PRIMED_TENANT__ as { id: string; slug: string } | undefined;
+  const [publicTenant, setPublicTenant] = useState<{ id: string; slug: string } | null>(primedTenant ?? null);
   const [vaultPassphrase, setVaultPassphrase] = useState('');
 
   // On the platform root (clearnav.cv, vercel previews, localhost without ?tenant),
@@ -60,7 +61,7 @@ function AppContent() {
   const isPlatformRoot = isPlatformRootDomain(window.location.hostname);
   const isInvoiceApp = isInvoiceAppDomain(window.location.hostname);
   const isPhoneApp = isPhoneAppDomain(window.location.hostname);
-  const [tenantLoading, setTenantLoading] = useState(!isPlatformRoot && !isInvoiceApp && !isPhoneApp);
+  const [tenantLoading, setTenantLoading] = useState(!isPlatformRoot && !isInvoiceApp && !isPhoneApp && !primedTenant);
 
   useEffect(() => {
     if (loading) return;
@@ -68,6 +69,7 @@ function AppContent() {
     if (isPlatformRoot) return;
     if (isInvoiceApp) return;
     if (isPhoneApp) return;
+    if (primedTenant) { setTenantLoading(false); return; }
 
     async function resolveTenant() {
       try {
@@ -89,13 +91,13 @@ function AppContent() {
     } else {
       setTenantLoading(false);
     }
-  }, [user, loading, isPlatformRoot]);
+  }, [user, loading, isPlatformRoot, primedTenant]);
 
   const Fallback = () => <FullPageLoader />;
 
   // On the platform root, don't block on auth loading for unauthenticated visitors —
   // ClearNAVLandingPage doesn't need auth and can paint immediately.
-  if (loading && !isPlatformRoot && !isInvoiceApp && !isPhoneApp) return <FullPageLoader />;
+  if (loading && !isPlatformRoot && !isInvoiceApp && !isPhoneApp && !primedTenant) return <FullPageLoader />;
 
   // Phone app at phone.clearnav.cv — completely independent component tree
   if (isPhoneApp) {
