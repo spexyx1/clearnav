@@ -58,7 +58,7 @@ export function HeroSection({ content }: HeroSectionProps) {
 
   const bgStyle: React.CSSProperties = background_image
     ? {
-        backgroundImage: `linear-gradient(rgba(27,58,45,0.86), rgba(27,58,45,0.92)), url(${background_image})`,
+        backgroundImage: `linear-gradient(rgba(10,18,28,0.62), rgba(10,18,28,0.72)), url(${background_image})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }
