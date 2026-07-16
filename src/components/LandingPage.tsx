@@ -135,7 +135,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
     contact: {
       email: 'invest@greyalpha.co',
       phone: '',
-      address: 'Jerusalem, Israel',
+      address: 'Melbourne, Australia',
     },
   };
 

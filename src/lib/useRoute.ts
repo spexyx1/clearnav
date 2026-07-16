@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 export type AppRoute =
   | 'landing'
   | 'login'
+  | 'investor-signup'
   | 'accept-invite'
   | 'signup'
   | 'debug'
@@ -22,6 +23,7 @@ function detectRoute(): AppRoute {
 
   if (params.get('token'))          return 'accept-invite';
   if (params.get('login'))          return 'login';
+  if (params.get('investor-signup')) return 'investor-signup';
   if (path === '/signup')           return 'signup';
   if (path === '/debug')            return 'debug';
   if (path === '/sales-sheet')      return 'sales-sheet';

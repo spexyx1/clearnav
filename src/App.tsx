@@ -4,6 +4,7 @@ import { LanguageProvider } from './lib/LanguageContext';
 import LandingPage from './components/LandingPage';
 import ClearNAVLandingPage from './components/ClearNavLandingPage';
 import LoginPage from './components/LoginPage';
+import InvestorSignup from './components/InvestorSignup';
 import { PublicWebsite } from './components/public/PublicWebsite';
 import { resolveTenantFromDomain } from './lib/tenantResolver';
 import { isPlatformRootDomain, isInvoiceAppDomain, isPhoneAppDomain } from './lib/hostUtils';
@@ -219,7 +220,23 @@ function AppContent() {
   }
 
   if (route === 'login') {
-    return <LoginPage onBack={() => navigate(publicTenant ? '/' : '/')} />;
+    return (
+      <LoginPage
+        onBack={() => navigate(publicTenant ? '/' : '/')}
+        onSignup={() => navigate('/?investor-signup=1')}
+        tenantId={publicTenant?.id ?? null}
+      />
+    );
+  }
+
+  if (route === 'investor-signup') {
+    return (
+      <InvestorSignup
+        onBack={() => navigate('/?login=1')}
+        onLogin={() => navigate('/?login=1')}
+        tenantId={publicTenant?.id ?? null}
+      />
+    );
   }
 
   if (tenantLoading) return <FullPageLoader />;
@@ -241,7 +258,7 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const tenantParam = params.get('tenant');
     const path = window.location.pathname;
-    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/vault', '/vault/report', '/vault/apply'];
+    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/vault', '/vault/report', '/vault/apply', '/investor-signup'];
 
     if (!specialPaths.includes(path) && !path.startsWith('/invoice/') && !path.startsWith('/phone') && !tenantParam) {      const defaultTenant = import.meta.env.VITE_DEFAULT_DEV_TENANT || 'arkline';
       window.location.replace(

@@ -419,14 +419,6 @@ export default function InvestorVault({ onBack, onOpenReport, onApply }: Investo
                   <p>South Melbourne VIC 3205</p>
                 </div>
               </div>
-              <div className="flex items-start gap-2">
-                <MapPin size={13} className="mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold mb-0.5" style={{ color: '#B8934A', opacity: 1 }}>Jerusalem</p>
-                  <p>Level 2, 20 King George Street</p>
-                  <p>Jerusalem, Israel</p>
-                </div>
-              </div>
             </div>
             <div className="flex items-center gap-2 text-xs opacity-40">
               <Mail size={13} />
