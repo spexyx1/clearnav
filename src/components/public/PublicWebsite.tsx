@@ -306,9 +306,9 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
         <PublicPageRouter tenantId={tenantId} path={currentPath} />
       </main>
 
-      <footer className="py-14 px-6" style={{ backgroundColor: primaryColor }}>
+      <footer className="py-8 px-6" style={{ backgroundColor: primaryColor }}>
         <div>
-          <div className="flex flex-col md:flex-row justify-between items-start gap-8 mb-10">
+          <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-6">
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <span
