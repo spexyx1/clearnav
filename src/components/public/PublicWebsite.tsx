@@ -233,18 +233,15 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
       {theme?.custom_css && <style>{theme.custom_css}</style>}
 
       <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: primaryColor }}>
-        <nav className="max-w-7xl mx-auto px-6 py-4">
+        <nav className="px-6 py-4">
           <div className="flex items-center justify-between">
             <button
               onClick={() => navigate('/')}
-              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+              className="flex items-center hover:opacity-80 transition-opacity"
             >
-              {theme?.logo_url && (
-                <img src={theme.logo_url} alt="Logo" className="h-10 w-auto object-contain" />
-              )}
               <span
                 className="text-xl font-bold tracking-tight"
-                style={{ color: theme?.logo_url ? 'rgba(255,255,255,0.95)' : accentColor, fontFamily: theme?.typography.headingFont || 'inherit' }}
+                style={{ color: accentColor, fontFamily: theme?.typography.headingFont || 'inherit' }}
               >
                 {displayName}
               </span>
@@ -256,7 +253,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
                   key={i}
                   onClick={() => navigate(item.href, item.external)}
                   className="text-sm font-medium tracking-wide transition-opacity hover:opacity-70"
-                  style={{ color: 'rgba(255,255,255,0.88)' }}
+                  style={{ color: accentColor }}
                 >
                   {item.label}
                 </button>
@@ -274,7 +271,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2"
-              style={{ color: 'rgba(255,255,255,0.88)' }}
+              style={{ color: accentColor }}
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
@@ -287,7 +284,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
                   key={i}
                   onClick={() => navigate(item.href, item.external)}
                   className="block w-full text-left py-3 text-sm font-medium transition-opacity hover:opacity-70"
-                  style={{ color: 'rgba(255,255,255,0.88)' }}
+                  style={{ color: accentColor }}
                 >
                   {item.label}
                 </button>
@@ -310,13 +307,10 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
       </main>
 
       <footer className="py-14 px-6" style={{ backgroundColor: primaryColor }}>
-        <div className="max-w-7xl mx-auto">
+        <div>
           <div className="flex flex-col md:flex-row justify-between items-start gap-8 mb-10">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                {theme?.logo_url && (
-                  <img src={theme.logo_url} alt="Logo" className="h-8 w-auto object-contain" />
-                )}
                 <span
                   className="text-lg font-bold tracking-tight"
                   style={{ color: accentColor, fontFamily: theme?.typography.headingFont || 'inherit' }}
@@ -343,7 +337,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
                     key={i}
                     onClick={() => navigate(item.href, item.external)}
                     className="text-sm transition-colors hover:opacity-100"
-                    style={{ color: 'rgba(255,255,255,0.60)' }}
+                    style={{ color: accentColor }}
                   >
                     {item.label}
                   </button>
@@ -358,7 +352,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
                 {branding.legal_disclaimer}
               </p>
             )}
-            <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.30)' }}>
+            <p className="text-[10px]" style={{ color: accentColor }}>
               &copy; {new Date().getFullYear()} {displayName}. All rights reserved.
             </p>
           </div>
