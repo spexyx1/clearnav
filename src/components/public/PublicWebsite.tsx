@@ -315,7 +315,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
             <div>
               <div className="flex items-center gap-2 mb-3">
                 {theme?.logo_url && (
-                  <img src={theme.logo_url} alt="Logo" className="h-8 w-auto object-contain brightness-0 invert" />
+                  <img src={theme.logo_url} alt="Logo" className="h-8 w-auto object-contain" />
                 )}
                 <span
                   className="text-lg font-bold tracking-tight"
