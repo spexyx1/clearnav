@@ -41,6 +41,7 @@
         // ─── Tenant registry ───────────────────────────────────────────────
         var _ARKLINE = {
             tenantId: '66aa0d61-696b-46e1-b2d3-4efcb8a315af',
+            name:          'Arkline Trust',
             primary:       '#1B3A2D',
             secondary:     '#244D3C',
             accent:        '#B8934A',
@@ -137,7 +138,7 @@
         if (fav && tenant.favicon) fav.setAttribute('href', tenant.favicon);
 
         // ─── Expose tenant ID for React to use synchronously ──────────────
-        window.__PRIMED_TENANT__ = { id: tenant.tenantId, slug: domain };
+        window.__PRIMED_TENANT__ = { id: tenant.tenantId, slug: domain, name: tenant.name };
 
         // ─── Fire parallel data fetch ──────────────────────────────────────
         // This runs NOW, in parallel with the React bundle download.

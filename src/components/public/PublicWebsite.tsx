@@ -12,6 +12,7 @@ import {
 interface PublicWebsiteProps {
   tenantId: string;
   tenantSlug: string;
+  primedName?: string;
 }
 
 // Reads the bootstrap result (started in index.html before React loaded)
@@ -21,7 +22,7 @@ function getInitialSiteData(tenantId: string): TenantSiteData | null {
   return cached?.data ?? null;
 }
 
-export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
+export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsiteProps) {
   const [siteData, setSiteData] = useState<TenantSiteData | null>(() =>
     getInitialSiteData(tenantId)
   );
@@ -35,8 +36,7 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
   const footerNav = siteData?.footerNav ?? [];
   const siteStatus = siteData?.siteStatus ?? 'live';
 
-  const displayName =
-    branding.company_name || tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1);
+  const displayName = branding.company_name || primedName || tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1);
   const accentColor = (theme?.colors as any)?.accent || '#C9A84C';
   const primaryColor = theme?.colors?.primary || '#0A1628';
 
@@ -49,9 +49,10 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
   useEffect(() => {
     const name =
       branding.company_name ||
+      primedName ||
       tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1);
     document.title = name;
-  }, [branding, tenantSlug]);
+  }, [branding, tenantSlug, primedName]);
 
   // Pop-state listener
   useEffect(() => {
@@ -238,16 +239,15 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
               onClick={() => navigate('/')}
               className="flex items-center gap-3 hover:opacity-80 transition-opacity"
             >
-              {theme?.logo_url ? (
-                <img src={theme.logo_url} alt="Logo" className="h-10" />
-              ) : (
-                <span
-                  className="text-xl font-bold tracking-tight"
-                  style={{ color: accentColor, fontFamily: theme?.typography.headingFont || 'inherit' }}
-                >
-                  {displayName}
-                </span>
+              {theme?.logo_url && (
+                <img src={theme.logo_url} alt="Logo" className="h-10 w-auto object-contain" />
               )}
+              <span
+                className="text-xl font-bold tracking-tight"
+                style={{ color: theme?.logo_url ? 'rgba(255,255,255,0.95)' : accentColor, fontFamily: theme?.typography.headingFont || 'inherit' }}
+              >
+                {displayName}
+              </span>
             </button>
 
             <div className="hidden md:flex items-center gap-8">
@@ -313,16 +313,17 @@ export function PublicWebsite({ tenantId, tenantSlug }: PublicWebsiteProps) {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-start gap-8 mb-10">
             <div>
-              {theme?.logo_url ? (
-                <img src={theme.logo_url} alt="Logo" className="h-8 brightness-0 invert mb-3" />
-              ) : (
+              <div className="flex items-center gap-2 mb-3">
+                {theme?.logo_url && (
+                  <img src={theme.logo_url} alt="Logo" className="h-8 w-auto object-contain brightness-0 invert" />
+                )}
                 <span
-                  className="text-lg font-bold tracking-tight block mb-3"
+                  className="text-lg font-bold tracking-tight"
                   style={{ color: accentColor, fontFamily: theme?.typography.headingFont || 'inherit' }}
                 >
                   {displayName}
                 </span>
-              )}
+              </div>
               {branding.tagline && (
                 <p className="text-xs max-w-xs leading-relaxed tracking-wide" style={{ color: 'rgba(255,255,255,0.50)' }}>
                   {branding.tagline}

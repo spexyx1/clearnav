@@ -52,8 +52,8 @@ const InvoicePublicView = lazyWithReload(() => import('./components/manager/invo
 function AppContent() {
   const { user, loading, roleCategory, currentTenant } = useAuth();
   const [route, navigate] = useRoute();
-  const primedTenant = (window as any).__PRIMED_TENANT__ as { id: string; slug: string } | undefined;
-  const [publicTenant, setPublicTenant] = useState<{ id: string; slug: string } | null>(primedTenant ?? null);
+  const primedTenant = (window as any).__PRIMED_TENANT__ as { id: string; slug: string; name?: string } | undefined;
+  const [publicTenant, setPublicTenant] = useState<{ id: string; slug: string; name?: string } | null>(primedTenant ?? null);
   const [vaultPassphrase, setVaultPassphrase] = useState('');
 
   // On the platform root (clearnav.cv, vercel previews, localhost without ?tenant),
@@ -76,7 +76,7 @@ function AppContent() {
         setTenantLoading(true);
         const result = await resolveTenantFromDomain(window.location.hostname);
         if (result.tenant) {
-          setPublicTenant({ id: result.tenant.id, slug: result.tenant.slug });
+          setPublicTenant({ id: result.tenant.id, slug: result.tenant.slug, name: result.tenant.name });
         }
       } catch (error) {
         console.error('Error resolving tenant:', error);
@@ -244,7 +244,7 @@ function AppContent() {
   if (tenantLoading) return <FullPageLoader />;
 
   if (publicTenant) {
-    return <PublicWebsite tenantId={publicTenant.id} tenantSlug={publicTenant.slug} />;
+    return <PublicWebsite tenantId={publicTenant.id} tenantSlug={publicTenant.slug} primedName={publicTenant.name} />;
   }
 
   if (!currentTenant) {
