@@ -58,7 +58,7 @@ export function HeroSection({ content }: HeroSectionProps) {
 
   const bgStyle: React.CSSProperties = background_image
     ? {
-        backgroundImage: `linear-gradient(rgba(10,18,28,0.62), rgba(10,18,28,0.72)), url(${background_image})`,
+        backgroundImage: `radial-gradient(ellipse at center, rgba(10,18,28,0.45) 0%, rgba(10,18,28,0.25) 100%), url(${background_image})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }
@@ -105,7 +105,8 @@ export function HeroSection({ content }: HeroSectionProps) {
             style={{
               color: 'var(--color-accent, #B8934A)',
               borderColor: 'var(--color-accent, #B8934A)',
-              backgroundColor: 'rgba(184,147,74,0.08)',
+              backgroundColor: 'rgba(10,18,28,0.55)',
+              backdropFilter: 'blur(8px)',
               fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
             }}
           >
@@ -119,6 +120,7 @@ export function HeroSection({ content }: HeroSectionProps) {
             fontFamily: 'var(--font-heading, Cormorant Garamond, Georgia, serif)',
             color: isDark ? '#FFFFFF' : 'var(--color-text, #1A1A1A)',
             fontStyle: 'normal',
+            textShadow: isDark ? '0 2px 20px rgba(0,0,0,0.6), 0 1px 4px rgba(0,0,0,0.5)' : 'none',
           }}
         >
           {headline}
@@ -136,7 +138,8 @@ export function HeroSection({ content }: HeroSectionProps) {
             className="text-lg md:text-xl leading-[1.75] max-w-2xl font-light"
             style={{
               fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
-              color: isDark ? 'rgba(255,255,255,0.78)' : 'var(--color-textSecondary, #4A4A4A)',
+              color: isDark ? 'rgba(255,255,255,0.85)' : 'var(--color-textSecondary, #4A4A4A)',
+              textShadow: isDark ? '0 1px 12px rgba(0,0,0,0.7)' : 'none',
             }}
           >
             {subheadline}
