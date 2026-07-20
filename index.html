@@ -9,6 +9,12 @@
     <!-- Preconnect to Supabase so DNS+TLS is resolved during HTML parse -->
     <link rel="preconnect" href="https://xielqbwkiibeaajljamo.supabase.co" crossorigin />
 
+    <!-- Preconnect to Google Fonts so DNS+TLS resolves during HTML parse.
+         The actual stylesheet <link> is injected by the priming script below
+         only for known tenant domains, so clearnav.cv gets no extra requests. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
     <!--
       ClearNAV default favicon — dark navy, cyan NAV chart line.
       Swapped to the tenant favicon immediately by the priming script below
@@ -137,6 +143,15 @@
         var fav = document.getElementById('favicon');
         if (fav && tenant.favicon) fav.setAttribute('href', tenant.favicon);
 
+        // ─── Load Google Fonts immediately (during HTML parse) ─────────────
+        // Injecting the <link> here starts the font download before the
+        // React bundle finishes loading, so the correct typeface is available
+        // at first paint — no flash of system fonts.
+        var gf = document.createElement('link');
+        gf.rel = 'stylesheet';
+        gf.href = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Nunito+Sans:wght@300;400;500;600;700&display=swap';
+        document.head.appendChild(gf);
+
         // ─── Expose tenant ID for React to use synchronously ──────────────
         window.__PRIMED_TENANT__ = { id: tenant.tenantId, slug: domain, name: tenant.name };
 
@@ -196,8 +211,18 @@
       atomically when it mounts — no layout shift.
     -->
     <style>
-      html, body { margin: 0; padding: 0; background-color: var(--color-background, #FFFFFF); }
-      #root { min-height: 100vh; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--color-background, #FFFFFF);
+        font-family: var(--font-body, system-ui, -apple-system, sans-serif);
+      }
+      #root {
+        min-height: 100vh;
+        background-color: var(--color-background, #FFFFFF);
+      }
+      /* Hide empty root so the skeleton-to-React transition is seamless */
+      #root:empty { visibility: hidden; height: 0; overflow: hidden; min-height: 0; }
 
       /* Pre-shell starts hidden; priming script shows it for tenant domains */
       #pre-shell { display: none; flex-direction: column; min-height: 100vh; }

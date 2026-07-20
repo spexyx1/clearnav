@@ -232,7 +232,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
     >
       {theme?.custom_css && <style>{theme.custom_css}</style>}
 
-      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: primaryColor }}>
+      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: primaryColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, inherit)' }}>
         <nav className="px-6 py-4">
           <div className="flex items-center justify-between">
             <button
@@ -253,7 +253,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
                   key={i}
                   onClick={() => navigate(item.href, item.external)}
                   className="text-sm font-medium tracking-wide transition-opacity hover:opacity-70"
-                  style={{ color: accentColor }}
+                  style={{ color: accentColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, inherit)' }}
                 >
                   {item.label}
                 </button>
@@ -261,7 +261,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
               <button
                 onClick={handleLoginClick}
                 className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded transition-all hover:opacity-90 active:scale-95"
-                style={{ backgroundColor: accentColor, color: primaryColor, fontFamily: theme?.typography.bodyFont || 'inherit' }}
+                style={{ backgroundColor: accentColor, color: primaryColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, inherit)' }}
               >
                 <LogIn size={15} />
                 Investor Login
@@ -284,7 +284,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
                   key={i}
                   onClick={() => navigate(item.href, item.external)}
                   className="block w-full text-left py-3 text-sm font-medium transition-opacity hover:opacity-70"
-                  style={{ color: accentColor }}
+                  style={{ color: accentColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, inherit)' }}
                 >
                   {item.label}
                 </button>
@@ -292,7 +292,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
               <button
                 onClick={handleLoginClick}
                 className="flex items-center gap-2 mt-3 text-sm font-semibold px-4 py-2.5 rounded w-full justify-center transition-all hover:opacity-90"
-                style={{ backgroundColor: accentColor, color: primaryColor, fontFamily: theme?.typography.bodyFont || 'inherit' }}
+                style={{ backgroundColor: accentColor, color: primaryColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, inherit)' }}
               >
                 <LogIn size={15} />
                 Investor Login
@@ -306,7 +306,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
         <PublicPageRouter tenantId={tenantId} path={currentPath} />
       </main>
 
-      <footer className="px-6 py-4 border-t" style={{ backgroundColor: primaryColor, borderColor: 'rgba(255,255,255,0.10)' }}>
+      <footer className="px-6 py-4 border-t" style={{ backgroundColor: primaryColor, borderColor: 'rgba(255,255,255,0.10)', fontFamily: theme?.typography.bodyFont || 'var(--font-body, inherit)' }}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <span
             className="text-base font-bold tracking-tight"
@@ -322,7 +322,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
                   key={i}
                   onClick={() => navigate(item.href, item.external)}
                   className="text-xs transition-opacity hover:opacity-100"
-                  style={{ color: accentColor }}
+                  style={{ color: accentColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, inherit)' }}
                 >
                   {item.label}
                 </button>
@@ -330,13 +330,13 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
             </div>
           )}
 
-          <p className="text-[10px]" style={{ color: accentColor }}>
+          <p className="text-[10px]" style={{ color: accentColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, inherit)' }}>
             &copy; {new Date().getFullYear()} {displayName}. All rights reserved.
           </p>
         </div>
 
         {branding.legal_disclaimer && (
-          <p className="text-[10px] leading-relaxed mt-2 max-w-4xl" style={{ color: 'rgba(255,255,255,0.28)' }}>
+          <p className="text-[10px] leading-relaxed mt-2 max-w-4xl" style={{ color: 'rgba(255,255,255,0.28)', fontFamily: theme?.typography.bodyFont || 'var(--font-body, inherit)' }}>
             {branding.legal_disclaimer}
           </p>
         )}
