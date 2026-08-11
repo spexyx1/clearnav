@@ -9,6 +9,19 @@ const corsHeaders = {
 
 const TELNYX_BASE = "https://api.telnyx.com/v2";
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  return bytes;
+}
+
 function isWithinBusinessHours(hours: any, timezone: string): boolean {
   try {
     const now = new Date();
@@ -51,6 +64,50 @@ async function telnyxAction(apiKey: string, callControlId: string, action: strin
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
 
+  // Verify Telnyx webhook signature (Ed25519)
+  const telnyxPublicKey = Deno.env.get("TELNYX_PUBLIC_KEY");
+  const rawBody = await req.text();
+
+  if (telnyxPublicKey) {
+    const signatureHeader = req.headers.get("telnyx-signature-ed25519") || "";
+    const timestampHeader = req.headers.get("telnyx-timestamp") || "";
+    if (!signatureHeader || !timestampHeader) {
+      return new Response(JSON.stringify({ error: "Missing signature" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    try {
+      const sigParts = signatureHeader.split(",");
+      const sig = sigParts[0];
+      const ts = timestampHeader;
+      const message = new TextEncoder().encode(ts + rawBody);
+      const pubKeyBytes = hexToBytes(telnyxPublicKey);
+      const sigBytes = hexToBytes(sig);
+      const key = await crypto.subtle.importKey("raw", pubKeyBytes, { name: "Ed25519" }, false, ["verify"]);
+      const valid = await crypto.subtle.verify("Ed25519", key, sigBytes, message);
+      if (!valid) {
+        return new Response(JSON.stringify({ error: "Invalid signature" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } catch {
+      return new Response(JSON.stringify({ error: "Signature verification failed" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  } else {
+    // Fallback to shared secret if public key not configured
+    const sharedSecret = Deno.env.get("TELNYX_WEBHOOK_SECRET");
+    if (sharedSecret) {
+      const provided = req.headers.get("telnyx-shared-secret") || req.headers.get("x-telnyx-secret");
+      if (!provided || !timingSafeEqual(provided, sharedSecret)) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+  }
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -59,7 +116,7 @@ Deno.serve(async (req: Request) => {
   const telnyxApiKey = Deno.env.get("TELNYX_API_KEY") ?? "";
 
   let payload: any;
-  try { payload = await req.json(); } catch {
+  try { payload = JSON.parse(rawBody); } catch {
     return new Response("ok", { headers: corsHeaders });
   }
 

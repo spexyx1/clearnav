@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import DOMPurify from 'dompurify';
 import {
   X, Send, ThumbsUp, ThumbsDown, RotateCcw, BookOpen,
   Navigation, ExternalLink, MessageSquare, ChevronLeft, Loader2, AlertCircle
@@ -60,15 +61,16 @@ function getSuggestions(route?: string): string[] {
   return SUGGESTED_PROMPTS.default;
 }
 
-// Very simple markdown renderer
+// Simple markdown renderer with sanitization
 function renderMarkdown(text: string): string {
-  return text
+  const html = text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/`(.+?)`/g, '<code class="bg-slate-100 px-1 rounded text-xs font-mono">$1</code>')
     .replace(/^## (.+)$/gm, '<h3 class="font-semibold text-slate-800 mt-2 mb-1 text-sm">$1</h3>')
     .replace(/^- (.+)$/gm, '<li class="ml-3 list-disc text-sm">$1</li>')
     .replace(/\n/g, '<br />');
+  return DOMPurify.sanitize(html, { ALLOWED_TAGS: ['strong', 'em', 'code', 'h3', 'li', 'br'], ALLOWED_ATTR: ['class'] });
 }
 
 export function HelpChatPanel({ portal, currentRoute, userRole, tenantName, onNavigate }: Props) {

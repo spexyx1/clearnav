@@ -230,7 +230,8 @@ Deno.serve(async (req: Request) => {
           vercel_last_checked_at: new Date().toISOString(),
           vercel_misconfigured: !!inspectRes.data.misconfigured,
         })
-        .eq("domain", domain);
+        .eq("domain", domain)
+        .eq("tenant_id", roleData.tenant_id);
 
       const configRes = await vercelFetch(`/v6/domains/${domain}/config`, vercelToken);
 
@@ -257,6 +258,18 @@ Deno.serve(async (req: Request) => {
         });
       }
 
+      // Verify the domain belongs to the caller's tenant before inspecting
+      const { data: domainOwnership } = await supabase
+        .from("tenant_domains")
+        .select("tenant_id")
+        .eq("domain", domain)
+        .maybeSingle();
+      if (!domainOwnership || domainOwnership.tenant_id !== roleData.tenant_id) {
+        return new Response(JSON.stringify({ error: "Domain not found for your tenant" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const [inspectRes, configRes] = await Promise.all([
         vercelFetch(`/v9/projects/${vercelProjectId}/domains/${domain}`, vercelToken),
         vercelFetch(`/v6/domains/${domain}/config`, vercelToken),
@@ -277,7 +290,8 @@ Deno.serve(async (req: Request) => {
           ssl_enabled: verified && !redirect,
           deployment_status: verified && !redirect ? "ready" : "pending",
         })
-        .eq("domain", domain);
+        .eq("domain", domain)
+        .eq("tenant_id", roleData.tenant_id);
 
       return new Response(
         JSON.stringify({
@@ -328,7 +342,8 @@ Deno.serve(async (req: Request) => {
             ? { is_verified: true, ssl_enabled: true, deployment_status: "ready", verified_at: new Date().toISOString() }
             : {}),
         })
-        .eq("domain", domain);
+        .eq("domain", domain)
+        .eq("tenant_id", roleData.tenant_id);
 
       return new Response(
         JSON.stringify({

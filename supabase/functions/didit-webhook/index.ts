@@ -41,26 +41,29 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const webhookSecret = Deno.env.get("DIDIT_WEBHOOK_SECRET");
-
     const rawBody = await req.text();
 
-    if (webhookSecret) {
-      const signature = req.headers.get("x-signature-v2") || req.headers.get("x-signature");
-      if (!signature) {
-        console.warn("Missing Didit webhook signature header");
-        return new Response(JSON.stringify({ error: "Missing signature" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const valid = await verifyHmacSignature(rawBody, signature, webhookSecret);
-      if (!valid) {
-        console.warn("Invalid Didit webhook signature");
-        return new Response(JSON.stringify({ error: "Invalid signature" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    // Signature verification is mandatory — reject if secret not configured or signature invalid
+    if (!webhookSecret) {
+      console.error("DIDIT_WEBHOOK_SECRET not configured — rejecting webhook");
+      return new Response(JSON.stringify({ error: "Webhook secret not configured" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const signature = req.headers.get("x-signature-v2") || req.headers.get("x-signature");
+    if (!signature) {
+      console.warn("Missing Didit webhook signature header");
+      return new Response(JSON.stringify({ error: "Missing signature" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const valid = await verifyHmacSignature(rawBody, signature, webhookSecret);
+    if (!valid) {
+      console.warn("Invalid Didit webhook signature");
+      return new Response(JSON.stringify({ error: "Invalid signature" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const payload = JSON.parse(rawBody);

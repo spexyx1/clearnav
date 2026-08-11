@@ -340,7 +340,7 @@ export function CustomSection({ content }: CustomSectionProps) {
   // Fallback: raw HTML
   const paddingClasses = { none: 'py-0', small: 'py-10', medium: 'py-20', large: 'py-32' };
   const sanitizedHTML = DOMPurify.sanitize(html, {
-    ADD_TAGS: ['iframe'],
+    ADD_TAGS: [],
     ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling'],
   });
 

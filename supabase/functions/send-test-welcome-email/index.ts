@@ -1,4 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireUser, unauthorizedResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -197,6 +199,9 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const auth = await requireUser(req);
+    if (!auth) return unauthorizedResponse(corsHeaders);
+
     const apiKey = Deno.env.get("RESEND_API_KEY");
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "RESEND_API_KEY not configured" }), {

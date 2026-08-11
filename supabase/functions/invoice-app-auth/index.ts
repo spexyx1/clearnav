@@ -96,7 +96,7 @@ Deno.serve(async (req: Request) => {
       onboarding_complete: true,
     });
 
-    return ok({ email, temp_password: tempPassword });
+    return ok({ email, onboarding_complete: true });
   }
 
   // ── email_signup ──────────────────────────────────────────────────────────────

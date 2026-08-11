@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { requireUser, unauthorizedResponse } from "../_shared/auth.ts";
 
 const ALLOWED_ORIGINS = [
   "https://arklinetrust.com",
@@ -61,6 +62,9 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const auth = await requireUser(req);
+    if (!auth) return unauthorizedResponse(corsHeaders);
+
     const body = await req.json();
     const { application_id } = body;
 

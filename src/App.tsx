@@ -1,13 +1,14 @@
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
 import { LanguageProvider } from './lib/LanguageContext';
-import LandingPage from './components/LandingPage';
-import ClearNAVLandingPage from './components/ClearNavLandingPage';
-import LoginPage from './components/LoginPage';
-import InvestorSignup from './components/InvestorSignup';
-import { PublicWebsite } from './components/public/PublicWebsite';
 import { resolveTenantFromDomain } from './lib/tenantResolver';
 import { isPlatformRootDomain, isInvoiceAppDomain, isPhoneAppDomain } from './lib/hostUtils';
+
+const LandingPage = lazyWithReload(() => import('./components/LandingPage'));
+const ClearNAVLandingPage = lazyWithReload(() => import('./components/ClearNavLandingPage'));
+const LoginPage = lazyWithReload(() => import('./components/LoginPage'));
+const InvestorSignup = lazyWithReload(() => import('./components/InvestorSignup'));
+const PublicWebsite = lazyWithReload(() => import('./components/public/PublicWebsite').then(m => ({ default: m.PublicWebsite })));
 
 const InvoiceApp = lazyWithReload(() => import('./components/invoiceapp/InvoiceApp'));
 const PhoneApp = lazyWithReload(() => import('./components/phoneapp/PhoneApp'));
@@ -38,7 +39,6 @@ const ManagerPortal = lazyWithReload(() => import('./components/ManagerPortal'))
 const PlatformAdminPortal = lazyWithReload(() => import('./components/platform/PlatformAdminPortal'));
 const AcceptInvitation = lazyWithReload(() => import('./components/AcceptInvitation'));
 const ClientSignup = lazyWithReload(() => import('./components/ClientSignup'));
-const DebugLogin = lazyWithReload(() => import('./components/DebugLogin'));
 const SalesSheet = lazyWithReload(() => import('./components/SalesSheet'));
 const TermsOfService = lazyWithReload(() => import('./components/legal/TermsOfService'));
 const PrivacyPolicy = lazyWithReload(() => import('./components/legal/PrivacyPolicy'));
@@ -110,6 +110,7 @@ function AppContent() {
   }
 
   if (route === 'debug' && import.meta.env.DEV) {
+    const DebugLogin = lazyWithReload(() => import('./components/DebugLogin'));
     return <Suspense fallback={<Fallback />}><DebugLogin /></Suspense>;
   }
 
@@ -223,35 +224,39 @@ function AppContent() {
 
   if (route === 'login') {
     return (
-      <LoginPage
-        onBack={() => navigate(publicTenant ? '/' : '/')}
-        onSignup={() => navigate('/?investor-signup=1')}
-        tenantId={publicTenant?.id ?? null}
-      />
+      <Suspense fallback={<Fallback />}>
+        <LoginPage
+          onBack={() => navigate(publicTenant ? '/' : '/')}
+          onSignup={() => navigate('/?investor-signup=1')}
+          tenantId={publicTenant?.id ?? null}
+        />
+      </Suspense>
     );
   }
 
   if (route === 'investor-signup') {
     return (
-      <InvestorSignup
-        onBack={() => navigate('/?login=1')}
-        onLogin={() => navigate('/?login=1')}
-        tenantId={publicTenant?.id ?? null}
-      />
+      <Suspense fallback={<Fallback />}>
+        <InvestorSignup
+          onBack={() => navigate('/?login=1')}
+          onLogin={() => navigate('/?login=1')}
+          tenantId={publicTenant?.id ?? null}
+        />
+      </Suspense>
     );
   }
 
   if (tenantLoading) return <FullPageLoader />;
 
   if (publicTenant) {
-    return <PublicWebsite tenantId={publicTenant.id} tenantSlug={publicTenant.slug} primedName={publicTenant.name} />;
+    return <Suspense fallback={<Fallback />}><PublicWebsite tenantId={publicTenant.id} tenantSlug={publicTenant.slug} primedName={publicTenant.name} /></Suspense>;
   }
 
   if (!currentTenant) {
-    return <ClearNAVLandingPage onLoginClick={() => navigate('/?login=1')} />;
+    return <Suspense fallback={<Fallback />}><ClearNAVLandingPage onLoginClick={() => navigate('/?login=1')} /></Suspense>;
   }
 
-  return <LandingPage onLoginClick={() => navigate('/?login=1')} />;
+  return <Suspense fallback={<Fallback />}><LandingPage onLoginClick={() => navigate('/?login=1')} /></Suspense>;
 }
 
 function App() {

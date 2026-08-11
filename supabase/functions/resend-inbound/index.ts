@@ -60,17 +60,35 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Optional shared-secret validation
+    // Mandatory shared-secret validation
     const inboundSecret = Deno.env.get("RESEND_INBOUND_SECRET");
-    if (inboundSecret) {
-      const url = new URL(req.url);
-      const provided = url.searchParams.get("secret") || req.headers.get("x-resend-secret");
-      if (provided !== inboundSecret) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    if (!inboundSecret) {
+      console.error("RESEND_INBOUND_SECRET not configured — rejecting inbound webhook");
+      return new Response(JSON.stringify({ error: "Webhook secret not configured" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const url = new URL(req.url);
+    const provided = url.searchParams.get("secret") || req.headers.get("x-resend-secret");
+    if (!provided) {
+      return new Response(JSON.stringify({ error: "Missing secret" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // Timing-safe comparison to prevent side-channel attacks
+    if (provided.length !== inboundSecret.length) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    let secretDiff = 0;
+    for (let i = 0; i < provided.length; i++) {
+      secretDiff |= provided.charCodeAt(i) ^ inboundSecret.charCodeAt(i);
+    }
+    if (secretDiff !== 0) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const supabase = createClient(

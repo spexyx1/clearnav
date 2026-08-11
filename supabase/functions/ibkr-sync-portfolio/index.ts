@@ -174,54 +174,25 @@ Deno.serve(async (req: Request) => {
         })),
       };
     } catch (error) {
-      console.error('Using mock data due to IBKR API error:', error);
-      
-      accountSummary = {
-        totalCashValue: 50000,
-        netLiquidation: 1500000,
-        positions: [
-          {
-            symbol: 'AAPL',
-            position: 1000,
-            marketPrice: 180.50,
-            marketValue: 180500,
-            averageCost: 170.00,
-            unrealizedPnL: 10500,
-            assetClass: 'STK',
-            currency: 'USD',
-          },
-          {
-            symbol: 'MSFT',
-            position: 800,
-            marketPrice: 380.25,
-            marketValue: 304200,
-            averageCost: 350.00,
-            unrealizedPnL: 24200,
-            assetClass: 'STK',
-            currency: 'USD',
-          },
-          {
-            symbol: 'GOOGL',
-            position: 1500,
-            marketPrice: 140.75,
-            marketValue: 211125,
-            averageCost: 135.00,
-            unrealizedPnL: 8625,
-            assetClass: 'STK',
-            currency: 'USD',
-          },
-          {
-            symbol: 'NVDA',
-            position: 2000,
-            marketPrice: 475.50,
-            marketValue: 951000,
-            averageCost: 420.00,
-            unrealizedPnL: 111000,
-            assetClass: 'STK',
-            currency: 'USD',
-          },
-        ],
-      };
+      console.error('IBKR API error, skipping sync:', error);
+      await supabase
+        .from('ibkr_sync_log')
+        .update({
+          completed_at: new Date().toISOString(),
+          status: 'error',
+          error_message: error instanceof Error ? error.message : 'IBKR API unavailable',
+        })
+        .eq('id', syncLogId);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'IBKR API unavailable, sync skipped',
+        }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     await supabase.from('trust_positions').delete().eq('trust_account_id', trustAccount.id);

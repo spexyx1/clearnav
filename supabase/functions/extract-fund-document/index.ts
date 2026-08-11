@@ -95,6 +95,22 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Verify caller belongs to the same tenant as the document
+    if (doc.tenant_id) {
+      const { data: callerRole } = await userClient
+        .from("user_roles")
+        .select("tenant_id")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+      if (!callerRole || callerRole.tenant_id !== doc.tenant_id) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     await supabase
       .from("fund_documents")
       .update({ extraction_status: "processing", updated_at: new Date().toISOString() })

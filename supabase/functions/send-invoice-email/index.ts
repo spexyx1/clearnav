@@ -451,6 +451,25 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Verify the caller owns or is staff for the invoice's tenant
+    if (invoice.tenant_id) {
+      const { data: callerRole } = await userClient
+        .from("user_roles")
+        .select("tenant_id")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+      if (!callerRole || callerRole.tenant_id !== invoice.tenant_id) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (invoice.user_id && invoice.user_id !== user.id) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Load settings — user-scoped invoices use user_id, tenant invoices use tenant_id
     const settingsQuery = invoice.user_id
       ? supabase.from("invoice_settings").select("*").eq("user_id", invoice.user_id).maybeSingle()
