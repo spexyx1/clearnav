@@ -74,9 +74,9 @@ export function TeamSection({ content }: TeamSectionProps) {
           )}
           {subheading && (
             <p
-              className="text-lg max-w-2xl mx-auto leading-relaxed font-light"
+              className="text-lg max-w-2xl mx-auto leading-relaxed font-normal"
               style={{
-                fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+                fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                 color: 'var(--color-textSecondary, #4A4A4A)',
               }}
             >
@@ -137,9 +137,9 @@ export function TeamSection({ content }: TeamSectionProps) {
               />
 
               <p
-                className="text-sm leading-[1.85] font-light"
+                className="text-sm leading-[1.85] font-normal"
                 style={{
-                  fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+                  fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                   color: 'var(--color-textSecondary, #4A4A4A)',
                 }}
               >

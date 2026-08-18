@@ -107,7 +107,7 @@ export function HeroSection({ content }: HeroSectionProps) {
               borderColor: 'var(--color-accent, #B8934A)',
               backgroundColor: 'rgba(10,18,28,0.55)',
               backdropFilter: 'blur(8px)',
-              fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+              fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
             }}
           >
             {badge}
@@ -135,9 +135,9 @@ export function HeroSection({ content }: HeroSectionProps) {
 
         {subheadline && (
           <p
-            className="text-lg md:text-xl leading-[1.75] max-w-2xl font-light"
+            className="text-lg md:text-xl leading-[1.75] max-w-2xl font-normal"
             style={{
-              fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+              fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
               color: isDark ? 'rgba(255,255,255,0.85)' : 'var(--color-textSecondary, #4A4A4A)',
               textShadow: isDark ? '0 1px 12px rgba(0,0,0,0.7)' : 'none',
             }}
@@ -156,7 +156,7 @@ export function HeroSection({ content }: HeroSectionProps) {
                 style={{
                   backgroundColor: 'var(--color-accent, #B8934A)',
                   color: 'var(--color-primary, #1B3A2D)',
-                  fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+                  fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                 }}
               >
                 {effectiveCtaText}
@@ -171,7 +171,7 @@ export function HeroSection({ content }: HeroSectionProps) {
                 style={{
                   borderColor: isDark ? 'rgba(255,255,255,0.30)' : 'var(--color-primary, #1B3A2D)',
                   color: isDark ? 'rgba(255,255,255,0.88)' : 'var(--color-primary, #1B3A2D)',
-                  fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+                  fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                 }}
               >
                 {secondary_cta_text}

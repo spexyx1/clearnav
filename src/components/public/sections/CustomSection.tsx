@@ -41,8 +41,8 @@ function LeadershipSection({ content }: { content: CustomSectionProps['content']
           <div className="w-10 h-px mx-auto my-5" style={{ backgroundColor: 'var(--color-accent, #B8934A)' }} />
           {subheading && (
             <p
-              className="text-lg max-w-2xl mx-auto leading-relaxed font-light"
-              style={{ fontFamily: 'var(--font-body, Nunito Sans, sans-serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
+              className="text-lg max-w-2xl mx-auto leading-relaxed font-normal"
+              style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
             >
               {subheading}
             </p>
@@ -74,13 +74,13 @@ function LeadershipSection({ content }: { content: CustomSectionProps['content']
               </h3>
               <p
                 className="text-xs font-semibold uppercase tracking-widest mb-4"
-                style={{ color: 'var(--color-accent, #B8934A)', fontFamily: 'var(--font-body, Nunito Sans, sans-serif)' }}
+                style={{ color: 'var(--color-accent, #B8934A)', fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}
               >
                 {member.title}
               </p>
               <p
-                className="text-sm leading-relaxed font-light mb-4"
-                style={{ fontFamily: 'var(--font-body, Nunito Sans, sans-serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
+                className="text-sm leading-relaxed font-normal mb-4"
+                style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
               >
                 {member.bio}
               </p>
@@ -103,8 +103,8 @@ function LeadershipSection({ content }: { content: CustomSectionProps['content']
 
         {note && (
           <p
-            className="text-center text-sm mt-10 font-light italic"
-            style={{ fontFamily: 'var(--font-body, Nunito Sans, sans-serif)', color: 'var(--color-textLight, #7A7A7A)' }}
+            className="text-center text-sm mt-10 font-normal italic"
+            style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textLight, #7A7A7A)' }}
           >
             {note}
           </p>
@@ -129,8 +129,8 @@ function GovernanceSection({ content }: { content: CustomSectionProps['content']
           <div className="w-10 h-px mx-auto my-5" style={{ backgroundColor: 'var(--color-accent, #B8934A)' }} />
           {subheading && (
             <p
-              className="text-lg max-w-3xl mx-auto leading-relaxed font-light"
-              style={{ fontFamily: 'var(--font-body, Nunito Sans, sans-serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
+              className="text-lg max-w-3xl mx-auto leading-relaxed font-normal"
+              style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
             >
               {subheading}
             </p>
@@ -160,8 +160,8 @@ function GovernanceSection({ content }: { content: CustomSectionProps['content']
                     {item.title}
                   </h3>
                   <p
-                    className="text-sm leading-relaxed font-light"
-                    style={{ fontFamily: 'var(--font-body, Nunito Sans, sans-serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
+                    className="text-sm leading-relaxed font-normal"
+                    style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
                   >
                     {item.description}
                   </p>
@@ -190,8 +190,8 @@ function ProcessSection({ content }: { content: CustomSectionProps['content'] })
           <div className="w-10 h-px mx-auto my-5" style={{ backgroundColor: 'var(--color-accent, #B8934A)' }} />
           {subheading && (
             <p
-              className="text-lg max-w-3xl mx-auto leading-relaxed font-light"
-              style={{ fontFamily: 'var(--font-body, Nunito Sans, sans-serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
+              className="text-lg max-w-3xl mx-auto leading-relaxed font-normal"
+              style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
             >
               {subheading}
             </p>
@@ -218,8 +218,8 @@ function ProcessSection({ content }: { content: CustomSectionProps['content'] })
                 {step.title}
               </h3>
               <p
-                className="text-sm leading-relaxed font-light"
-                style={{ fontFamily: 'var(--font-body, Nunito Sans, sans-serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
+                className="text-sm leading-relaxed font-normal"
+                style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
               >
                 {step.description}
               </p>
@@ -246,8 +246,8 @@ function RiskSection({ content }: { content: CustomSectionProps['content'] }) {
           <div className="w-10 h-px mx-auto my-5" style={{ backgroundColor: 'var(--color-accent, #B8934A)' }} />
           {subheading && (
             <p
-              className="text-lg max-w-3xl mx-auto leading-relaxed font-light"
-              style={{ fontFamily: 'var(--font-body, Nunito Sans, sans-serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
+              className="text-lg max-w-3xl mx-auto leading-relaxed font-normal"
+              style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
             >
               {subheading}
             </p>
@@ -276,8 +276,8 @@ function RiskSection({ content }: { content: CustomSectionProps['content'] }) {
                   {item.title}
                 </h3>
                 <p
-                  className="text-sm leading-relaxed font-light"
-                  style={{ fontFamily: 'var(--font-body, Nunito Sans, sans-serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
+                  className="text-sm leading-relaxed font-normal"
+                  style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
                 >
                   {item.description}
                 </p>
@@ -315,8 +315,8 @@ function ComplianceSection({ content }: { content: CustomSectionProps['content']
                 {item.title}
               </h3>
               <p
-                className="text-sm leading-relaxed font-light"
-                style={{ fontFamily: 'var(--font-body, Nunito Sans, sans-serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
+                className="text-sm leading-relaxed font-normal"
+                style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
               >
                 {item.description}
               </p>

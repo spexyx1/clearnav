@@ -144,13 +144,13 @@ export function PublicPageRouter({ tenantId, path }: PublicPageRouterProps) {
         <div className="text-center max-w-md">
           <p
             className="text-8xl font-semibold mb-4 tracking-tight"
-            style={{ fontFamily: 'var(--font-heading, Georgia, serif)', color: 'var(--color-border, #E0DBD4)' }}
+            style={{ fontFamily: 'var(--font-heading, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-border, #E0DBD4)' }}
           >
             404
           </p>
           <h2
             className="text-2xl font-semibold mb-3"
-            style={{ fontFamily: 'var(--font-heading, Georgia, serif)', color: 'var(--color-text, #1A1A1A)' }}
+            style={{ fontFamily: 'var(--font-heading, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-text, #1A1A1A)' }}
           >
             Page Not Found
           </h2>

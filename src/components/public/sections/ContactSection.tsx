@@ -94,7 +94,7 @@ export function ContactSection({ content }: ContactSectionProps) {
             <p
               className="text-lg max-w-3xl mx-auto leading-relaxed"
               style={{
-                fontFamily: 'var(--font-body, Inter, sans-serif)',
+                fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                 color: 'var(--color-textSecondary, #4A5568)',
               }}
             >

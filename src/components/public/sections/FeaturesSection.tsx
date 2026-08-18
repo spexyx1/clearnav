@@ -76,9 +76,9 @@ export function FeaturesSection({ content }: FeaturesSectionProps) {
           )}
           {displaySubtitle && (
             <p
-              className="text-lg max-w-3xl mx-auto leading-relaxed font-light"
+              className="text-lg max-w-3xl mx-auto leading-relaxed font-normal"
               style={{
-                fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+                fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                 color: 'var(--color-textSecondary, #4A4A4A)',
               }}
             >
@@ -133,9 +133,9 @@ export function FeaturesSection({ content }: FeaturesSectionProps) {
                 </h3>
 
                 <p
-                  className="leading-relaxed text-sm font-light"
+                  className="leading-relaxed text-sm font-normal"
                   style={{
-                    fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+                    fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                     color: 'var(--color-textSecondary, #4A4A4A)',
                   }}
                 >

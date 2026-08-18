@@ -77,9 +77,9 @@ export function CTASection({ content }: CTASectionProps) {
 
         {subheading && (
           <p
-            className="text-lg leading-relaxed mb-10 font-light"
+            className="text-lg leading-relaxed mb-10 font-normal"
             style={{
-              fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+              fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
               color: isDark || isAccent ? 'rgba(255,255,255,0.75)' : 'var(--color-textSecondary, #4A4A4A)',
             }}
           >
@@ -96,7 +96,7 @@ export function CTASection({ content }: CTASectionProps) {
               style={{
                 backgroundColor: 'var(--color-accent, #B8934A)',
                 color: 'var(--color-primary, #1B3A2D)',
-                fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+                fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
               }}
             >
               {cta_text}
@@ -111,7 +111,7 @@ export function CTASection({ content }: CTASectionProps) {
               style={{
                 borderColor: isDark || isAccent ? 'rgba(255,255,255,0.30)' : 'var(--color-primary, #1B3A2D)',
                 color: isDark || isAccent ? 'rgba(255,255,255,0.88)' : 'var(--color-primary, #1B3A2D)',
-                fontFamily: 'var(--font-body, Nunito Sans, sans-serif)',
+                fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
               }}
             >
               {secondary_cta_text}
