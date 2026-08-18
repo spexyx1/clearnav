@@ -15,7 +15,7 @@ interface AboutSectionProps {
 }
 
 const FALLBACK_IMAGE =
-  'https://images.pexels.com/photos/1546912/pexels-photo-1546912.jpeg?auto=compress&cs=tinysrgb&w=1200';
+  'https://images.pexels.com/photos/35736048/pexels-photo-35736048.jpeg?auto=compress&cs=tinysrgb&w=1200';
 
 export function AboutSection({ content }: AboutSectionProps) {
   const {
