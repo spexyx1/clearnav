@@ -47,7 +47,7 @@ export function StatsSection({ content }: StatsSectionProps) {
                 {stat.value}
               </p>
               <p
-                className="text-[10px] font-semibold uppercase tracking-[0.14em]"
+                className="text-xs font-bold uppercase tracking-[0.14em]"
                 style={{
                   color: isDark
                     ? 'rgba(255,255,255,0.55)'

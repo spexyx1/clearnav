@@ -74,7 +74,7 @@ export function TeamSection({ content }: TeamSectionProps) {
           )}
           {subheading && (
             <p
-              className="text-lg max-w-2xl mx-auto leading-relaxed font-normal"
+              className="text-xl max-w-2xl mx-auto leading-relaxed font-semibold"
               style={{
                 fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                 color: 'var(--color-textSecondary, #4A4A4A)',
@@ -125,7 +125,7 @@ export function TeamSection({ content }: TeamSectionProps) {
               </h3>
 
               <p
-                className="text-xs font-semibold uppercase tracking-widest mb-5"
+                className="text-sm font-bold uppercase tracking-widest mb-5"
                 style={{ color: 'var(--color-accent, #B8934A)' }}
               >
                 {member.title}
@@ -137,7 +137,7 @@ export function TeamSection({ content }: TeamSectionProps) {
               />
 
               <p
-                className="text-sm leading-[1.85] font-normal"
+                className="text-base leading-[1.85] font-semibold"
                 style={{
                   fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                   color: 'var(--color-textSecondary, #4A4A4A)',

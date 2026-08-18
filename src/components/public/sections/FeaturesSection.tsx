@@ -76,7 +76,7 @@ export function FeaturesSection({ content }: FeaturesSectionProps) {
           )}
           {displaySubtitle && (
             <p
-              className="text-lg max-w-3xl mx-auto leading-relaxed font-normal"
+              className="text-xl max-w-3xl mx-auto leading-relaxed font-semibold"
               style={{
                 fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                 color: 'var(--color-textSecondary, #4A4A4A)',
@@ -102,7 +102,7 @@ export function FeaturesSection({ content }: FeaturesSectionProps) {
               >
                 {feature.badge && (
                   <span
-                    className="absolute top-5 right-5 text-[10px] font-semibold px-2.5 py-1 rounded-sm tracking-wider uppercase"
+                    className="absolute top-5 right-5 text-xs font-bold px-2.5 py-1 rounded-sm tracking-wider uppercase"
                     style={{
                       backgroundColor: 'rgba(184,147,74,0.10)',
                       color: 'var(--color-accent, #B8934A)',
@@ -133,7 +133,7 @@ export function FeaturesSection({ content }: FeaturesSectionProps) {
                 </h3>
 
                 <p
-                  className="leading-relaxed text-sm font-normal"
+                  className="leading-relaxed text-base font-semibold"
                   style={{
                     fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                     color: 'var(--color-textSecondary, #4A4A4A)',

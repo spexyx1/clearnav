@@ -71,7 +71,7 @@ export function AboutSection({ content }: AboutSectionProps) {
               {paragraphs.map((para, i) => (
                 <p
                   key={i}
-                  className="text-base leading-[1.85] font-normal"
+                  className="text-lg leading-[1.85] font-semibold"
                   style={{
                     fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                     color: 'var(--color-textSecondary, #4A4A4A)',

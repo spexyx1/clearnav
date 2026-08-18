@@ -101,7 +101,7 @@ export function HeroSection({ content }: HeroSectionProps) {
       <div className={`relative max-w-4xl mx-auto flex flex-col gap-7 ${alignClass}`}>
         {badge && (
           <span
-            className="inline-flex items-center px-4 py-1.5 rounded-sm text-xs font-semibold tracking-[0.18em] uppercase border"
+            className="inline-flex items-center px-4 py-1.5 rounded-sm text-sm font-bold tracking-[0.18em] uppercase border"
             style={{
               color: 'var(--color-accent, #B8934A)',
               borderColor: 'var(--color-accent, #B8934A)',
@@ -135,7 +135,7 @@ export function HeroSection({ content }: HeroSectionProps) {
 
         {subheadline && (
           <p
-            className="text-lg md:text-xl leading-[1.75] max-w-2xl font-normal"
+            className="text-xl md:text-2xl leading-[1.75] max-w-2xl font-semibold"
             style={{
               fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
               color: isDark ? 'rgba(255,255,255,0.85)' : 'var(--color-textSecondary, #4A4A4A)',
@@ -152,7 +152,7 @@ export function HeroSection({ content }: HeroSectionProps) {
               <a
                 href={effectiveCtaHref}
                 onClick={isExternal(effectiveCtaHref) ? undefined : (e) => { e.preventDefault(); handleInternalNav(effectiveCtaHref!); }}
-                className="inline-flex items-center gap-2.5 px-8 py-3.5 text-sm font-semibold tracking-wide rounded-sm transition-all duration-200 hover:brightness-110 hover:shadow-lg active:scale-95"
+                className="inline-flex items-center gap-2.5 px-8 py-3.5 text-base font-bold tracking-wide rounded-sm transition-all duration-200 hover:brightness-110 hover:shadow-lg active:scale-95"
                 style={{
                   backgroundColor: 'var(--color-accent, #B8934A)',
                   color: 'var(--color-primary, #1B3A2D)',
@@ -167,7 +167,7 @@ export function HeroSection({ content }: HeroSectionProps) {
               <a
                 href={secondary_cta_href}
                 onClick={isExternal(secondary_cta_href) ? undefined : (e) => { e.preventDefault(); handleInternalNav(secondary_cta_href!); }}
-                className="inline-flex items-center gap-2 px-8 py-3.5 text-sm font-semibold tracking-wide rounded-sm border transition-all duration-200 hover:bg-white/8"
+                className="inline-flex items-center gap-2 px-8 py-3.5 text-base font-bold tracking-wide rounded-sm border transition-all duration-200 hover:bg-white/8"
                 style={{
                   borderColor: isDark ? 'rgba(255,255,255,0.30)' : 'var(--color-primary, #1B3A2D)',
                   color: isDark ? 'rgba(255,255,255,0.88)' : 'var(--color-primary, #1B3A2D)',

@@ -41,7 +41,7 @@ function LeadershipSection({ content }: { content: CustomSectionProps['content']
           <div className="w-10 h-px mx-auto my-5" style={{ backgroundColor: 'var(--color-accent, #B8934A)' }} />
           {subheading && (
             <p
-              className="text-lg max-w-2xl mx-auto leading-relaxed font-normal"
+              className="text-xl max-w-2xl mx-auto leading-relaxed font-semibold"
               style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
             >
               {subheading}
@@ -73,13 +73,13 @@ function LeadershipSection({ content }: { content: CustomSectionProps['content']
                 {member.name}
               </h3>
               <p
-                className="text-xs font-semibold uppercase tracking-widest mb-4"
+                className="text-sm font-bold uppercase tracking-widest mb-4"
                 style={{ color: 'var(--color-accent, #B8934A)', fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}
               >
                 {member.title}
               </p>
               <p
-                className="text-sm leading-relaxed font-normal mb-4"
+                className="text-base leading-relaxed font-semibold mb-4"
                 style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
               >
                 {member.bio}
@@ -89,7 +89,7 @@ function LeadershipSection({ content }: { content: CustomSectionProps['content']
                   {member.credentials.map((cred, j) => (
                     <span
                       key={j}
-                      className="text-[10px] font-semibold px-2.5 py-1 rounded-sm tracking-wider uppercase"
+                      className="text-xs font-bold px-2.5 py-1 rounded-sm tracking-wider uppercase"
                       style={{ backgroundColor: 'rgba(184,147,74,0.10)', color: 'var(--color-accent, #B8934A)' }}
                     >
                       {cred}
@@ -103,7 +103,7 @@ function LeadershipSection({ content }: { content: CustomSectionProps['content']
 
         {note && (
           <p
-            className="text-center text-sm mt-10 font-normal italic"
+            className="text-center text-base mt-10 font-semibold italic"
             style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textLight, #7A7A7A)' }}
           >
             {note}
@@ -129,7 +129,7 @@ function GovernanceSection({ content }: { content: CustomSectionProps['content']
           <div className="w-10 h-px mx-auto my-5" style={{ backgroundColor: 'var(--color-accent, #B8934A)' }} />
           {subheading && (
             <p
-              className="text-lg max-w-3xl mx-auto leading-relaxed font-normal"
+              className="text-xl max-w-3xl mx-auto leading-relaxed font-semibold"
               style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
             >
               {subheading}
@@ -160,7 +160,7 @@ function GovernanceSection({ content }: { content: CustomSectionProps['content']
                     {item.title}
                   </h3>
                   <p
-                    className="text-sm leading-relaxed font-normal"
+                    className="text-base leading-relaxed font-semibold"
                     style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
                   >
                     {item.description}
@@ -190,7 +190,7 @@ function ProcessSection({ content }: { content: CustomSectionProps['content'] })
           <div className="w-10 h-px mx-auto my-5" style={{ backgroundColor: 'var(--color-accent, #B8934A)' }} />
           {subheading && (
             <p
-              className="text-lg max-w-3xl mx-auto leading-relaxed font-normal"
+              className="text-xl max-w-3xl mx-auto leading-relaxed font-semibold"
               style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
             >
               {subheading}
@@ -246,7 +246,7 @@ function RiskSection({ content }: { content: CustomSectionProps['content'] }) {
           <div className="w-10 h-px mx-auto my-5" style={{ backgroundColor: 'var(--color-accent, #B8934A)' }} />
           {subheading && (
             <p
-              className="text-lg max-w-3xl mx-auto leading-relaxed font-normal"
+              className="text-xl max-w-3xl mx-auto leading-relaxed font-semibold"
               style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
             >
               {subheading}
@@ -309,7 +309,7 @@ function ComplianceSection({ content }: { content: CustomSectionProps['content']
               style={{ borderLeftColor: 'var(--color-accent, #B8934A)', backgroundColor: 'var(--color-background, #FFFFFF)' }}
             >
               <h3
-                className="text-base font-semibold mb-1.5"
+                className="text-lg font-bold mb-1.5"
                 style={{ fontFamily: 'var(--font-heading, Cormorant Garamond, Georgia, serif)', color: 'var(--color-text, #1A1A1A)' }}
               >
                 {item.title}

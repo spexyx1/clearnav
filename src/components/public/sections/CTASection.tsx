@@ -77,7 +77,7 @@ export function CTASection({ content }: CTASectionProps) {
 
         {subheading && (
           <p
-            className="text-lg leading-relaxed mb-10 font-normal"
+            className="text-xl leading-relaxed mb-10 font-semibold"
             style={{
               fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
               color: isDark || isAccent ? 'rgba(255,255,255,0.75)' : 'var(--color-textSecondary, #4A4A4A)',
@@ -92,7 +92,7 @@ export function CTASection({ content }: CTASectionProps) {
             <a
               href={cta_href}
               onClick={isExternal(cta_href) ? undefined : (e) => { e.preventDefault(); handleInternalNav(cta_href!); }}
-              className="inline-flex items-center gap-2.5 px-8 py-3.5 text-sm font-semibold tracking-wide rounded-sm transition-all duration-200 hover:brightness-110 hover:shadow-lg active:scale-95"
+              className="inline-flex items-center gap-2.5 px-8 py-3.5 text-base font-bold tracking-wide rounded-sm transition-all duration-200 hover:brightness-110 hover:shadow-lg active:scale-95"
               style={{
                 backgroundColor: 'var(--color-accent, #B8934A)',
                 color: 'var(--color-primary, #1B3A2D)',
@@ -107,7 +107,7 @@ export function CTASection({ content }: CTASectionProps) {
             <a
               href={secondary_cta_href}
               onClick={isExternal(secondary_cta_href) ? undefined : (e) => { e.preventDefault(); handleInternalNav(secondary_cta_href!); }}
-              className="inline-flex items-center gap-2 px-8 py-3.5 text-sm font-semibold tracking-wide rounded-sm border transition-all duration-200 hover:bg-white/8"
+              className="inline-flex items-center gap-2 px-8 py-3.5 text-base font-bold tracking-wide rounded-sm border transition-all duration-200 hover:bg-white/8"
               style={{
                 borderColor: isDark || isAccent ? 'rgba(255,255,255,0.30)' : 'var(--color-primary, #1B3A2D)',
                 color: isDark || isAccent ? 'rgba(255,255,255,0.88)' : 'var(--color-primary, #1B3A2D)',

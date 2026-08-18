@@ -252,7 +252,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
                 <button
                   key={i}
                   onClick={() => navigate(item.href, item.external)}
-                  className="text-sm font-medium tracking-wide transition-opacity hover:opacity-70"
+                  className="text-base font-bold tracking-wide transition-opacity hover:opacity-70"
                   style={{ color: accentColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}
                 >
                   {item.label}
@@ -260,7 +260,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
               ))}
               <button
                 onClick={handleLoginClick}
-                className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded transition-all hover:opacity-90 active:scale-95"
+                className="flex items-center gap-2 text-base font-bold px-4 py-2 rounded transition-all hover:opacity-90 active:scale-95"
                 style={{ backgroundColor: accentColor, color: primaryColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}
               >
                 <LogIn size={15} />
@@ -283,7 +283,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
                 <button
                   key={i}
                   onClick={() => navigate(item.href, item.external)}
-                  className="block w-full text-left py-3 text-sm font-medium transition-opacity hover:opacity-70"
+                  className="block w-full text-left py-3 text-base font-bold transition-opacity hover:opacity-70"
                   style={{ color: accentColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}
                 >
                   {item.label}
@@ -291,7 +291,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
               ))}
               <button
                 onClick={handleLoginClick}
-                className="flex items-center gap-2 mt-3 text-sm font-semibold px-4 py-2.5 rounded w-full justify-center transition-all hover:opacity-90"
+                className="flex items-center gap-2 mt-3 text-base font-bold px-4 py-2.5 rounded w-full justify-center transition-all hover:opacity-90"
                 style={{ backgroundColor: accentColor, color: primaryColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}
               >
                 <LogIn size={15} />
@@ -321,7 +321,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
                 <button
                   key={i}
                   onClick={() => navigate(item.href, item.external)}
-                  className="text-xs transition-opacity hover:opacity-100"
+                  className="text-sm font-semibold transition-opacity hover:opacity-100"
                   style={{ color: accentColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}
                 >
                   {item.label}
@@ -330,13 +330,13 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
             </div>
           )}
 
-          <p className="text-[10px]" style={{ color: accentColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}>
+          <p className="text-xs font-semibold" style={{ color: accentColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}>
             &copy; {new Date().getFullYear()} {displayName}. All rights reserved.
           </p>
         </div>
 
         {branding.legal_disclaimer && (
-          <p className="text-[10px] leading-relaxed mt-2 max-w-4xl" style={{ color: 'rgba(255,255,255,0.28)', fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}>
+          <p className="text-xs leading-relaxed mt-2 max-w-4xl font-semibold" style={{ color: 'rgba(255,255,255,0.28)', fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}>
             {branding.legal_disclaimer}
           </p>
         )}

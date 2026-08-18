@@ -92,7 +92,7 @@ export function ContactSection({ content }: ContactSectionProps) {
           )}
           {displaySubtitle && (
             <p
-              className="text-lg max-w-3xl mx-auto leading-relaxed"
+              className="text-xl max-w-3xl mx-auto leading-relaxed font-semibold"
               style={{
                 fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)',
                 color: 'var(--color-textSecondary, #4A5568)',
@@ -115,7 +115,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                 </div>
                 <div>
                   <p
-                    className="text-xs font-semibold uppercase tracking-wider mb-0.5"
+                    className="text-sm font-bold uppercase tracking-wider mb-0.5"
                     style={{ color: 'var(--color-textLight, #718096)' }}
                   >
                     {label}
@@ -142,7 +142,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                 <div className="flex items-center gap-2 mb-4">
                   <Building2 size={15} style={{ color: 'var(--color-accent, #C9A84C)' }} />
                   <p
-                    className="text-xs font-semibold uppercase tracking-wider"
+                    className="text-sm font-bold uppercase tracking-wider"
                     style={{ color: 'var(--color-textLight, #718096)' }}
                   >
                     Our Offices
@@ -159,7 +159,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                       }}
                     >
                       <p
-                        className="text-xs font-semibold uppercase tracking-wider mb-2"
+                        className="text-sm font-bold uppercase tracking-wider mb-2"
                         style={{ color: 'var(--color-accent, #C9A84C)' }}
                       >
                         {office.label}
@@ -167,7 +167,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                       {office.lines.map((line, j) => (
                         <p
                           key={j}
-                          className="text-sm leading-relaxed"
+                          className="text-base leading-relaxed font-semibold"
                           style={{ color: 'var(--color-text, #0A1628)' }}
                         >
                           {line}
@@ -181,7 +181,7 @@ export function ContactSection({ content }: ContactSectionProps) {
 
             {disclaimer && (
               <div
-                className="mt-8 p-4 rounded-lg border-l-4 text-xs leading-relaxed"
+                className="mt-8 p-4 rounded-lg border-l-4 text-sm leading-relaxed font-semibold"
                 style={{
                   borderLeftColor: 'var(--color-accent, #C9A84C)',
                   backgroundColor: 'var(--color-backgroundAlt, #F8F7F4)',
@@ -220,7 +220,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                     Message Received
                   </h4>
                   <p
-                    className="text-sm"
+                    className="text-base font-semibold"
                     style={{ color: 'var(--color-textSecondary, #4A5568)' }}
                   >
                     Thank you for reaching out. Our team will be in touch shortly.
@@ -231,7 +231,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label
-                        className="block text-xs font-semibold uppercase tracking-wider mb-2"
+                        className="block text-sm font-bold uppercase tracking-wider mb-2"
                         style={{ color: 'var(--color-textSecondary, #4A5568)' }}
                       >
                         Full Name *
@@ -241,7 +241,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                         required
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-offset-0"
+                        className="w-full px-4 py-3 rounded-lg border text-base focus:outline-none focus:ring-2 focus:ring-offset-0"
                         style={{
                           borderColor: 'var(--color-border, #E2E8F0)',
                           color: 'var(--color-text, #0A1628)',
@@ -251,7 +251,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                     </div>
                     <div>
                       <label
-                        className="block text-xs font-semibold uppercase tracking-wider mb-2"
+                        className="block text-sm font-bold uppercase tracking-wider mb-2"
                         style={{ color: 'var(--color-textSecondary, #4A5568)' }}
                       >
                         Email *
@@ -261,7 +261,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                         required
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                        className="w-full px-4 py-3 rounded-lg border text-base focus:outline-none focus:ring-2"
                         style={{
                           borderColor: 'var(--color-border, #E2E8F0)',
                           color: 'var(--color-text, #0A1628)',
@@ -273,7 +273,7 @@ export function ContactSection({ content }: ContactSectionProps) {
 
                   <div>
                     <label
-                      className="block text-xs font-semibold uppercase tracking-wider mb-2"
+                      className="block text-sm font-bold uppercase tracking-wider mb-2"
                       style={{ color: 'var(--color-textSecondary, #4A5568)' }}
                     >
                       Organization
@@ -282,7 +282,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                       type="text"
                       value={formData.organization}
                       onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                      className="w-full px-4 py-3 rounded-lg border text-base focus:outline-none focus:ring-2"
                       style={{
                         borderColor: 'var(--color-border, #E2E8F0)',
                         color: 'var(--color-text, #0A1628)',
@@ -293,7 +293,7 @@ export function ContactSection({ content }: ContactSectionProps) {
 
                   <div>
                     <label
-                      className="block text-xs font-semibold uppercase tracking-wider mb-2"
+                      className="block text-sm font-bold uppercase tracking-wider mb-2"
                       style={{ color: 'var(--color-textSecondary, #4A5568)' }}
                     >
                       Message *
@@ -303,7 +303,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                       rows={5}
                       value={formData.message}
                       onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2 resize-none"
+                      className="w-full px-4 py-3 rounded-lg border text-base focus:outline-none focus:ring-2 resize-none"
                       style={{
                         borderColor: 'var(--color-border, #E2E8F0)',
                         color: 'var(--color-text, #0A1628)',
@@ -322,7 +322,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                   <button
                     type="submit"
                     disabled={status === 'sending'}
-                    className="w-full px-6 py-3.5 rounded-lg text-sm font-semibold tracking-wide transition-all hover:brightness-110 disabled:opacity-60"
+                    className="w-full px-6 py-3.5 rounded-lg text-base font-bold tracking-wide transition-all hover:brightness-110 disabled:opacity-60"
                     style={{
                       backgroundColor: 'var(--color-accent, #C9A84C)',
                       color: 'var(--color-primary, #0A1628)',
