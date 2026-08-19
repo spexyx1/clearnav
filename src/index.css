@@ -14,33 +14,42 @@
 
 @layer utilities {
   /* Enlarge all text on public-facing websites ~40% for readability.
-     Only affects .public-website (arklinetrust.com etc.), not dashboards/portals. */
+     Only affects .public-website (arklinetrust.com etc.), not dashboards/portals.
+     Each Tailwind text-size utility is overridden so explicit classes like
+     text-sm / text-xs don't ignore the inherited base size. */
   .public-website {
     font-size: 1.4rem;
   }
-  .public-website h1 {
-    font-size: 2.52rem;
-  }
-  .public-website h2 {
-    font-size: 2.1rem;
-  }
-  .public-website h3 {
-    font-size: 1.68rem;
-  }
+  .public-website .text-xs   { font-size: 1.05rem; }
+  .public-website .text-sm   { font-size: 1.225rem; }
+  .public-website .text-base { font-size: 1.4rem; }
+  .public-website .text-lg   { font-size: 1.4rem; }
+  .public-website .text-xl   { font-size: 1.82rem; }
+  .public-website .text-2xl  { font-size: 2.1rem; }
+  .public-website .text-3xl  { font-size: 2.52rem; }
+  .public-website .text-4xl  { font-size: 3.08rem; }
+  .public-website .text-5xl  { font-size: 4.2rem; }
+  .public-website .text-6xl  { font-size: 5.04rem; }
+  .public-website .text-7xl  { font-size: 6.3rem; }
+  .public-website .text-8xl  { font-size: 8.4rem; }
+
+  /* Responsive overrides (md: and lg:) — 40% larger than Tailwind defaults */
   @media (min-width: 768px) {
     .public-website {
       font-size: 1.54rem;
     }
-    .public-website h1 {
-      font-size: 3.08rem;
-    }
-    .public-website h2 {
-      font-size: 2.52rem;
-    }
-    .public-website h3 {
-      font-size: 1.82rem;
-    }
+    .public-website .md\:text-2xl { font-size: 2.1rem; }
+    .public-website .md\:text-3xl { font-size: 2.52rem; }
+    .public-website .md\:text-4xl { font-size: 3.08rem; }
+    .public-website .md\:text-5xl { font-size: 4.2rem; }
+    .public-website .md\:text-6xl { font-size: 5.04rem; }
   }
+  @media (min-width: 1024px) {
+    .public-website .lg\:text-4xl { font-size: 3.08rem; }
+  }
+
+  /* Arbitrary value classes used in the hero */
+  .public-website .lg\:text-\[4\.5rem\] { font-size: 6.3rem; }
 }
 
 @layer utilities {
