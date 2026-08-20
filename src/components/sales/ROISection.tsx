@@ -32,12 +32,12 @@ export default function ROISection() {
                 {traditionalCosts.map((item, i) => (
                   <div key={i} className="flex justify-between items-center bg-white rounded-lg px-4 py-2.5 text-sm">
                     <span className="text-slate-600">{item.label}</span>
-                    <span className="font-semibold text-slate-800">{item.value}</span>
+                    <span className="font-semibold text-slate-800 font-mono-figures">{item.value}</span>
                   </div>
                 ))}
                 <div className="flex justify-between items-center bg-red-100 rounded-lg px-4 py-3 font-bold text-red-900">
                   <span>Total Annual Cost</span>
-                  <span>$170,000</span>
+                  <span className="font-mono-figures">$170,000</span>
                 </div>
               </div>
             </div>
@@ -47,20 +47,20 @@ export default function ROISection() {
                 {clearnavCosts.map((item, i) => (
                   <div key={i} className="flex justify-between items-center bg-white rounded-lg px-4 py-2.5 text-sm">
                     <span className="text-slate-600">{item.label}</span>
-                    <span className="font-semibold text-slate-800">{item.value}</span>
+                    <span className="font-semibold text-slate-800 font-mono-figures">{item.value}</span>
                   </div>
                 ))}
                 <div className="flex justify-between items-center bg-emerald-100 rounded-lg px-4 py-3 font-bold text-emerald-900">
                   <span>Total Annual Cost</span>
-                  <span>$7,200</span>
+                  <span className="font-mono-figures">$7,200</span>
                 </div>
               </div>
             </div>
           </div>
           <div className="bg-emerald-600 text-white text-center py-5 px-4">
-            <span className="text-xl md:text-2xl font-bold">Net Annual Savings: $162,800</span>
+            <span className="text-xl md:text-2xl font-bold font-mono-figures">Net Annual Savings: $162,800</span>
             <span className="mx-3 opacity-60">|</span>
-            <span className="text-xl md:text-2xl font-bold">3-Year Savings: $488,400</span>
+            <span className="text-xl md:text-2xl font-bold font-mono-figures">3-Year Savings: $488,400</span>
           </div>
         </div>
       </div>

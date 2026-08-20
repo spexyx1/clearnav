@@ -122,7 +122,7 @@ export default function ClearNAVLandingPage({ onLoginClick }: ClearNAVLandingPag
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+    <div className="clearnav-site min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -284,7 +284,7 @@ export default function ClearNAVLandingPage({ onLoginClick }: ClearNAVLandingPag
                 <h3 className="text-2xl font-semibold text-white mb-2">{plan.name}</h3>
                 <p className="text-slate-400 mb-6">{plan.description}</p>
                 <div className="mb-6">
-                  <span className="text-5xl font-bold text-white">{plan.price}</span>
+                  <span className="text-5xl font-bold text-white font-mono-figures">{plan.price}</span>
                   <span className="text-slate-400">/month</span>
                 </div>
                 <ul className="space-y-4 mb-8">

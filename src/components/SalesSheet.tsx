@@ -19,7 +19,7 @@ const stats = [
 
 export default function SalesSheet({ onBack }: SalesSheetProps) {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="clearnav-site min-h-screen bg-white">
       <header className="relative bg-slate-900 text-white overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-sky-900/30 to-teal-900/20" />
         <div className="relative max-w-7xl mx-auto px-6 pt-8 pb-16 md:pb-20">
@@ -52,7 +52,7 @@ export default function SalesSheet({ onBack }: SalesSheetProps) {
                 <div key={i} className="flex items-center gap-4 justify-center sm:justify-start">
                   <Icon className="w-5 h-5 text-sky-400 flex-shrink-0" />
                   <div>
-                    <div className="text-xl font-bold text-white">{s.value}</div>
+                    <div className="text-xl font-bold text-white font-mono-figures">{s.value}</div>
                     <div className="text-xs text-slate-400">{s.label}</div>
                   </div>
                 </div>

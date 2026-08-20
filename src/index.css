@@ -53,6 +53,28 @@
 }
 
 @layer utilities {
+  /* ClearNav platform typography — Fraunces headings, Inter body, JetBrains Mono numbers.
+     Scoped to .clearnav-site so dashboards, portals, and tenant sites are unaffected. */
+  .clearnav-site {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
+  }
+  .clearnav-site h1,
+  .clearnav-site h2,
+  .clearnav-site h3,
+  .clearnav-site h4,
+  .clearnav-site h5,
+  .clearnav-site h6 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-optical-sizing: auto;
+  }
+  .clearnav-site .font-mono-figures {
+    font-family: 'JetBrains Mono', 'Menlo', monospace;
+    font-feature-settings: 'tnum';
+  }
+}
+
+@layer utilities {
   .animate-fadeIn {
     animation: fadeIn 0.3s ease-out;
   }

@@ -50,7 +50,7 @@ export default function PricingSection() {
               )}
               <h3 className="text-xl font-bold text-slate-900 mb-1">{plan.name}</h3>
               <p className="text-sm text-slate-500 mb-5">{plan.summary}</p>
-              <div className="text-4xl font-bold text-sky-600 mb-1">{plan.price}</div>
+              <div className="text-4xl font-bold text-sky-600 mb-1 font-mono-figures">{plan.price}</div>
               <div className="text-sm text-slate-400 mb-6">{plan.period}</div>
               <ul className="text-left space-y-2.5">
                 {plan.features.map((feature, fi) => (

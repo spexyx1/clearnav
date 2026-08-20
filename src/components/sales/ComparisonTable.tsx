@@ -42,7 +42,7 @@ function CellContent({ text, type }: { text: string; type: CellType }) {
       </span>
     );
   }
-  return <span>{text}</span>;
+  return <span className="font-mono-figures">{text}</span>;
 }
 
 export default function ComparisonTable() {
