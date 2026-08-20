@@ -307,7 +307,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
       </main>
 
       <footer className="px-6 py-4 border-t" style={{ backgroundColor: primaryColor, borderColor: 'rgba(255,255,255,0.10)', fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-col items-center justify-center gap-3 text-center">
           <span
             className="text-base font-bold tracking-tight"
             style={{ color: accentColor, fontFamily: theme?.typography.headingFont || 'inherit' }}
