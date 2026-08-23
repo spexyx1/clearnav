@@ -307,16 +307,16 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
       </main>
 
       <footer className="px-6 py-4 border-t" style={{ backgroundColor: primaryColor, borderColor: 'rgba(255,255,255,0.10)', fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}>
-        <div className="flex flex-col items-center justify-center gap-3 text-center">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <span
-            className="text-base font-bold tracking-tight"
+            className="text-base font-bold tracking-tight md:text-left text-center"
             style={{ color: accentColor, fontFamily: theme?.typography.headingFont || 'inherit' }}
           >
             {displayName}
           </span>
 
           {footerNav.length > 0 && (
-            <div className="flex flex-wrap gap-x-6 gap-y-1">
+            <div className="flex flex-wrap gap-x-6 gap-y-1 justify-center">
               {footerNav.map((item, i) => (
                 <button
                   key={i}
@@ -330,7 +330,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
             </div>
           )}
 
-          <p className="text-xs font-semibold" style={{ color: accentColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}>
+          <p className="text-xs font-semibold md:text-right text-center" style={{ color: accentColor, fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}>
             &copy; {new Date().getFullYear()} {displayName}. All rights reserved.
           </p>
         </div>
