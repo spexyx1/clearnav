@@ -53,7 +53,7 @@
 }
 
 @layer utilities {
-  /* ClearNav platform typography — Fraunces headings, Inter body, JetBrains Mono numbers.
+  /* ClearNav platform typography — Manrope headings, Inter body, JetBrains Mono numbers.
      Scoped to .clearnav-site so dashboards, portals, and tenant sites are unaffected. */
   .clearnav-site {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -65,8 +65,8 @@
   .clearnav-site h4,
   .clearnav-site h5,
   .clearnav-site h6 {
-    font-family: 'Fraunces', Georgia, serif;
-    font-optical-sizing: auto;
+    font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.02em;
   }
   .clearnav-site .font-mono-figures {
     font-family: 'JetBrains Mono', 'Menlo', monospace;

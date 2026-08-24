@@ -24,7 +24,7 @@ export default function ROISection() {
           <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-3">ROI Analysis</h2>
           <p className="text-lg text-slate-500">How ClearNAV saves your fund six figures every year.</p>
         </div>
-        <div className="border border-emerald-200 rounded-2xl overflow-hidden">
+        <div className="border border-sky-200 rounded-2xl overflow-hidden">
           <div className="grid grid-cols-1 md:grid-cols-2">
             <div className="p-6 bg-red-50/50">
               <h3 className="text-lg font-bold text-red-800 text-center mb-4">Traditional Approach</h3>
@@ -41,8 +41,8 @@ export default function ROISection() {
                 </div>
               </div>
             </div>
-            <div className="p-6 bg-emerald-50/50 border-t md:border-t-0 md:border-l border-emerald-200">
-              <h3 className="text-lg font-bold text-emerald-800 text-center mb-4">ClearNAV Platform</h3>
+            <div className="p-6 bg-sky-50/50 border-t md:border-t-0 md:border-l border-sky-200">
+              <h3 className="text-lg font-bold text-sky-800 text-center mb-4">ClearNAV Platform</h3>
               <div className="space-y-2">
                 {clearnavCosts.map((item, i) => (
                   <div key={i} className="flex justify-between items-center bg-white rounded-lg px-4 py-2.5 text-sm">
@@ -50,14 +50,14 @@ export default function ROISection() {
                     <span className="font-semibold text-slate-800 font-mono-figures">{item.value}</span>
                   </div>
                 ))}
-                <div className="flex justify-between items-center bg-emerald-100 rounded-lg px-4 py-3 font-bold text-emerald-900">
+                <div className="flex justify-between items-center bg-sky-100 rounded-lg px-4 py-3 font-bold text-sky-900">
                   <span>Total Annual Cost</span>
                   <span className="font-mono-figures">$7,200</span>
                 </div>
               </div>
             </div>
           </div>
-          <div className="bg-emerald-600 text-white text-center py-5 px-4">
+          <div className="bg-sky-600 text-white text-center py-5 px-4">
             <span className="text-xl md:text-2xl font-bold font-mono-figures">Net Annual Savings: $162,800</span>
             <span className="mx-3 opacity-60">|</span>
             <span className="text-xl md:text-2xl font-bold font-mono-figures">3-Year Savings: $488,400</span>

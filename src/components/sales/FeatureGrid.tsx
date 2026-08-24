@@ -19,7 +19,7 @@ const categories = [
   {
     title: 'Investor Experience',
     icon: Users,
-    color: 'teal',
+    color: 'slate',
     features: [
       { icon: Users, name: 'CRM & Pipeline', desc: 'Lead tracking, pipeline management, and investor engagement analytics.' },
       { icon: Mail, name: 'Communications', desc: 'Newsletters, secure messaging, and automated investor notifications.' },
@@ -31,7 +31,7 @@ const categories = [
   {
     title: 'Compliance & Administration',
     icon: Shield,
-    color: 'emerald',
+    color: 'blue',
     features: [
       { icon: ClipboardCheck, name: 'KYC/AML Compliance', desc: 'Accredited investor verification, document collection, and regulatory workflows.' },
       { icon: FolderLock, name: 'Document Vault', desc: 'Version-controlled storage with e-signatures and granular access controls.' },
@@ -43,8 +43,8 @@ const categories = [
 
 const colorMap: Record<string, { bg: string; border: string; icon: string; heading: string }> = {
   sky: { bg: 'bg-sky-50', border: 'border-sky-200', icon: 'text-sky-600', heading: 'text-sky-800' },
-  teal: { bg: 'bg-teal-50', border: 'border-teal-200', icon: 'text-teal-600', heading: 'text-teal-800' },
-  emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', icon: 'text-emerald-600', heading: 'text-emerald-800' },
+  slate: { bg: 'bg-slate-50', border: 'border-slate-200', icon: 'text-slate-600', heading: 'text-slate-800' },
+  blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-600', heading: 'text-blue-800' },
 };
 
 export default function FeatureGrid() {

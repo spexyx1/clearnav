@@ -20,8 +20,8 @@ const stats = [
 export default function SalesSheet({ onBack }: SalesSheetProps) {
   return (
     <div className="clearnav-site min-h-screen bg-white">
-      <header className="relative bg-slate-900 text-white overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-sky-900/30 to-teal-900/20" />
+      <header className="relative bg-gray-900 text-white overflow-hidden">
+        <div className="absolute inset-0 bg-gray-800/30" />
         <div className="relative max-w-7xl mx-auto px-6 pt-8 pb-16 md:pb-20">
           <button
             onClick={onBack}
@@ -44,7 +44,7 @@ export default function SalesSheet({ onBack }: SalesSheetProps) {
             <p className="text-sm text-slate-400">clearnav.cv &middot; sales@clearnav.cv</p>
           </div>
         </div>
-        <div className="relative bg-slate-800/60 border-t border-slate-700/50">
+        <div className="relative bg-gray-800/60 border-t border-gray-700/50">
           <div className="max-w-4xl mx-auto px-6 py-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
             {stats.map((s, i) => {
               const Icon = s.icon;
@@ -70,7 +70,7 @@ export default function SalesSheet({ onBack }: SalesSheetProps) {
       <SecuritySection />
       <PricingSection />
 
-      <section className="bg-gradient-to-r from-sky-600 to-teal-600 text-white py-16 px-6">
+      <section className="bg-sky-600 text-white py-16 px-6">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Start Your 14-Day Free Trial</h2>
           <p className="text-lg text-sky-100 mb-8">Launch your white-label investor portal in under 5 minutes. No credit card required.</p>
@@ -91,7 +91,7 @@ export default function SalesSheet({ onBack }: SalesSheetProps) {
         </div>
       </section>
 
-      <footer className="bg-slate-900 text-white py-12 px-6">
+      <footer className="bg-gray-900 text-white py-12 px-6">
         <div className="max-w-7xl mx-auto text-center">
           <h3 className="text-xl font-bold mb-5">Transform Your Fund Operations Today</h3>
           <div className="space-y-2 mb-8 text-slate-300">
@@ -99,7 +99,7 @@ export default function SalesSheet({ onBack }: SalesSheetProps) {
             <p><strong className="text-white">Launch in 5 minutes</strong>, not 6 months with complex onboarding</p>
             <p><strong className="text-white">Institutional-grade investor experience</strong> with your own branded portal</p>
           </div>
-          <div className="pt-6 border-t border-slate-800">
+          <div className="pt-6 border-t border-gray-800">
             <p className="text-sm text-slate-400 mb-2">
               <strong className="text-slate-300">Website:</strong> clearnav.cv &middot; <strong className="text-slate-300">Email:</strong> sales@clearnav.cv
             </p>

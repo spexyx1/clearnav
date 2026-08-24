@@ -29,7 +29,7 @@ function CellContent({ text, type }: { text: string; type: CellType }) {
   if (type === 'check') {
     return (
       <span className="flex items-center gap-2">
-        <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+        <CheckCircle className="w-4 h-4 text-sky-600 flex-shrink-0" />
         <span>{text}</span>
       </span>
     );
@@ -66,7 +66,7 @@ export default function ComparisonTable() {
               {rows.map((row, i) => (
                 <tr key={i} className={`${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-b border-slate-100`}>
                   <td className="py-3.5 px-6 font-semibold text-slate-800 text-sm">{row.feature}</td>
-                  <td className="py-3.5 px-6 font-semibold text-emerald-800 text-sm bg-emerald-50/60">
+                  <td className="py-3.5 px-6 font-semibold text-sky-800 text-sm bg-sky-50/60">
                     <CellContent text={row.clearnav} type={row.clearnavType} />
                   </td>
                   <td className="py-3.5 px-6 text-red-800 text-sm">
