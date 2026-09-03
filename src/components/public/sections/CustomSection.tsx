@@ -159,12 +159,11 @@ function GovernanceSection({ content }: { content: CustomSectionProps['content']
                   >
                     {item.title}
                   </h3>
-                  <p
+                  <div
                     className="text-base leading-relaxed font-semibold"
                     style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
-                  >
-                    {item.description}
-                  </p>
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(item.description, { ALLOWED_TAGS: ['a', 'strong', 'em'], ALLOWED_ATTR: ['href', 'target', 'rel'] }) }}
+                  />
                 </div>
               </div>
             );
@@ -314,12 +313,11 @@ function ComplianceSection({ content }: { content: CustomSectionProps['content']
               >
                 {item.title}
               </h3>
-              <p
+              <div
                 className="text-sm leading-relaxed font-normal"
                 style={{ fontFamily: 'var(--font-body, "Cormorant Garamond", Georgia, serif)', color: 'var(--color-textSecondary, #4A4A4A)' }}
-              >
-                {item.description}
-              </p>
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(item.description, { ALLOWED_TAGS: ['a', 'strong', 'em'], ALLOWED_ATTR: ['href', 'target', 'rel'] }) }}
+              />
             </div>
           ))}
         </div>

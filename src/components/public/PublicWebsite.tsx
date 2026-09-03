@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import { supabase } from '../../lib/supabase';
 import { PublicPageRouter } from './PublicPageRouter';
 import { Menu, X, LogIn } from 'lucide-react';
@@ -336,9 +337,7 @@ export function PublicWebsite({ tenantId, tenantSlug, primedName }: PublicWebsit
         </div>
 
         {branding.legal_disclaimer && (
-          <p className="text-xs leading-relaxed mt-2 max-w-4xl font-semibold" style={{ color: 'rgba(255,255,255,0.28)', fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }}>
-            {branding.legal_disclaimer}
-          </p>
+          <div className="text-xs leading-relaxed mt-2 max-w-4xl font-semibold" style={{ color: 'rgba(255,255,255,0.28)', fontFamily: theme?.typography.bodyFont || 'var(--font-body, "Cormorant Garamond", Georgia, serif)' }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(branding.legal_disclaimer, { ALLOWED_TAGS: ['a', 'strong', 'em', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] }) }} />
         )}
       </footer>
     </div>
