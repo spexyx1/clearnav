@@ -14,6 +14,8 @@ import { SavedClient, SavedProduct, TermsTemplate } from './types';
 interface Props {
   userId: string;
   invoiceId?: string;
+  prefillClientId?: string;
+  duplicateFromId?: string;
   onSaved: (id: string) => void;
   onBack: () => void;
 }
@@ -30,7 +32,7 @@ function newLine(sort: number): InvoiceLineItemDraft {
   };
 }
 
-export default function InvoiceAppEditor({ userId, invoiceId, onSaved, onBack }: Props) {
+export default function InvoiceAppEditor({ userId, invoiceId, prefillClientId, duplicateFromId, onSaved, onBack }: Props) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [settings, setSettings] = useState<InvoiceSettings | null>(null);
   const [savedClients, setSavedClients] = useState<SavedClient[]>([]);
@@ -101,14 +103,11 @@ export default function InvoiceAppEditor({ userId, invoiceId, onSaved, onBack }:
 
     if (invoiceId) {
       await loadInvoice(invoiceId);
-    } else {
-      // Check for prefill client from sessionStorage
-      const prefillClientId = sessionStorage.getItem('invoice_prefill_client');
-      if (prefillClientId) {
-        sessionStorage.removeItem('invoice_prefill_client');
-        const client = (clientsRes.data ?? []).find(c => c.id === prefillClientId);
-        if (client) applyClient(client);
-      }
+    } else if (duplicateFromId) {
+      await loadInvoiceForDuplicate(duplicateFromId);
+    } else if (prefillClientId) {
+      const client = (clientsRes.data ?? []).find(c => c.id === prefillClientId);
+      if (client) applyClient(client);
     }
 
     setLoading(false);
@@ -144,6 +143,47 @@ export default function InvoiceAppEditor({ userId, invoiceId, onSaved, onBack }:
       setItems(inv.line_items.map(li => ({
         id: li.id,
         sort_order: li.sort_order,
+        description: li.description,
+        quantity: li.quantity,
+        unit_price: li.unit_price,
+        tax_rate: li.tax_rate,
+        discount_rate: li.discount_rate,
+      })));
+    }
+  }
+
+  async function loadInvoiceForDuplicate(id: string) {
+    const { data } = await supabase
+      .from('invoices')
+      .select('*, line_items:invoice_line_items(*)')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!data) return;
+    const inv = data as Invoice;
+    setForm({
+      to_name: inv.to_name ?? '',
+      to_email: inv.to_email ?? '',
+      to_phone: inv.to_phone ?? '',
+      to_company: inv.to_company ?? '',
+      to_address: inv.to_address ?? '',
+      issue_date: new Date().toISOString().slice(0, 10),
+      due_date: (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + (settings?.default_due_days ?? 30));
+        return d.toISOString().slice(0, 10);
+      })(),
+      currency: inv.currency ?? 'USD',
+      notes: inv.notes ?? '',
+      terms: inv.terms ?? '',
+      footer: inv.footer ?? '',
+      signature_required: inv.signature_required ?? false,
+    });
+    setClientQuery(inv.to_name ?? '');
+    if (inv.line_items?.length) {
+      setItems(inv.line_items.map((li, idx) => ({
+        id: crypto.randomUUID(),
+        sort_order: idx,
         description: li.description,
         quantity: li.quantity,
         unit_price: li.unit_price,
@@ -217,6 +257,7 @@ export default function InvoiceAppEditor({ userId, invoiceId, onSaved, onBack }:
         user_id: userId,
         tenant_id: null,
         ...totals,
+        balance_due: totals.total - (invoice?.amount_paid ?? 0),
         status: sendAfter ? 'sent' : (invoice?.status ?? 'draft'),
         sent_at: sendAfter ? new Date().toISOString() : (invoice?.sent_at ?? null),
         created_by: userId,
@@ -459,11 +500,12 @@ export default function InvoiceAppEditor({ userId, invoiceId, onSaved, onBack }:
           <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
             <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Line Items</h3>
 
-            <div className="hidden sm:grid grid-cols-[1fr_70px_110px_65px_65px_36px] gap-2 px-1 text-xs font-medium text-gray-500 uppercase tracking-wide">
+            <div className="hidden sm:grid grid-cols-[1fr_70px_110px_65px_65px_65px_36px] gap-2 px-1 text-xs font-medium text-gray-500 uppercase tracking-wide">
               <span>Description</span>
               <span className="text-right">Qty</span>
               <span className="text-right">Unit Price</span>
               <span className="text-right">Tax %</span>
+              <span className="text-right">Disc %</span>
               <span className="text-right">Total</span>
               <span />
             </div>
@@ -689,7 +731,7 @@ function LineItemRow({ item, currency, currencySymbol, products, onUpdate, onRem
   );
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-[1fr_70px_110px_65px_65px_36px] gap-2 items-start">
+    <div className="grid grid-cols-1 sm:grid-cols-[1fr_70px_110px_65px_65px_65px_36px] gap-2 items-start">
       <div className="relative">
         <input
           value={item.description}
@@ -735,6 +777,12 @@ function LineItemRow({ item, currency, currencySymbol, products, onUpdate, onRem
         type="number" min="0" max="100" step="any"
         value={item.tax_rate}
         onChange={e => onUpdate(item.id, 'tax_rate', parseFloat(e.target.value) || 0)}
+        className="px-3 py-2.5 border border-gray-300 rounded-xl text-gray-900 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+      />
+      <input
+        type="number" min="0" max="100" step="any"
+        value={item.discount_rate}
+        onChange={e => onUpdate(item.id, 'discount_rate', parseFloat(e.target.value) || 0)}
         className="px-3 py-2.5 border border-gray-300 rounded-xl text-gray-900 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
       />
       <div className="text-right text-sm font-medium text-gray-800 px-1 py-2.5">

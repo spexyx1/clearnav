@@ -15,6 +15,7 @@ interface Props {
   invoiceId: string;
   onEdit: (id: string) => void;
   onBack: () => void;
+  onDuplicate?: (id: string) => void;
 }
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
@@ -39,7 +40,7 @@ function ActivityIcon({ action }: { action: string }) {
   return <Clock className="w-4 h-4 text-gray-400" />;
 }
 
-export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: Props) {
+export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, onDuplicate }: Props) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [settings, setSettings] = useState<InvoiceSettings | null>(null);
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
@@ -100,9 +101,11 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
 
   async function recordPayment() {
     if (!invoice || !payment.amount || payment.amount <= 0) return;
+    const cappedAmount = Math.min(payment.amount, invoice.balance_due);
+    if (cappedAmount <= 0) return;
     const { error } = await supabase.from('invoice_payments').insert({
       invoice_id: invoice.id,
-      amount: payment.amount,
+      amount: cappedAmount,
       currency: invoice.currency,
       payment_date: payment.payment_date,
       method: payment.method,
@@ -112,12 +115,14 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
     });
     if (error) return;
 
-    const newPaid = invoice.amount_paid + payment.amount;
-    const newStatus = newPaid >= invoice.total ? 'paid' : 'partial';
+    const newPaid = invoice.amount_paid + cappedAmount;
+    const newBalanceDue = Math.max(invoice.total - newPaid, 0);
+    const newStatus = newBalanceDue <= 0 ? 'paid' : 'partial';
     const { data: updated } = await supabase
       .from('invoices')
       .update({
         amount_paid: newPaid,
+        balance_due: newBalanceDue,
         status: newStatus,
         paid_at: newStatus === 'paid' ? new Date().toISOString() : null,
       })
@@ -129,7 +134,7 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
       invoice_id: invoice.id,
       actor_id: userId,
       action: 'payment_recorded',
-      metadata: { amount: payment.amount, method: payment.method },
+      metadata: { amount: cappedAmount, method: payment.method },
     });
 
     if (updated) setInvoice(updated as Invoice);
@@ -137,13 +142,20 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
     await loadPaymentsAndActivity(invoice.id);
   }
 
+  const [sendError, setSendError] = useState<string | null>(null);
+
   async function sendInvoice() {
     if (!invoice) return;
     setSending(true);
+    setSendError(null);
     try {
-      await supabase.functions.invoke('send-invoice-email', {
+      const { error: sendErr } = await supabase.functions.invoke('send-invoice-email', {
         body: { invoice_id: invoice.id, source: 'invoice_app' },
       });
+      if (sendErr) {
+        setSendError('Failed to send email. The invoice was not marked as sent.');
+        return;
+      }
       const { data } = await supabase
         .from('invoices')
         .update({
@@ -161,6 +173,8 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
       });
       if (data) setInvoice(data as Invoice);
       await loadPaymentsAndActivity(invoice.id);
+    } catch {
+      setSendError('Failed to send email. Please try again.');
     } finally {
       setSending(false);
     }
@@ -281,7 +295,7 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {!isVoid && (
+          {!isVoid && !isPaid && (
             <button
               onClick={() => setShowPaymentForm(true)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm transition-colors border border-emerald-200"
@@ -330,6 +344,15 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
               Edit
             </button>
           )}
+          {onDuplicate && (
+            <button
+              onClick={() => onDuplicate(invoice.id)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm transition-colors"
+            >
+              <Copy className="w-4 h-4" />
+              Duplicate
+            </button>
+          )}
           {!isVoid && !isPaid && (
             <button
               onClick={voidInvoice}
@@ -356,6 +379,15 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
               <span className="text-blue-500 ml-2 capitalize">({invoice.signed_by_choice} signature)</span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Send error banner */}
+      {sendError && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+          <Mail className="w-5 h-5 text-red-600 shrink-0" />
+          <span className="text-sm text-red-700">{sendError}</span>
+          <button onClick={() => setSendError(null)} className="ml-auto text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
         </div>
       )}
 
@@ -558,11 +590,12 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack }: 
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Amount</label>
                 <input
-                  type="number" step="any" min="0"
+                  type="number" step="any" min="0" max={invoice.balance_due}
                   value={payment.amount}
-                  onChange={e => setPayment(p => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
+                  onChange={e => setPayment(p => ({ ...p, amount: Math.min(parseFloat(e.target.value) || 0, invoice.balance_due) }))}
                   className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
+                <p className="text-xs text-gray-400 mt-1">Balance due: {formatCurrency(invoice.balance_due, invoice.currency)}</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>

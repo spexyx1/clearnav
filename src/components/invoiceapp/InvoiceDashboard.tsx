@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Plus, Search, Filter, Download, RefreshCw, Receipt,
   ChevronDown, X, ArrowUpDown, Loader2, AlertCircle,
-  DollarSign,
+  DollarSign, ChevronLeft, ChevronRight, Calendar,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Invoice, InvoiceSettings, InvoiceStatus, formatCurrency } from '../manager/invoicing/types';
@@ -17,6 +17,8 @@ interface Props {
 type SortField = 'invoice_number' | 'issue_date' | 'due_date' | 'total' | 'status';
 type SortDir = 'asc' | 'desc';
 
+const PAGE_SIZE = 25;
+
 const STATUS_FILTERS: { value: '' | InvoiceStatus; label: string }[] = [
   { value: '', label: 'All Statuses' },
   { value: 'draft', label: 'Draft' },
@@ -26,6 +28,16 @@ const STATUS_FILTERS: { value: '' | InvoiceStatus; label: string }[] = [
   { value: 'paid', label: 'Paid' },
   { value: 'overdue', label: 'Overdue' },
   { value: 'void', label: 'Void' },
+];
+
+const DATE_RANGE_OPTIONS = [
+  { value: '', label: 'All Time' },
+  { value: '7', label: 'Last 7 Days' },
+  { value: '30', label: 'Last 30 Days' },
+  { value: '90', label: 'Last 90 Days' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: 'this_year', label: 'This Year' },
 ];
 
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
@@ -38,6 +50,35 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
   );
 }
 
+function getDateRangeBounds(rangeKey: string): { from: string; to: string } | null {
+  if (!rangeKey) return null;
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+
+  if (rangeKey === 'this_month') {
+    const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    return { from, to: today };
+  }
+  if (rangeKey === 'last_month') {
+    const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lmEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    return {
+      from: lm.toISOString().slice(0, 10),
+      to: lmEnd.toISOString().slice(0, 10),
+    };
+  }
+  if (rangeKey === 'this_year') {
+    return { from: `${now.getFullYear()}-01-01`, to: today };
+  }
+  const days = parseInt(rangeKey, 10);
+  if (!isNaN(days)) {
+    const from = new Date(now);
+    from.setDate(from.getDate() - days);
+    return { from: from.toISOString().slice(0, 10), to: today };
+  }
+  return null;
+}
+
 export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }: Props) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [settings, setSettings] = useState<InvoiceSettings | null>(null);
@@ -45,8 +86,10 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | InvoiceStatus>('');
+  const [dateRange, setDateRange] = useState('');
   const [sortField, setSortField] = useState<SortField>('issue_date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [page, setPage] = useState(0);
   const [recordPaymentId, setRecordPaymentId] = useState<string | null>(null);
   const [paymentForm, setPaymentForm] = useState({ amount: 0, method: 'manual', payment_date: new Date().toISOString().slice(0, 10), reference: '', notes: '' });
   const [paymentSaving, setPaymentSaving] = useState(false);
@@ -69,7 +112,30 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
           .maybeSingle(),
       ]);
       if (invRes.error) throw invRes.error;
-      setInvoices(invRes.data as Invoice[]);
+      const allInvoices = invRes.data as Invoice[];
+
+      // Auto-detect overdue: mark sent/viewed/partial invoices past their due date
+      const today = new Date().toISOString().slice(0, 10);
+      const overdueIds: string[] = [];
+      for (const inv of allInvoices) {
+        if (
+          ['sent', 'viewed', 'partial'].includes(inv.status) &&
+          inv.due_date &&
+          inv.due_date < today
+        ) {
+          inv.status = 'overdue' as InvoiceStatus;
+          overdueIds.push(inv.id);
+        }
+      }
+      if (overdueIds.length > 0) {
+        supabase
+          .from('invoices')
+          .update({ status: 'overdue' })
+          .in('id', overdueIds)
+          .then(() => {});
+      }
+
+      setInvoices(allInvoices);
       if (settingsRes.data) setSettings(settingsRes.data as InvoiceSettings);
     } catch (e: any) {
       setError(e.message || 'Failed to load invoices');
@@ -80,27 +146,40 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = invoices.filter(inv => {
-    if (statusFilter && inv.status !== statusFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return (
-        inv.invoice_number?.toLowerCase().includes(q) ||
-        inv.to_name?.toLowerCase().includes(q) ||
-        inv.to_company?.toLowerCase().includes(q) ||
-        inv.to_email?.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  }).sort((a, b) => {
-    let av: any = a[sortField];
-    let bv: any = b[sortField];
-    if (sortField === 'total') { av = Number(av); bv = Number(bv); }
-    if (av == null) return 1;
-    if (bv == null) return -1;
-    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-    return sortDir === 'asc' ? cmp : -cmp;
-  });
+  const filtered = useMemo(() => {
+    const rangeBounds = getDateRangeBounds(dateRange);
+    return invoices.filter(inv => {
+      if (statusFilter && inv.status !== statusFilter) return false;
+      if (rangeBounds) {
+        const issueDate = inv.issue_date || '';
+        if (issueDate < rangeBounds.from || issueDate > rangeBounds.to) return false;
+      }
+      if (search) {
+        const q = search.toLowerCase();
+        return (
+          inv.invoice_number?.toLowerCase().includes(q) ||
+          inv.to_name?.toLowerCase().includes(q) ||
+          inv.to_company?.toLowerCase().includes(q) ||
+          inv.to_email?.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    }).sort((a, b) => {
+      let av: any = a[sortField];
+      let bv: any = b[sortField];
+      if (sortField === 'total') { av = Number(av); bv = Number(bv); }
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [invoices, statusFilter, dateRange, search, sortField, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageInvoices = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
+  useEffect(() => { setPage(0); }, [search, statusFilter, dateRange]);
 
   const outstanding = invoices.filter(i => ['sent', 'viewed', 'partial', 'overdue'].includes(i.status));
   const outstandingTotal = outstanding.reduce((s, i) => s + (i.balance_due || 0), 0);
@@ -136,10 +215,12 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
     if (!recordPaymentId || !paymentForm.amount) return;
     const inv = invoices.find(i => i.id === recordPaymentId);
     if (!inv) return;
+    const cappedAmount = Math.min(paymentForm.amount, inv.balance_due);
+    if (cappedAmount <= 0) return;
     setPaymentSaving(true);
-    await supabase.from('invoice_payments').insert({
+    const { error: payErr } = await supabase.from('invoice_payments').insert({
       invoice_id: recordPaymentId,
-      amount: paymentForm.amount,
+      amount: cappedAmount,
       currency: inv.currency,
       payment_date: paymentForm.payment_date,
       method: paymentForm.method,
@@ -147,10 +228,16 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
       notes: paymentForm.notes || null,
       recorded_by: userId,
     });
-    const newPaid = inv.amount_paid + paymentForm.amount;
-    const newStatus = newPaid >= inv.total ? 'paid' : 'partial';
+    if (payErr) {
+      setPaymentSaving(false);
+      return;
+    }
+    const newPaid = inv.amount_paid + cappedAmount;
+    const newBalanceDue = Math.max(inv.total - newPaid, 0);
+    const newStatus = newBalanceDue <= 0 ? 'paid' : 'partial';
     await supabase.from('invoices').update({
       amount_paid: newPaid,
+      balance_due: newBalanceDue,
       status: newStatus,
       paid_at: newStatus === 'paid' ? new Date().toISOString() : null,
     }).eq('id', recordPaymentId);
@@ -158,12 +245,14 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
       invoice_id: recordPaymentId,
       actor_id: userId,
       action: 'payment_recorded',
-      metadata: { amount: paymentForm.amount, method: paymentForm.method },
+      metadata: { amount: cappedAmount, method: paymentForm.method },
     });
     setRecordPaymentId(null);
     setPaymentSaving(false);
     load();
   }
+
+  const recordPaymentInv = recordPaymentId ? invoices.find(i => i.id === recordPaymentId) : null;
 
   return (
     <div className="space-y-6">
@@ -224,6 +313,17 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
         </div>
+        <div className="relative">
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <select
+            value={dateRange}
+            onChange={e => setDateRange(e.target.value)}
+            className="pl-9 pr-8 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white appearance-none"
+          >
+            {DATE_RANGE_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        </div>
         <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors bg-white">
           <Download className="w-4 h-4" />
           Export
@@ -281,7 +381,7 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map(inv => (
+                {pageInvoices.map(inv => (
                   <tr key={inv.id} className="hover:bg-gray-50 transition-colors group">
                     <td className="px-4 py-3">
                       <button
@@ -295,13 +395,13 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
                       <div className="font-medium text-gray-900">{inv.to_name}</div>
                       {inv.to_company && <div className="text-xs text-gray-400">{inv.to_company}</div>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 text-sm">{inv.issue_date || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600 text-sm">{inv.issue_date || '\u2014'}</td>
                     <td className="px-4 py-3 text-sm">
                       {inv.due_date ? (
                         <span className={inv.status === 'overdue' ? 'text-red-600 font-medium' : 'text-gray-600'}>
                           {inv.due_date}
                         </span>
-                      ) : <span className="text-gray-400">—</span>}
+                      ) : <span className="text-gray-400">{'\u2014'}</span>}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="font-semibold text-gray-900">{formatCurrency(inv.total, inv.currency)}</div>
@@ -339,18 +439,41 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
                 ))}
               </tbody>
             </table>
-            {filtered.length > 1 && (
-              <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between text-xs text-gray-500">
-                <span>{filtered.length} invoices</span>
+            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between text-xs text-gray-500">
+              <span>
+                Showing {safePage * PAGE_SIZE + 1}\u2013{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+              </span>
+              <div className="flex items-center gap-3">
                 <span className="font-semibold text-gray-800">Total: {formatCurrency(filtered.reduce((s, i) => s + i.total, 0), currency)}</span>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setPage(p => Math.max(0, p - 1))}
+                      disabled={safePage === 0}
+                      className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs text-gray-600 mx-1">
+                      {safePage + 1} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                      disabled={safePage >= totalPages - 1}
+                      className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         )}
       </div>
 
       {/* Quick payment modal */}
-      {recordPaymentId && (
+      {recordPaymentId && recordPaymentInv && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-md p-6 space-y-4">
             <div className="flex items-center justify-between">
@@ -360,9 +483,11 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                <input type="number" step="any" min="0" value={paymentForm.amount}
-                  onChange={e => setPaymentForm(p => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
+                <input type="number" step="any" min="0" max={recordPaymentInv.balance_due}
+                  value={paymentForm.amount}
+                  onChange={e => setPaymentForm(p => ({ ...p, amount: Math.min(parseFloat(e.target.value) || 0, recordPaymentInv.balance_due) }))}
                   className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                <p className="text-xs text-gray-400 mt-1">Balance due: {formatCurrency(recordPaymentInv.balance_due, recordPaymentInv.currency)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>

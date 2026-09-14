@@ -19,6 +19,8 @@ const InvoicePublicView = lazy(() => import('../manager/invoicing/InvoicePublicV
 type AppView =
   | 'dashboard'
   | 'invoice-new'
+  | { type: 'invoice-new-prefill'; clientId: string }
+  | { type: 'invoice-new-duplicate'; sourceId: string }
   | { type: 'invoice-edit'; id: string }
   | { type: 'invoice-detail'; id: string }
   | 'clients'
@@ -124,6 +126,32 @@ function AuthedApp({ session, profile, onProfileUpdate }: AuthedAppProps) {
       );
     }
 
+    if (typeof view === 'object' && view.type === 'invoice-new-prefill') {
+      return (
+        <Suspense fallback={<FullPageLoader />}>
+          <InvoiceAppEditor
+            userId={user.id}
+            prefillClientId={view.clientId}
+            onSaved={(id) => setView({ type: 'invoice-detail', id })}
+            onBack={() => setView('dashboard')}
+          />
+        </Suspense>
+      );
+    }
+
+    if (typeof view === 'object' && view.type === 'invoice-new-duplicate') {
+      return (
+        <Suspense fallback={<FullPageLoader />}>
+          <InvoiceAppEditor
+            userId={user.id}
+            duplicateFromId={view.sourceId}
+            onSaved={(id) => setView({ type: 'invoice-detail', id })}
+            onBack={() => setView('dashboard')}
+          />
+        </Suspense>
+      );
+    }
+
     if (typeof view === 'object' && view.type === 'invoice-edit') {
       return (
         <Suspense fallback={<FullPageLoader />}>
@@ -145,6 +173,7 @@ function AuthedApp({ session, profile, onProfileUpdate }: AuthedAppProps) {
             invoiceId={view.id}
             onEdit={(id) => setView({ type: 'invoice-edit', id })}
             onBack={() => setView('dashboard')}
+            onDuplicate={(id) => setView({ type: 'invoice-new-duplicate', sourceId: id })}
           />
         </Suspense>
       );
@@ -154,9 +183,11 @@ function AuthedApp({ session, profile, onProfileUpdate }: AuthedAppProps) {
       return (
         <Suspense fallback={<FullPageLoader />}>
           <InvoiceAppClients userId={user.id} onNewInvoice={(clientId) => {
-            setView('invoice-new');
-            // Pass client ID via sessionStorage for pre-fill
-            if (clientId) sessionStorage.setItem('invoice_prefill_client', clientId);
+            if (clientId) {
+              setView({ type: 'invoice-new-prefill', clientId });
+            } else {
+              setView('invoice-new');
+            }
           }} />
         </Suspense>
       );
