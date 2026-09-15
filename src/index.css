@@ -72,6 +72,34 @@
     font-family: 'JetBrains Mono', 'Menlo', monospace;
     font-feature-settings: 'tnum';
   }
+
+  /* Invoice app typography refinements */
+  .invoice-app {
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .invoice-app .text-xs {
+    letter-spacing: 0.01em;
+  }
+  .invoice-app .text-sm {
+    letter-spacing: 0.005em;
+  }
+  .invoice-app .tracking-wide {
+    letter-spacing: 0.08em;
+  }
+  .invoice-app .font-mono,
+  .invoice-app .inv-num {
+    font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+    font-feature-settings: 'tnum', 'zero';
+    letter-spacing: -0.01em;
+  }
+  .invoice-app .inv-currency {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: 'tnum', 'cv02';
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
 }
 
 @layer utilities {

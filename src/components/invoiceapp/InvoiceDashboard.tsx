@@ -44,7 +44,7 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{label}</div>
-      <div className={`text-2xl font-bold ${color}`}>{value}</div>
+      <div className={`text-2xl font-bold inv-currency ${color}`}>{value}</div>
       {sub && <div className="text-xs text-gray-400 mt-1">{sub}</div>}
     </div>
   );
@@ -386,7 +386,7 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
                     <td className="px-4 py-3">
                       <button
                         onClick={() => onOpenInvoice(inv.id)}
-                        className="font-mono text-blue-600 hover:text-blue-800 font-semibold text-sm"
+                        className="inv-num text-blue-600 hover:text-blue-800 font-semibold text-sm"
                       >
                         {inv.invoice_number}
                       </button>
@@ -404,9 +404,9 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
                       ) : <span className="text-gray-400">{'\u2014'}</span>}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="font-semibold text-gray-900">{formatCurrency(inv.total, inv.currency)}</div>
+                      <div className="font-semibold text-gray-900 inv-currency">{formatCurrency(inv.total, inv.currency)}</div>
                       {inv.balance_due > 0 && inv.balance_due < inv.total && (
-                        <div className="text-xs text-amber-600">{formatCurrency(inv.balance_due, inv.currency)} due</div>
+                        <div className="text-xs text-amber-600 inv-currency">{formatCurrency(inv.balance_due, inv.currency)} due</div>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -444,7 +444,7 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
                 Showing {safePage * PAGE_SIZE + 1}\u2013{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
               </span>
               <div className="flex items-center gap-3">
-                <span className="font-semibold text-gray-800">Total: {formatCurrency(filtered.reduce((s, i) => s + i.total, 0), currency)}</span>
+                <span className="font-semibold text-gray-800 inv-currency">Total: {formatCurrency(filtered.reduce((s, i) => s + i.total, 0), currency)}</span>
                 {totalPages > 1 && (
                   <div className="flex items-center gap-1">
                     <button

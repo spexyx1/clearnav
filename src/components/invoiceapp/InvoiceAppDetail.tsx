@@ -271,7 +271,7 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
           </button>
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl font-bold text-gray-900">{invoice.invoice_number}</h1>
+              <h1 className="text-xl font-bold text-gray-900 inv-num">{invoice.invoice_number}</h1>
               <InvoiceStatusBadge status={invoice.status as any} />
               {isSigned && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
@@ -405,7 +405,7 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
         ].map(card => (
           <div key={card.label} className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="text-xs text-gray-500 mb-1">{card.label}</div>
-            <div className={`text-lg font-bold ${card.color}`}>{card.value}</div>
+            <div className={`text-lg font-bold inv-currency ${card.color}`}>{card.value}</div>
           </div>
         ))}
       </div>
@@ -431,7 +431,7 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
                   <td className="py-2 text-right text-gray-500">
                     {formatCurrency(li.unit_price, invoice.currency)}
                   </td>
-                  <td className="py-2 text-right text-gray-900 font-medium">
+                  <td className="py-2 text-right text-gray-900 font-medium inv-currency">
                     {formatCurrency(li.line_total, invoice.currency)}
                   </td>
                 </tr>
@@ -453,7 +453,7 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
             )}
             <div className="flex justify-between text-gray-900 font-bold pt-1 border-t border-gray-100">
               <span>Total</span>
-              <span className="text-blue-600">{formatCurrency(invoice.total, invoice.currency)}</span>
+              <span className="text-blue-600 inv-currency">{formatCurrency(invoice.total, invoice.currency)}</span>
             </div>
           </div>
           {(invoice.notes || invoice.terms) && (
@@ -488,7 +488,7 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
                     className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0"
                   >
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-gray-900 inv-currency">
                         {formatCurrency(p.amount, p.currency)}
                       </div>
                       <div className="text-xs text-gray-500 capitalize">

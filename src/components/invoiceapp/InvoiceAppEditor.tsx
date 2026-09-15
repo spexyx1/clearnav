@@ -536,7 +536,7 @@ export default function InvoiceAppEditor({ userId, invoiceId, prefillClientId, d
 
             {/* Totals */}
             <div className="pt-3 border-t border-gray-100 flex justify-end">
-              <div className="w-56 space-y-1.5 text-sm">
+              <div className="w-56 space-y-1.5 text-sm inv-currency">
                 <div className="flex justify-between text-gray-500">
                   <span>Subtotal</span>
                   <span>{formatCurrency(totals.subtotal, form.currency)}</span>
@@ -555,7 +555,7 @@ export default function InvoiceAppEditor({ userId, invoiceId, prefillClientId, d
                 )}
                 <div className="flex justify-between text-gray-900 font-bold pt-1.5 border-t border-gray-200 text-base">
                   <span>Total</span>
-                  <span className="text-blue-600">{formatCurrency(totals.total, form.currency)}</span>
+                  <span className="text-blue-600 inv-currency">{formatCurrency(totals.total, form.currency)}</span>
                 </div>
               </div>
             </div>
