@@ -73,6 +73,8 @@ async function buildReportContent(params: ReportParams): Promise<GeneratedReport
       return await buildTransactionReport(params);
     case 'capital_account_report':
       return await buildCapitalAccountReport(params);
+    case 'monthly_update':
+      return await buildMonthlyUpdateReport(params);
     default:
       return await buildCustomReport(params);
   }
@@ -376,6 +378,89 @@ async function buildCapitalAccountReport(params: ReportParams): Promise<Generate
     period: { start: params.periodStart, end: params.periodEnd },
     sections,
     summary: { totalAccounts: (accounts || []).length, totalShares, totalCommitment },
+  };
+}
+
+async function buildMonthlyUpdateReport(params: ReportParams): Promise<GeneratedReportContent> {
+  const sections: ReportSection[] = [];
+  const summary: Record<string, number | string> = {};
+
+  const { data: navRecords } = await supabase
+    .from('nav_calculations')
+    .select('*, fund:funds(fund_code, fund_name)')
+    .eq('tenant_id', params.tenantId)
+    .gte('nav_date', params.periodStart)
+    .lte('nav_date', params.periodEnd)
+    .order('nav_date');
+
+  const firstNav = navRecords?.[0];
+  const lastNav = navRecords?.[navRecords.length - 1];
+  const openingNAV = firstNav?.net_asset_value || 0;
+  const closingNAV = lastNav?.net_asset_value || 0;
+  const monthlyReturn = openingNAV > 0 ? ((closingNAV - openingNAV) / openingNAV) * 100 : 0;
+
+  const yearStart = params.periodStart.substring(0, 4) + '-01-01';
+  const { data: ytdNavs } = await supabase
+    .from('nav_calculations')
+    .select('net_asset_value')
+    .eq('tenant_id', params.tenantId)
+    .gte('nav_date', yearStart)
+    .lte('nav_date', params.periodEnd)
+    .order('nav_date');
+
+  const ytdFirst = ytdNavs?.[0]?.net_asset_value || 0;
+  const ytdLast = ytdNavs?.[ytdNavs.length - 1]?.net_asset_value || 0;
+  const ytdReturn = ytdFirst > 0 ? ((ytdLast - ytdFirst) / ytdFirst) * 100 : 0;
+
+  sections.push({
+    title: 'Performance Summary',
+    type: 'metrics',
+    data: {
+      openingNAV,
+      closingNAV,
+      navPerShare: lastNav?.nav_per_share || 0,
+      monthlyReturn: monthlyReturn.toFixed(2) + '%',
+      ytdReturn: ytdReturn.toFixed(2) + '%',
+    },
+  });
+
+  const { data: uploads } = await supabase
+    .from('trade_uploads')
+    .select('id')
+    .eq('tenant_id', params.tenantId)
+    .eq('status', 'confirmed')
+    .gte('created_at', params.periodStart)
+    .lte('created_at', params.periodEnd);
+
+  if (uploads && uploads.length > 0) {
+    const uploadIds = uploads.map(u => u.id);
+    const { data: trades } = await supabase
+      .from('trade_upload_items')
+      .select('*')
+      .in('upload_id', uploadIds)
+      .order('trade_date');
+
+    sections.push({
+      title: 'Trade Activity',
+      type: 'table',
+      data: {
+        headers: ['Date', 'Instrument', 'Direction', 'Quantity', 'Price', 'Value'],
+        rows: (trades || []).map(t => [t.trade_date, t.instrument, t.direction, t.quantity, t.price, t.total_value]),
+      },
+    });
+  }
+
+  summary.openingNAV = openingNAV;
+  summary.closingNAV = closingNAV;
+  summary.monthlyReturn = monthlyReturn.toFixed(2) + '%';
+  summary.ytdReturn = ytdReturn.toFixed(2) + '%';
+
+  return {
+    type: 'monthly_update',
+    generatedAt: new Date().toISOString(),
+    period: { start: params.periodStart, end: params.periodEnd },
+    sections,
+    summary,
   };
 }
 

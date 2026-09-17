@@ -3,7 +3,7 @@ import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell,
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
-export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'invoices' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'lead_sourcing' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'business_phone' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'scheduler' | 'subscribers' | 'invitation_templates' | 'email_templates' | 'account_settings' | 'vault_docs';
+export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'trade_upload' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'invoices' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'lead_sourcing' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'business_phone' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'scheduler' | 'subscribers' | 'invitation_templates' | 'email_templates' | 'account_settings' | 'vault_docs';
 
 interface NavItem {
   id: TabType;
@@ -107,6 +107,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
         { id: 'accounts', label: t('nav.accounts'), icon: Wallet },
         { id: 'nav', label: t('nav.nav'), icon: TrendingUp },
         { id: 'transactions', label: t('nav.transactions'), icon: ArrowRightLeft },
+        { id: 'trade_upload' as TabType, label: 'Trade Upload', icon: ArrowRightLeft },
       ],
     },
     {

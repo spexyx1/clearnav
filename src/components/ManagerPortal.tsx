@@ -35,7 +35,7 @@ const RedemptionManager = lazy(() => import('./manager/RedemptionManager'));
 const FeeManager = lazy(() => import('./manager/FeeManager'));
 const InvestorStatements = lazy(() => import('./manager/InvestorStatements'));
 const PerformanceReports = lazy(() => import('./manager/PerformanceReports'));
-const ReportLibrary = lazy(() => import('./manager/ReportLibrary'));
+const MonthlyReportBuilder = lazy(() => import('./manager/MonthlyReportBuilder'));
 const WaterfallCalculator = lazy(() => import('./manager/WaterfallCalculator'));
 const TaxDocumentManager = lazy(() => import('./manager/TaxDocumentManager'));
 const CarriedInterestTracker = lazy(() => import('./manager/CarriedInterestTracker'));
@@ -63,6 +63,8 @@ const InvoiceManager = lazy(() => import('./manager/invoicing/InvoiceManager'));
 const VaultDocumentManager = lazy(() => import('./manager/VaultDocumentManager'));
 const BusinessPhone = lazy(() => import('./manager/phone/BusinessPhone'));
 const LeadSourcing = lazy(() => import('./manager/LeadSourcing'));
+const TradeUpload = lazy(() => import('./manager/TradeUpload'));
+const OperatorDashboard = lazy(() => import('./manager/OperatorDashboard'));
 
 function TabFallback() {
   return <PanelLoader />;
@@ -150,7 +152,7 @@ export default function ManagerPortal() {
           <div className="max-w-[1600px] mx-auto px-6 py-6">
             <div className="animate-fadeIn">
               <Suspense fallback={<TabFallback />}>
-                {activeTab === 'dashboard' && <CRMDashboard onNavigate={(tab) => setActiveTab(tab as TabType)} />}
+                {activeTab === 'dashboard' && <OperatorDashboard onNavigate={(tab) => setActiveTab(tab as TabType)} />}
                 {activeTab === 'funds' && <FundManagement />}
                 {activeTab === 'classes' && <ShareClassManager />}
                 {activeTab === 'accounts' && <CapitalAccountManager />}
@@ -163,7 +165,7 @@ export default function ManagerPortal() {
                 {activeTab === 'invoices' && <InvoiceManager />}
                 {activeTab === 'statements' && <InvestorStatements />}
                 {activeTab === 'performance' && <PerformanceReports />}
-                {activeTab === 'reports' && <ReportLibrary />}
+                {activeTab === 'reports' && <MonthlyReportBuilder />}
                 {activeTab === 'waterfall' && <WaterfallCalculator />}
                 {activeTab === 'carried_interest' && <CarriedInterestTracker />}
                 {activeTab === 'side_pockets' && <SidePocketManager />}
@@ -199,6 +201,7 @@ export default function ManagerPortal() {
                 {activeTab === 'vault_docs' && <VaultDocumentManager />}
                 {activeTab === 'business_phone' && <BusinessPhone />}
                 {activeTab === 'lead_sourcing' && <LeadSourcing />}
+                {activeTab === 'trade_upload' && <TradeUpload />}
               </Suspense>
             </div>
           </div>
