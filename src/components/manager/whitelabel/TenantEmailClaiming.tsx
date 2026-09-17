@@ -12,9 +12,10 @@ interface TenantEmailStatus {
 }
 
 export function TenantEmailClaiming() {
-  const { currentTenant: tenant } = useAuth();
+  const { currentTenant: tenant, tenantId } = useAuth();
   const [emailStatus, setEmailStatus] = useState<TenantEmailStatus | null>(null);
   const [proposedEmail, setProposedEmail] = useState('');
+  const [emailDomain, setEmailDomain] = useState('clearnav.cv');
   const [isChecking, setIsChecking] = useState(false);
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [isClaiming, setIsClaiming] = useState(false);
@@ -28,13 +29,30 @@ export function TenantEmailClaiming() {
   }, [tenant?.id]);
 
   useEffect(() => {
+    if (tenantId) {
+      supabase
+        .from('tenant_domains')
+        .select('domain')
+        .eq('tenant_id', tenantId)
+        .eq('is_verified', true)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setEmailDomain(data[0].domain);
+          }
+        });
+    }
+  }, [tenantId]);
+
+  useEffect(() => {
     if (tenant && !proposedEmail && !emailStatus?.email) {
       const slug = tenant.name.toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
-      setProposedEmail(`${slug}@clearnav.cv`);
+      setProposedEmail(`${slug}@${emailDomain}`);
     }
-  }, [tenant, emailStatus]);
+  }, [tenant, emailStatus, emailDomain]);
 
   const loadEmailStatus = async () => {
     if (!tenant) return;
@@ -65,7 +83,7 @@ export function TenantEmailClaiming() {
   };
 
   const checkAvailability = async (email: string) => {
-    if (!email.includes('@clearnav.cv')) {
+    if (!email.includes(`@${emailDomain}`)) {
       setIsAvailable(false);
       return;
     }
@@ -163,7 +181,7 @@ export function TenantEmailClaiming() {
 
   const handleLocalPartChange = (value: string) => {
     const sanitized = value.toLowerCase().replace(/[^a-z0-9-_]/g, '');
-    setProposedEmail(`${sanitized}@clearnav.cv`);
+    setProposedEmail(`${sanitized}@${emailDomain}`);
   };
 
   if (loading) {
@@ -252,7 +270,7 @@ export function TenantEmailClaiming() {
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Claim Your Email Address</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Choose your email address on the clearnav.cv domain. This will be used as the sender address for all invitations and communications.
+              Choose your email address on the {emailDomain} domain. This will be used as the sender address for all invitations and communications.
             </p>
           </div>
 
@@ -268,7 +286,7 @@ export function TenantEmailClaiming() {
                 placeholder="your-company"
                 className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
               />
-              <span className="text-gray-600">@clearnav.cv</span>
+              <span className="text-gray-600">@{emailDomain}</span>
             </div>
             <p className="text-xs text-gray-500 mt-1">
               Use lowercase letters, numbers, hyphens, and underscores only
@@ -341,7 +359,7 @@ export function TenantEmailClaiming() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h4 className="text-sm font-medium text-blue-900 mb-2">How it works</h4>
         <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-          <li>Claim your unique email address on clearnav.cv domain</li>
+          <li>Claim your unique email address on {emailDomain} domain</li>
           <li>Verify ownership through Resend integration</li>
           <li>Use your branded email for all client invitations and communications</li>
           <li>Track email usage and performance in this dashboard</li>

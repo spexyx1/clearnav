@@ -12,7 +12,24 @@ export default function EmailSetup({ onAccountCreated }: EmailSetupProps) {
   const [step, setStep] = useState<'choose' | 'confirm'>('choose');
   const [handle, setHandle] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const emailDomain = 'clearnav.cv';
+  const [emailDomain, setEmailDomain] = useState('clearnav.cv');
+
+  useEffect(() => {
+    if (tenantId) {
+      supabase
+        .from('tenant_domains')
+        .select('domain')
+        .eq('tenant_id', tenantId)
+        .eq('is_verified', true)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setEmailDomain(data[0].domain);
+          }
+        });
+    }
+  }, [tenantId]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);

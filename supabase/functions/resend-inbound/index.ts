@@ -177,7 +177,7 @@ Deno.serve(async (req: Request) => {
     // Resend's MX capture routes ALL mail transiting the domain through this
     // webhook, including outbound delivery echoes (from=info@clearnav.cv,
     // to=external@gmail.com). Those create noise and waste DB writes.
-    const PLATFORM_DOMAINS = new Set(["clearnav.cv"]);
+    const PLATFORM_DOMAINS = new Set(["clearnav.cv", "arklinetrust.com"]);
     const toDomain = to.email.split("@")[1] ?? "";
     if (!PLATFORM_DOMAINS.has(toDomain)) {
       return new Response(JSON.stringify({ ok: true, status: "skipped" }), {

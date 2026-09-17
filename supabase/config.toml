@@ -85,3 +85,7 @@ enabled = true
 
 [functions.verify-tenant-email]
 enabled = true
+
+[functions.resend-inbound]
+enabled = true
+verify_jwt = false
