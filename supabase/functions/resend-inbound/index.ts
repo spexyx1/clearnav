@@ -60,7 +60,36 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Mandatory shared-secret validation
+    let rawBody: string;
+    try {
+      rawBody = await req.text();
+    } catch {
+      return new Response(JSON.stringify({ error: "Failed to read request body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON payload" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Reject non-incoming events early (email.delivered, email.sent, etc.)
+    // Resend account-level webhooks may fire for outgoing mail from any
+    // sending identity on the account. Only email.received is inbound mail.
+    if (payload.type !== "email.received") {
+      return new Response(JSON.stringify({ ok: true, status: "skipped" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Mandatory shared-secret validation for incoming mail only
     const inboundSecret = Deno.env.get("RESEND_INBOUND_SECRET");
     if (!inboundSecret) {
       console.error("RESEND_INBOUND_SECRET not configured — rejecting inbound webhook");
@@ -95,26 +124,6 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-
-    let rawBody: string;
-    try {
-      rawBody = await req.text();
-    } catch {
-      return new Response(JSON.stringify({ error: "Failed to read request body" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    let payload: any;
-    try {
-      payload = JSON.parse(rawBody);
-    } catch {
-      return new Response(JSON.stringify({ error: "Invalid JSON payload" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     // Resend wraps the email data in a `data` key for webhook events
     const email = payload.data ?? payload;
