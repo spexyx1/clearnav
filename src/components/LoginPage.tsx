@@ -2,12 +2,27 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Mail, Lock, AlertCircle, Loader2, UserPlus, LogIn } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
+import { isPlatformRootDomain } from '../lib/hostUtils';
 
 interface LoginPageProps {
   onBack: () => void;
   onSignup: () => void;
   tenantId?: string | null;
 }
+
+const CLEARNAV_DEFAULTS = {
+  companyName: 'ClearNAV',
+  contactEmail: 'info@clearnav.cv',
+  primaryColor: '#0F1117',
+  accentColor: '#0284C7',
+};
+
+const TENANT_DEFAULTS = {
+  companyName: 'Fund Portal',
+  contactEmail: '',
+  primaryColor: '#0A1628',
+  accentColor: '#C9A962',
+};
 
 export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps) {
   const { signIn } = useAuth();
@@ -18,6 +33,9 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
   const [tenantSettings, setTenantSettings] = useState<any>(null);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+
+  const isPlatformRoot = isPlatformRootDomain(window.location.hostname);
+  const defaults = isPlatformRoot ? CLEARNAV_DEFAULTS : TENANT_DEFAULTS;
 
   useEffect(() => {
     if (tenantId) loadTenantSettings(tenantId);
@@ -37,10 +55,10 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
     }
   };
 
-  const companyName = tenantSettings?.branding?.company_name || 'Arkline Trust';
-  const contactEmail = tenantSettings?.branding?.contact_email || 'enquiries@arklinetrust.com';
-  const primaryColor = '#0A1628';
-  const accentColor = '#C9A962';
+  const companyName = tenantSettings?.branding?.company_name || defaults.companyName;
+  const contactEmail = tenantSettings?.branding?.contact_email || defaults.contactEmail;
+  const primaryColor = tenantSettings?.branding?.primary_color || defaults.primaryColor;
+  const accentColor = tenantSettings?.branding?.accent_color || defaults.accentColor;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +109,9 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
               {companyName}
             </h1>
             <div className="h-px w-20 mx-auto mb-4" style={{ backgroundColor: accentColor, opacity: 0.6 }} />
-            <h2 className="text-xl font-semibold text-white mb-1">Investor Portal</h2>
+            <h2 className="text-xl font-semibold text-white mb-1">
+              {isPlatformRoot ? 'Platform Login' : 'Investor Portal'}
+            </h2>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
               Sign in to access your account
             </p>
