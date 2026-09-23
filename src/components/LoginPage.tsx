@@ -12,7 +12,7 @@ interface LoginPageProps {
 const CLEARNAV_DEFAULTS = {
   companyName: 'ClearNAV',
   contactEmail: 'info@clearnav.cv',
-  primaryColor: '#0F1117',
+  primaryColor: '#030712',
   accentColor: '#0284C7',
 };
 
@@ -73,7 +73,10 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ backgroundColor: primaryColor }}>
+    <div
+      className="clearnav-site min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950"
+      style={{ backgroundColor: primaryColor, fontFamily: isClearNavLogin ? 'Inter, system-ui, sans-serif' : undefined }}
+    >
       {/* Subtle radial glow */}
       <div className="absolute inset-0 opacity-[0.06]" style={{
         backgroundImage: `radial-gradient(ellipse at 75% 30%, ${accentColor} 0%, transparent 55%)`
@@ -92,7 +95,7 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
         <div className="rounded-2xl p-10 shadow-2xl" style={{
           backgroundColor: 'rgba(15, 30, 45, 0.85)',
           backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(201, 169, 98, 0.15)',
+          border: `1px solid ${isClearNavLogin ? 'rgba(2, 132, 199, 0.22)' : 'rgba(201, 169, 98, 0.15)'}`,
         }}>
           {/* Logo / Monogram */}
           <div className="text-center mb-10">
@@ -100,15 +103,21 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
               backgroundColor: accentColor,
               boxShadow: `0 8px 32px ${accentColor}33`,
             }}>
-              <span className="font-serif text-3xl font-bold" style={{ color: primaryColor }}>
+              <span className="font-sans text-3xl font-bold tracking-tight" style={{ color: primaryColor }}>
                 {companyName.charAt(0)}
               </span>
             </div>
-            <h1 className="text-3xl font-light text-white mb-2 tracking-tight">
+            <h1
+              className="text-3xl font-light text-white mb-2 tracking-tight"
+              style={{ fontFamily: isClearNavLogin ? 'Manrope, system-ui, sans-serif' : undefined }}
+            >
               {companyName}
             </h1>
             <div className="h-px w-20 mx-auto mb-4" style={{ backgroundColor: accentColor, opacity: 0.6 }} />
-            <h2 className="text-xl font-semibold text-white mb-1">
+            <h2
+              className="text-xl font-semibold text-white mb-1"
+              style={{ fontFamily: isClearNavLogin ? 'Manrope, system-ui, sans-serif' : undefined }}
+            >
               {isClearNavLogin ? 'Platform Login' : 'Investor Portal'}
             </h2>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
