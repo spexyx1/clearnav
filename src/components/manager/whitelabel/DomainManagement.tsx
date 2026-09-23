@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Globe, CheckCircle, XCircle, AlertCircle, Trash2,
-  RefreshCw, ExternalLink, Copy, Shield, Wifi, Server, ChevronDown, ChevronUp
+  RefreshCw, ExternalLink, Copy, Shield, Wifi, Server, ChevronDown, ChevronUp,
+  Mail, Zap
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
@@ -145,6 +146,7 @@ export default function DomainManagement() {
   const [checkingDomain, setCheckingDomain] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [vercelUnconfigured, setVercelUnconfigured] = useState(false);
+  const [inboundSetup, setInboundSetup] = useState<Record<string, { loading: boolean; result: any; error: string | null }>>({});
 
   const loadDomains = useCallback(async () => {
     if (!tenantId) { setLoading(false); return; }
@@ -251,6 +253,38 @@ export default function DomainManagement() {
       loadDomains();
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const setupInboundEmail = async (domain: Domain) => {
+    setInboundSetup(prev => ({ ...prev, [domain.domain]: { loading: true, result: null, error: null } }));
+    try {
+      const result = await callVercel('setup-inbound-email', 'POST', { domain: domain.domain });
+      setInboundSetup(prev => ({
+        ...prev,
+        [domain.domain]: { loading: false, result, error: result.success ? null : (result.error || 'Setup failed') },
+      }));
+    } catch (err: any) {
+      setInboundSetup(prev => ({
+        ...prev,
+        [domain.domain]: { loading: false, result: null, error: err.message },
+      }));
+    }
+  };
+
+  const checkInboundEmail = async (domain: Domain) => {
+    setInboundSetup(prev => ({ ...prev, [domain.domain]: { loading: true, result: null, error: null } }));
+    try {
+      const result = await callVercel('check-inbound-email', 'GET', { domain: domain.domain });
+      setInboundSetup(prev => ({
+        ...prev,
+        [domain.domain]: { loading: false, result, error: result.success ? null : (result.error || 'Check failed') },
+      }));
+    } catch (err: any) {
+      setInboundSetup(prev => ({
+        ...prev,
+        [domain.domain]: { loading: false, result: null, error: err.message },
+      }));
     }
   };
 
@@ -561,6 +595,136 @@ export default function DomainManagement() {
                         </button>
                       </div>
                     )}
+
+                    {/* Inbound Email Setup */}
+                    <div className="border-t border-gray-200 pt-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Mail className="w-4 h-4 text-gray-600" />
+                        <h4 className="text-sm font-semibold text-gray-800">Inbound Email</h4>
+                        <span className="text-xs text-gray-500">Route incoming email to your platform inbox via Resend</span>
+                      </div>
+
+                      {(() => {
+                        const setup = inboundSetup[domain.domain];
+                        const result = setup?.result;
+                        const hasInboundMx = result?.vercel_dns?.has_inbound_mx;
+                        const recentEmails = result?.recent_inbound_emails || [];
+                        const resendOk = result?.resend_domain?.status === 'verified';
+
+                        return (
+                          <div className="space-y-3">
+                            {!setup && (
+                              <p className="text-xs text-gray-500">
+                                Click "Setup Inbound" to automatically add the required MX record in Vercel DNS,
+                                or "Check Status" to verify the current configuration.
+                              </p>
+                            )}
+
+                            {setup?.error && (
+                              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                                <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                                <p className="text-sm text-red-700">{setup.error}</p>
+                              </div>
+                            )}
+
+                            {result?.success && result?.mx_record && (
+                              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-2">
+                                <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <p className="text-sm text-green-800 font-medium">
+                                    MX record {result.action === 'updated' ? 'updated' : 'added'} successfully
+                                  </p>
+                                  <p className="text-xs text-green-700 mt-1">
+                                    <code className="bg-green-100 px-1 rounded">inbound.{domain.domain}</code>
+                                    {' MX '}<code className="bg-green-100 px-1 rounded">{result.mx_record.value}</code>
+                                    {' (priority {result.mx_record.priority})'}
+                                  </p>
+                                  <p className="text-xs text-green-600 mt-1">
+                                    DNS propagation can take up to 48 hours. Use "Check Status" to verify.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {result?.success && result?.vercel_dns && (
+                              <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
+                                <div className="flex items-center gap-2 text-sm">
+                                  <span className="text-gray-500 font-medium">Resend domain:</span>
+                                  {result.resend_domain ? (
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                      resendOk ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                      {result.resend_domain.status}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-red-600">Not found in Resend</span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 text-sm">
+                                  <span className="text-gray-500 font-medium">Vercel DNS:</span>
+                                  {hasInboundMx ? (
+                                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
+                                      Inbound MX configured
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs font-medium rounded">
+                                      No inbound MX record
+                                    </span>
+                                  )}
+                                </div>
+
+                                {recentEmails.length > 0 && (
+                                  <div>
+                                    <p className="text-xs text-gray-500 font-medium mt-2 mb-1">Recent inbound emails:</p>
+                                    <div className="space-y-1">
+                                      {recentEmails.map((email: any) => (
+                                        <div key={email.id} className="text-xs bg-gray-50 rounded px-2 py-1 flex items-center gap-2">
+                                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                                            email.status === 'routed' ? 'bg-green-100 text-green-700' :
+                                            email.status === 'duplicate' ? 'bg-gray-100 text-gray-600' :
+                                            'bg-red-100 text-red-700'
+                                          }`}>
+                                            {email.status}
+                                          </span>
+                                          <span className="text-gray-600 truncate">{email.from_address}</span>
+                                          <span className="text-gray-400">→</span>
+                                          <span className="text-gray-600 truncate">{email.to_address}</span>
+                                          <span className="text-gray-500 truncate flex-1">{email.subject}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setupInboundEmail(domain)}
+                                disabled={setup?.loading}
+                                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium disabled:opacity-50 flex items-center gap-1.5"
+                              >
+                                {setup?.loading
+                                  ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  : <Zap className="w-3 h-3" />}
+                                Setup Inbound
+                              </button>
+                              <button
+                                onClick={() => checkInboundEmail(domain)}
+                                disabled={setup?.loading}
+                                className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-medium disabled:opacity-50 flex items-center gap-1.5"
+                              >
+                                {setup?.loading
+                                  ? <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                  : <RefreshCw className="w-3 h-3" />}
+                                Check Status
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                 )}
               </div>

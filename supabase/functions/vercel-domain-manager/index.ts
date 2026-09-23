@@ -464,6 +464,185 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // ── setup-inbound-email ─────────────────────────────────────────────────
+    if (req.method === "POST" && action === "setup-inbound-email") {
+      const { domain } = await req.json();
+      if (!domain) {
+        return new Response(JSON.stringify({ error: "domain is required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const resendApiKey = Deno.env.get("RESEND_API_KEY");
+      if (!resendApiKey) {
+        return new Response(JSON.stringify({
+          error: "RESEND_API_KEY not configured on edge functions",
+        }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // 1. Fetch domains from Resend to find this domain and its DNS records
+      const resendDomainsRes = await fetch("https://api.resend.com/domains", {
+        headers: { Authorization: `Bearer ${resendApiKey}` },
+      });
+      if (!resendDomainsRes.ok) {
+        const errText = await resendDomainsRes.text().catch(() => "");
+        return new Response(JSON.stringify({
+          error: "Failed to fetch domains from Resend",
+          details: errText,
+        }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const resendDomains = await resendDomainsRes.json();
+      const resendDomain = (Array.isArray(resendDomains.data) ? resendDomains.data : resendDomains)
+        .find((d: any) => d.name === domain);
+
+      if (!resendDomain) {
+        return new Response(JSON.stringify({
+          error: `Domain ${domain} not found in Resend. Add it in the Resend dashboard first.`,
+        }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // 2. Extract the inbound MX record from Resend's records
+      const records: Array<{ type: string; name: string; value: string; priority?: number }> =
+        resendDomain.records || [];
+
+      const inboundMx = records.find(
+        (r: any) => r.type === "MX" && r.name && r.name !== `send.${domain}`
+      );
+
+      if (!inboundMx) {
+        return new Response(JSON.stringify({
+          error: "No inbound MX record found for this domain in Resend. Enable inbound/receiving on this domain in the Resend dashboard first.",
+          resend_domain_id: resendDomain.id,
+          available_records: records,
+        }), { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // 3. Check existing Vercel DNS records for the "inbound" subdomain
+      const existingDnsRes = await vercelFetch(
+        `/v1/domains/${domain}/records`,
+        vercelToken
+      );
+
+      let existingMxRecordId: string | null = null;
+      if (existingDnsRes.ok && Array.isArray(existingDnsRes.data.records)) {
+        const existingMx = existingDnsRes.data.records.find(
+          (r: any) => r.type === "MX" && (r.name === "inbound" || r.name === `inbound.${domain}`)
+        );
+        if (existingMx) existingMxRecordId = existingMx.id;
+      }
+
+      // 4. Add or update the MX record in Vercel DNS for the "inbound" subdomain
+      let dnsResult: any;
+      if (existingMxRecordId) {
+        // Update existing record
+        const updateRes = await vercelFetch(
+          `/v1/domains/records/${existingMxRecordId}`,
+          vercelToken,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              name: "inbound",
+              type: "MX",
+              value: inboundMx.value,
+              priority: 10,
+            }),
+          }
+        );
+        dnsResult = updateRes;
+      } else {
+        // Create new MX record
+        const createRes = await vercelFetch(
+          `/v1/domains/${domain}/records`,
+          vercelToken,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              name: "inbound",
+              type: "MX",
+              value: inboundMx.value,
+              priority: 10,
+            }),
+          }
+        );
+        dnsResult = createRes;
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: dnsResult.ok,
+          mx_record: { host: "inbound", value: inboundMx.value, priority: 10 },
+          action: existingMxRecordId ? "updated" : "created",
+          vercel_dns_result: dnsResult.data,
+          error: dnsResult.ok ? undefined : (dnsResult.data.error?.message || "Failed to set MX record in Vercel DNS"),
+        }),
+        { status: dnsResult.ok ? 200 : 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── check-inbound-email ─────────────────────────────────────────────────
+    if (req.method === "GET" && action === "check-inbound-email") {
+      const domain = url.searchParams.get("domain");
+      if (!domain) {
+        return new Response(JSON.stringify({ error: "domain query param required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const resendApiKey = Deno.env.get("RESEND_API_KEY");
+      if (!resendApiKey) {
+        return new Response(JSON.stringify({
+          error: "RESEND_API_KEY not configured",
+        }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Check Resend domain status
+      const resendDomainsRes = await fetch("https://api.resend.com/domains", {
+        headers: { Authorization: `Bearer ${resendApiKey}` },
+      });
+      if (!resendDomainsRes.ok) {
+        return new Response(JSON.stringify({
+          error: "Failed to fetch domains from Resend",
+        }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const resendDomains = await resendDomainsRes.json();
+      const resendDomain = (Array.isArray(resendDomains.data) ? resendDomains.data : resendDomains)
+        .find((d: any) => d.name === domain);
+
+      // Check Vercel DNS for inbound MX
+      const dnsRes = await vercelFetch(`/v1/domains/${domain}/records`, vercelToken);
+      let inboundMxInVercel: any = null;
+      if (dnsRes.ok && Array.isArray(dnsRes.data.records)) {
+        inboundMxInVercel = dnsRes.data.records.find(
+          (r: any) => r.type === "MX" && (r.name === "inbound" || r.name === `inbound.${domain}`)
+        );
+      }
+
+      // Check inbound_email_log for recent activity
+      const { data: recentInbound } = await supabase
+        .from("inbound_email_log")
+        .select("id, to_address, from_address, subject, status, received_at")
+        .ilike("to_address", `%@${domain}%`)
+        .order("received_at", { ascending: false })
+        .limit(5);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          resend_domain: resendDomain ? {
+            id: resendDomain.id,
+            status: resendDomain.status,
+            region: resendDomain.region,
+          } : null,
+          vercel_dns: {
+            has_inbound_mx: !!inboundMxInVercel,
+            mx_record: inboundMxInVercel || null,
+          },
+          recent_inbound_emails: recentInbound || [],
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ── remove ────────────────────────────────────────────────────────────────
     if (req.method === "DELETE" && action === "remove") {
       const { domain } = await req.json();
