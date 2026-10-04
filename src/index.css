@@ -60,23 +60,13 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
   }
   .clearnav-site h1,
-  .clearnav-site h2 {
-    font-family: 'Instrument Serif', Georgia, serif;
-    font-weight: 400;
-    letter-spacing: -0.025em;
-    line-height: 1.08;
-    text-wrap: balance;
-  }
+  .clearnav-site h2,
   .clearnav-site h3,
   .clearnav-site h4,
   .clearnav-site h5,
   .clearnav-site h6 {
     font-family: 'Manrope', system-ui, -apple-system, sans-serif;
     letter-spacing: -0.02em;
-  }
-  .clearnav-site h1 em,
-  .clearnav-site h2 em {
-    font-style: italic;
   }
   .clearnav-site .font-mono-figures {
     font-family: 'JetBrains Mono', 'Menlo', monospace;
