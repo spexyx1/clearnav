@@ -25,10 +25,6 @@ interface AccessGrant {
   account_id: string;
   user_id: string;
   access_level: 'full' | 'read_only' | 'send_only';
-  staff?: {
-    full_name: string;
-    email: string;
-  };
 }
 
 interface StaffMember {
@@ -140,44 +136,30 @@ export default function EmailAccountManager() {
   const loadAccessGrants = async (accountIds: string[]) => {
     const { data } = await supabase
       .from('email_account_access')
-      .select(`
-        id,
-        account_id,
-        user_id,
-        access_level,
-        staff_accounts!inner (
-          full_name,
-          email
-        )
-      `)
+      .select('id, account_id, user_id, access_level')
       .in('account_id', accountIds);
 
     if (data) {
-      const grouped: Record<string, AccessGrant[]> = {};
-      data.forEach((grant: any) => {
-        if (!grouped[grant.account_id]) grouped[grant.account_id] = [];
-        grouped[grant.account_id].push({
-          id: grant.id,
-          account_id: grant.account_id,
-          user_id: grant.user_id,
-          access_level: grant.access_level,
-          staff: grant.staff_accounts,
+      setAccessGrants((prev) => {
+        const grouped: Record<string, AccessGrant[]> = { ...prev };
+        accountIds.forEach((id) => { grouped[id] = []; });
+        (data as AccessGrant[]).forEach((grant) => {
+          grouped[grant.account_id].push(grant);
         });
+        return grouped;
       });
-      setAccessGrants(grouped);
     }
   };
 
   const loadStaff = async () => {
-    const { data } = await supabase
-      .from('staff_accounts')
-      .select('id, full_name, email, user_id')
-      .eq('tenant_id', tenantId)
-      .eq('status', 'active')
-      .order('full_name');
-
-    setStaffMembers(data || []);
+    const { data } = await supabase.rpc('get_tenant_mail_members', { p_tenant_id: tenantId });
+    const members = ((data || []) as { user_id: string; full_name: string; email: string }[])
+      .map((m) => ({ id: m.user_id, user_id: m.user_id, full_name: m.full_name || m.email, email: m.email }))
+      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+    setStaffMembers(members);
   };
+
+  const memberById = (userId: string) => staffMembers.find((s) => s.user_id === userId);
 
   const loadEmailSettings = async () => {
     const { data } = await supabase
@@ -214,22 +196,32 @@ export default function EmailAccountManager() {
   };
 
   const getEmailDomain = () => {
-    if (verifiedDomain) return verifiedDomain;
+    if (emailSettings?.from_domain) return emailSettings.from_domain;
+    if (verifiedDomain) return verifiedDomain.replace(/^www\./, '');
     return `${currentTenant?.slug || 'tenant'}.clearnav.cv`;
   };
 
   const handleCreateAccount = async () => {
     if (!createForm.email_handle || !createForm.display_name) return;
+    const handle = createForm.email_handle.toLowerCase().replace(/[^a-z0-9._+-]/g, '');
+    if (!/^[a-z0-9]([a-z0-9._+-]*[a-z0-9])?$/.test(handle)) {
+      setError('Mailbox name must start and end with a letter or number.');
+      return;
+    }
+    const emailAddress = `${handle}@${getEmailDomain()}`;
+    if (accounts.some((a) => a.email_address.toLowerCase() === emailAddress)) {
+      setError(`${emailAddress} already exists.`);
+      return;
+    }
     setSaving(true);
     try {
-      const emailAddress = `${createForm.email_handle.toLowerCase().replace(/[^a-z0-9._+-]/g, '')}@${getEmailDomain()}`;
 
       const { data: newAccount, error } = await supabase
         .from('email_accounts')
         .insert({
           tenant_id: tenantId,
           email_address: emailAddress,
-          email_handle: createForm.email_handle.toLowerCase(),
+          email_handle: handle,
           display_name: createForm.display_name,
           account_type: createForm.account_type,
           storage_quota_bytes: createForm.storage_quota_gb * BYTES_PER_GB,
@@ -240,7 +232,9 @@ export default function EmailAccountManager() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error.code === '23505' ? new Error(`${emailAddress} already exists.`) : error;
+      }
 
       if (newAccount && user) {
         await supabase.from('email_account_access').insert({
@@ -262,10 +256,14 @@ export default function EmailAccountManager() {
   };
 
   const handleToggleActive = async (account: EmailAccount) => {
-    await supabase
+    const { error } = await supabase
       .from('email_accounts')
       .update({ is_active: !account.is_active })
       .eq('id', account.id);
+    if (error) {
+      setError('Could not update this mailbox.');
+      return;
+    }
 
     setAccounts(accounts.map(a =>
       a.id === account.id ? { ...a, is_active: !a.is_active } : a
@@ -290,7 +288,7 @@ export default function EmailAccountManager() {
 
     const staffMember = staffMembers.find(s => s.id === newAccessUserId);
     if (!staffMember?.user_id) {
-      setError('Selected staff member has no user account');
+      setError('Selected team member has no login yet');
       return;
     }
 
@@ -314,7 +312,8 @@ export default function EmailAccountManager() {
   };
 
   const handleRevokeAccess = async (grantId: string, accountId: string) => {
-    await supabase.from('email_account_access').delete().eq('id', grantId);
+    const { error } = await supabase.from('email_account_access').delete().eq('id', grantId);
+    if (error) setError('Could not remove access.');
     await loadAccessGrants([accountId]);
   };
 
@@ -531,7 +530,7 @@ export default function EmailAccountManager() {
                     <span className="text-xs text-slate-500">Access:</span>
                     {grants.slice(0, 4).map(grant => (
                       <span key={grant.id} className="text-xs px-2 py-0.5 bg-slate-700 text-slate-300 rounded-full">
-                        {grant.staff?.full_name || 'User'} ({grant.access_level})
+                        {memberById(grant.user_id)?.full_name || 'User'} ({grant.access_level})
                       </span>
                     ))}
                     {grants.length > 4 && (
@@ -692,8 +691,8 @@ export default function EmailAccountManager() {
                     {(accessGrants[selectedAccount.id] || []).map(grant => (
                       <div key={grant.id} className="flex items-center justify-between px-3 py-2.5 bg-slate-800 rounded-lg">
                         <div>
-                          <span className="text-sm font-medium text-slate-200">{grant.staff?.full_name || 'Unknown'}</span>
-                          <span className="text-xs text-slate-500 ml-2">{grant.staff?.email}</span>
+                          <span className="text-sm font-medium text-slate-200">{memberById(grant.user_id)?.full_name || 'Unknown'}</span>
+                          <span className="text-xs text-slate-500 ml-2">{memberById(grant.user_id)?.email}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`text-xs px-2 py-0.5 rounded-full ${

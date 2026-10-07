@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Mail, Search, RefreshCw, Paperclip, Star,
   Inbox, Send as SentIcon, FileText, Archive, Trash2,
-  Settings, X, Pencil, ChevronDown, UserPlus
+  Settings, X, Pencil, ChevronDown, UserPlus, Maximize2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -62,11 +62,28 @@ function formatDate(dateString: string | null) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-interface EmailClientProps {
-  initialAccountId?: string;
+function addressList(addresses: any): string[] {
+  if (!Array.isArray(addresses)) return [];
+  return addresses
+    .map((a: any) => (typeof a === 'string' ? a : a?.email || a?.address || ''))
+    .filter(Boolean);
 }
 
-export default function EmailClient({ initialAccountId }: EmailClientProps = {}) {
+interface ComposeState {
+  to?: string;
+  cc?: string;
+  bcc?: string;
+  subject?: string;
+  body?: string;
+}
+
+interface EmailClientProps {
+  initialAccountId?: string;
+  fullScreen?: boolean;
+  onOpenFullScreen?: () => void;
+}
+
+export default function EmailClient({ initialAccountId, fullScreen, onOpenFullScreen }: EmailClientProps = {}) {
   const { user, isTenantAdmin, isPlatformAdmin } = useAuth();
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<EmailAccount | null>(null);
@@ -81,12 +98,9 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
   const [showAccountPicker, setShowAccountPicker] = useState(false);
 
   const [composeOpen, setComposeOpen] = useState(false);
-  const [composeData, setComposeData] = useState<{
-    to?: string;
-    cc?: string;
-    subject?: string;
-    body?: string;
-  } | undefined>(undefined);
+  const [composeData, setComposeData] = useState<ComposeState | undefined>(undefined);
+  const [composeDraftId, setComposeDraftId] = useState<string | undefined>(undefined);
+  const [composeKey, setComposeKey] = useState(0);
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
 
   const [folderCounts, setFolderCounts] = useState<Record<string, number>>({});
@@ -241,46 +255,86 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
   };
 
   const moveToFolder = async (messageId: string, folder: string) => {
-    await supabase
-      .from('email_messages')
-      .update({ folder })
-      .eq('id', messageId);
+    const { error } = currentFolder === 'trash' && folder === 'trash'
+      ? await supabase.from('email_messages').delete().eq('id', messageId)
+      : await supabase.from('email_messages').update({ folder }).eq('id', messageId);
+    if (error) {
+      setError('That action could not be completed. Please try again.');
+      return;
+    }
 
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
     if (selectedMessage?.id === messageId) setSelectedMessage(null);
     loadFolderCounts();
   };
 
-  const handleReply = (message: EmailMessage) => {
-    setComposeData({
-      to: message.from_address,
-      subject: `Re: ${message.subject.replace(/^Re:\s*/i, '')}`,
-      body: `\n\n--- Original Message ---\nFrom: ${message.from_name || message.from_address}\nDate: ${new Date(message.received_at || message.created_at).toLocaleString()}\n\n${message.body_text || ''}`,
-    });
+  const openCompose = (data?: ComposeState, draftId?: string) => {
+    setComposeData(data);
+    setComposeDraftId(draftId);
+    setComposeKey((k) => k + 1);
     setComposeOpen(true);
+  };
+
+  const quoteOriginal = (message: EmailMessage) =>
+    `\n\n--- Original Message ---\nFrom: ${message.from_name || message.from_address}\nDate: ${new Date(message.received_at || message.created_at).toLocaleString()}\n\n${message.body_text || ''}`;
+
+  const handleReply = (message: EmailMessage) => {
+    openCompose({
+      to: message.from_address,
+      subject: `Re: ${(message.subject || '').replace(/^Re:\s*/i, '')}`,
+      body: quoteOriginal(message),
+    });
+  };
+
+  const handleReplyAll = (message: EmailMessage) => {
+    const own = (selectedAccount?.email_address || '').toLowerCase();
+    const notOwn = (e: string) => e.toLowerCase() !== own;
+    const to = Array.from(new Set([message.from_address, ...addressList(message.to_addresses)])).filter(notOwn);
+    const cc = addressList(message.cc_addresses).filter(notOwn);
+    openCompose({
+      to: to.join(', '),
+      cc: cc.join(', '),
+      subject: `Re: ${(message.subject || '').replace(/^Re:\s*/i, '')}`,
+      body: quoteOriginal(message),
+    });
   };
 
   const handleForward = (message: EmailMessage) => {
-    setComposeData({
+    openCompose({
       to: '',
-      subject: `Fwd: ${message.subject.replace(/^Fwd:\s*/i, '')}`,
+      subject: `Fwd: ${(message.subject || '').replace(/^Fwd:\s*/i, '')}`,
       body: `\n\n--- Forwarded Message ---\nFrom: ${message.from_name || message.from_address}\nDate: ${new Date(message.received_at || message.created_at).toLocaleString()}\nSubject: ${message.subject}\n\n${message.body_text || ''}`,
     });
-    setComposeOpen(true);
   };
 
-  const handleCompose = () => {
+  const openDraft = (message: EmailMessage) => {
+    openCompose({
+      to: addressList(message.to_addresses).join(', '),
+      cc: addressList(message.cc_addresses).join(', '),
+      bcc: addressList((message as any).bcc_addresses).join(', '),
+      subject: message.subject || '',
+      body: message.body_text || '',
+    }, message.id);
+  };
+
+  const handleCompose = () => openCompose();
+
+  const closeCompose = () => {
+    setComposeOpen(false);
     setComposeData(undefined);
-    setComposeOpen(true);
+    setComposeDraftId(undefined);
   };
 
   const handleSent = () => {
-    setComposeOpen(false);
-    setComposeData(undefined);
+    closeCompose();
     setSendSuccess('Email sent successfully');
-    if (currentFolder === 'sent') loadMessages();
+    if (currentFolder === 'sent' || currentFolder === 'drafts') loadMessages();
     setTimeout(() => setSendSuccess(null), 3000);
   };
+
+  const handleDraftChange = useCallback(() => {
+    if (currentFolder === 'drafts') loadMessages();
+  }, [currentFolder, loadMessages]);
 
   const handleAccountCreated = () => {
     loadEmailAccounts();
@@ -298,16 +352,40 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
   }
 
   if (!loading && accounts.length === 0) {
-    return <EmailSetup onAccountCreated={handleAccountCreated} />;
+    if (error) {
+      return (
+        <div className="flex items-center justify-center h-[60vh] px-6">
+          <div className="text-center max-w-sm">
+            <Mail className="h-10 w-10 mx-auto mb-3 text-slate-600" />
+            <p className="text-sm text-red-400 mb-4">Your mailboxes could not be loaded.</p>
+            <button onClick={loadEmailAccounts} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm rounded-lg transition-colors">
+              Try again
+            </button>
+          </div>
+        </div>
+      );
+    }
+    if (isTenantAdmin || isPlatformAdmin) {
+      return <EmailSetup onAccountCreated={handleAccountCreated} />;
+    }
+    return (
+      <div className="flex items-center justify-center h-[60vh] px-6">
+        <div className="text-center max-w-sm">
+          <Mail className="h-10 w-10 mx-auto mb-3 text-slate-600" />
+          <h3 className="text-white font-semibold mb-1">No mailbox assigned yet</h3>
+          <p className="text-sm text-slate-400">Ask your administrator to give you access to a mailbox. It will appear here as soon as it is assigned.</p>
+        </div>
+      </div>
+    );
   }
 
   const unreadCount = folderCounts.inbox || 0;
 
   return (
     <>
-      <div className="h-[calc(100vh-140px)] flex flex-col bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
-        <div className="flex-shrink-0 bg-slate-800/80 border-b border-slate-700 px-5 py-3">
-          <div className="flex items-center justify-between">
+      <div className={`${fullScreen ? 'h-full' : 'h-[calc(100vh-140px)] rounded-xl border border-slate-800'} flex flex-col bg-slate-900 overflow-hidden`}>
+        <div className="flex-shrink-0 bg-slate-800/80 border-b border-slate-700 px-3 sm:px-5 py-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <button
@@ -392,15 +470,15 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="relative">
+            <div className="flex items-center gap-2 flex-1 sm:flex-none justify-end">
+              <div className="relative flex-1 sm:flex-none">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                 <input
                   type="text"
                   placeholder="Search emails..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-4 py-1.5 w-56 bg-slate-700/50 border border-slate-600/50 text-white placeholder-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all"
+                  className="pl-9 pr-4 py-1.5 w-full sm:w-56 bg-slate-700/50 border border-slate-600/50 text-white placeholder-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all"
                 />
               </div>
               <button
@@ -415,8 +493,17 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
                 className="flex items-center gap-2 px-4 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 <Pencil className="h-3.5 w-3.5" />
-                Compose
+                <span className="hidden sm:inline">Compose</span>
               </button>
+              {onOpenFullScreen && (
+                <button
+                  onClick={onOpenFullScreen}
+                  className="p-2 hover:bg-slate-700/50 rounded-lg text-slate-400 hover:text-white transition-colors"
+                  title="Open full-screen mail"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </button>
+              )}
               {(isTenantAdmin || isPlatformAdmin) && (
                 <button
                   onClick={() => setShowSettings(true)}
@@ -429,18 +516,40 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
             </div>
           </div>
 
-          {sendSuccess && (
-            <div className="mt-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-4 py-2 rounded-lg flex items-center justify-between text-sm">
-              <span>{sendSuccess}</span>
-              <button onClick={() => setSendSuccess(null)}>
+          {(sendSuccess || error) && (
+            <div className={`mt-3 px-4 py-2 rounded-lg flex items-center justify-between text-sm border ${error ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'}`}>
+              <span>{error || sendSuccess}</span>
+              <button onClick={() => { setSendSuccess(null); setError(null); }}>
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
           )}
+
+          <div className="md:hidden mt-3 -mx-1 flex gap-1 overflow-x-auto">
+            {FOLDERS.map((folder) => {
+              const Icon = folder.icon;
+              const isActive = currentFolder === folder.id;
+              return (
+                <button
+                  key={folder.id}
+                  onClick={() => { setCurrentFolder(folder.id); setSelectedMessage(null); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                    isActive ? 'bg-cyan-600/20 text-cyan-300' : 'text-slate-400 hover:bg-slate-700/50'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {folder.name}
+                  {folder.id === 'inbox' && unreadCount > 0 && (
+                    <span className="bg-cyan-500 text-white px-1.5 rounded-full">{unreadCount}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="flex-1 flex overflow-hidden">
-          <div className="w-52 flex-shrink-0 border-r border-slate-800 bg-slate-900/50 p-3 space-y-1">
+          <div className="hidden md:block w-52 flex-shrink-0 border-r border-slate-800 bg-slate-900/50 p-3 space-y-1">
             {FOLDERS.map((folder) => {
               const Icon = folder.icon;
               const count = folder.id === 'inbox' ? unreadCount : 0;
@@ -471,7 +580,7 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
             })}
           </div>
 
-          <div className="w-80 lg:w-96 flex-shrink-0 border-r border-slate-800 overflow-y-auto">
+          <div className={`${selectedMessage ? 'hidden md:block' : 'block'} w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-slate-800 overflow-y-auto`}>
             {messagesLoading && messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <RefreshCw className="h-5 w-5 animate-spin text-cyan-500" />
@@ -495,6 +604,10 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
                     <button
                       key={message.id}
                       onClick={() => {
+                        if (currentFolder === 'drafts') {
+                          openDraft(message);
+                          return;
+                        }
                         setSelectedMessage(message);
                         if (!message.is_read) markAsRead(message.id);
                       }}
@@ -514,14 +627,11 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
                                 !message.is_read ? 'font-semibold text-white' : 'text-slate-300'
                               }`}
                             >
-                              {currentFolder === 'sent'
+                              {currentFolder === 'sent' || currentFolder === 'drafts'
                                 ? (() => {
-                                    const to = message.to_addresses;
-                                    if (Array.isArray(to) && to.length > 0) {
-                                      const first = typeof to[0] === 'string' ? to[0] : to[0]?.email || '';
-                                      return `To: ${first}`;
-                                    }
-                                    return 'To: (unknown)';
+                                    const first = addressList(message.to_addresses)[0];
+                                    if (currentFolder === 'drafts') return first ? `Draft to ${first}` : 'Draft';
+                                    return first ? `To: ${first}` : 'To: (unknown)';
                                   })()
                                 : message.from_name || message.from_address}
                             </span>
@@ -568,15 +678,17 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
             )}
           </div>
 
-          <div className="flex-1 overflow-hidden bg-slate-900">
+          <div className={`${selectedMessage ? 'block' : 'hidden md:block'} flex-1 overflow-hidden bg-slate-900`}>
             {selectedMessage ? (
               <MessageView
                 message={selectedMessage}
                 onReply={() => handleReply(selectedMessage)}
+                onReplyAll={() => handleReplyAll(selectedMessage)}
                 onForward={() => handleForward(selectedMessage)}
                 onArchive={() => moveToFolder(selectedMessage.id, 'archive')}
                 onDelete={() => moveToFolder(selectedMessage.id, 'trash')}
                 onToggleStar={() => toggleStar(selectedMessage)}
+                onBack={() => setSelectedMessage(null)}
               />
             ) : (
               <div className="flex items-center justify-center h-full">
@@ -592,14 +704,14 @@ export default function EmailClient({ initialAccountId }: EmailClientProps = {})
 
       {composeOpen && selectedAccount && (
         <EmailCompose
+          key={composeKey}
           accounts={accounts}
           selectedAccountId={selectedAccount.id}
           initialData={composeData}
-          onClose={() => {
-            setComposeOpen(false);
-            setComposeData(undefined);
-          }}
+          draftId={composeDraftId}
+          onClose={closeCompose}
           onSent={handleSent}
+          onDraftChange={handleDraftChange}
         />
       )}
 

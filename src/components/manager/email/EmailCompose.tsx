@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Send, X, RefreshCw, Minus, Maximize2, Paperclip, FileText, ChevronDown } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, X, RefreshCw, Minus, Maximize2, Paperclip, FileText, ChevronDown, Trash2, Check } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import {
   buildTenantWelcomeEmailHtml,
@@ -35,8 +35,14 @@ interface EmailComposeProps {
   initialData?: Partial<ComposeData>;
   initialHtml?: string;
   initialAttachments?: AttachedFile[];
+  draftId?: string;
   onClose: () => void;
   onSent: () => void;
+  onDraftChange?: () => void;
+}
+
+function toAddressList(value: string) {
+  return value.split(',').map((e) => e.trim()).filter(Boolean).map((email) => ({ email, name: '' }));
 }
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -57,8 +63,10 @@ export default function EmailCompose({
   initialData,
   initialHtml,
   initialAttachments,
+  draftId,
   onClose,
   onSent,
+  onDraftChange,
 }: EmailComposeProps) {
   const [fromAccountId, setFromAccountId] = useState(selectedAccountId);
   const [form, setForm] = useState<ComposeData>({
@@ -78,8 +86,80 @@ export default function EmailCompose({
   const [showTemplates, setShowTemplates] = useState(false);
   const [composedHtml, setComposedHtml] = useState<string | null>(initialHtml || null);
 
+  const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>(draftId ? 'saved' : 'idle');
+  const draftIdRef = useRef<string | null>(draftId ?? null);
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const dirtyRef = useRef(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fromAccount = accounts.find((a) => a.id === fromAccountId);
+
+  const hasContent = !!(form.to.trim() || form.cc.trim() || form.bcc.trim() || form.subject.trim() || form.body.trim());
+
+  const saveDraft = useCallback(() => {
+    const account = accounts.find((a) => a.id === fromAccountId);
+    if (!account) return saveChainRef.current;
+    const payload = {
+      account_id: account.id,
+      from_address: account.email_address,
+      from_name: account.display_name,
+      to_addresses: toAddressList(form.to),
+      cc_addresses: toAddressList(form.cc),
+      bcc_addresses: toAddressList(form.bcc),
+      subject: form.subject,
+      body_text: form.body,
+      body_html: composedHtml,
+      folder: 'drafts',
+      is_draft: true,
+      is_read: true,
+    };
+    saveChainRef.current = saveChainRef.current.then(async () => {
+      setDraftStatus('saving');
+      if (draftIdRef.current) {
+        const { error } = await supabase.from('email_messages').update(payload).eq('id', draftIdRef.current);
+        setDraftStatus(error ? 'error' : 'saved');
+      } else {
+        const { data, error } = await supabase.from('email_messages').insert(payload).select('id').maybeSingle();
+        if (error || !data) {
+          setDraftStatus('error');
+          return;
+        }
+        draftIdRef.current = data.id;
+        setDraftStatus('saved');
+      }
+      onDraftChange?.();
+    });
+    return saveChainRef.current;
+  }, [accounts, fromAccountId, form, composedHtml, onDraftChange]);
+
+  useEffect(() => {
+    if (!dirtyRef.current) {
+      dirtyRef.current = true;
+      return;
+    }
+    if (!hasContent && !draftIdRef.current) return;
+    const timeout = setTimeout(() => { saveDraft(); }, 1500);
+    return () => clearTimeout(timeout);
+  }, [form, fromAccountId]);
+
+  const deleteDraft = async () => {
+    await saveChainRef.current;
+    if (draftIdRef.current) {
+      await supabase.from('email_messages').delete().eq('id', draftIdRef.current);
+      draftIdRef.current = null;
+      onDraftChange?.();
+    }
+  };
+
+  const handleClose = async () => {
+    if (hasContent) await saveDraft();
+    onClose();
+  };
+
+  const handleDiscard = async () => {
+    await deleteDraft();
+    onClose();
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAttachError(null);
@@ -172,6 +252,7 @@ export default function EmailCompose({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to send');
 
+      await deleteDraft();
       onSent();
     } catch (err: any) {
       setError(err.message || 'Failed to send email');
@@ -182,7 +263,7 @@ export default function EmailCompose({
 
   if (minimized) {
     return (
-      <div className="fixed bottom-0 right-6 z-40 w-72 bg-slate-800 border border-slate-700 border-b-0 rounded-t-lg shadow-2xl">
+      <div className="fixed bottom-0 right-2 sm:right-6 z-40 w-72 bg-slate-800 border border-slate-700 border-b-0 rounded-t-lg shadow-2xl">
         <button
           onClick={() => setMinimized(false)}
           className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700 transition-colors rounded-t-lg"
@@ -197,15 +278,15 @@ export default function EmailCompose({
   }
 
   return (
-    <div className="fixed bottom-0 right-6 z-40 w-[580px] bg-slate-900 border border-slate-700 border-b-0 rounded-t-xl shadow-2xl flex flex-col" style={{ maxHeight: '80vh' }}>
+    <div className="fixed bottom-0 inset-x-0 sm:inset-x-auto sm:right-6 z-40 w-full sm:w-[580px] bg-slate-900 border border-slate-700 border-b-0 rounded-t-xl shadow-2xl flex flex-col" style={{ maxHeight: '85vh' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-slate-800 rounded-t-xl border-b border-slate-700 flex-shrink-0">
-        <span className="text-sm font-semibold text-white">New Message</span>
+        <span className="text-sm font-semibold text-white">{draftId ? 'Edit Draft' : 'New Message'}</span>
         <div className="flex items-center gap-1">
           <button onClick={() => setMinimized(true)} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors">
             <Minus className="h-3.5 w-3.5" />
           </button>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors">
+          <button onClick={handleClose} title="Save draft and close" className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -369,11 +450,21 @@ export default function EmailCompose({
           </div>
         </div>
 
-        {fromAccount && (
-          <span className="text-xs text-slate-500 truncate max-w-[180px]">
-            from {fromAccount.email_address}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs text-slate-500 truncate hidden sm:flex items-center gap-1">
+            {draftStatus === 'saving' && 'Saving draft...'}
+            {draftStatus === 'saved' && (<><Check className="h-3 w-3 text-emerald-400" />Draft saved</>)}
+            {draftStatus === 'error' && <span className="text-red-400">Draft not saved</span>}
+            {draftStatus === 'idle' && fromAccount && `from ${fromAccount.email_address}`}
           </span>
-        )}
+          <button
+            onClick={handleDiscard}
+            className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
+            title="Discard"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

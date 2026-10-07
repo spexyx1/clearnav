@@ -48,6 +48,7 @@ const InvestorVault = lazyWithReload(() => import('./components/InvestorVault'))
 const InvestorReport = lazyWithReload(() => import('./components/InvestorReport'));
 const InvestorApplicationForm = lazyWithReload(() => import('./components/vault/InvestorApplicationForm'));
 const InvoicePublicView = lazyWithReload(() => import('./components/manager/invoicing/InvoicePublicView'));
+const MailApp = lazyWithReload(() => import('./components/mail/MailApp'));
 
 function AppContent() {
   const { user, loading, roleCategory, currentTenant } = useAuth();
@@ -158,6 +159,16 @@ function AppContent() {
     );
   }
 
+  if (route === 'mail') {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<Fallback />}>
+          <MailApp onExit={() => navigate('/')} />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
   if (route === 'vault') {
     return (
       <ErrorBoundary>
@@ -265,7 +276,7 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const tenantParam = params.get('tenant');
     const path = window.location.pathname;
-    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/vault', '/vault/report', '/vault/apply', '/investor-signup'];
+    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/vault', '/vault/report', '/vault/apply', '/investor-signup', '/mail'];
 
     if (!specialPaths.includes(path) && !path.startsWith('/invoice/') && !path.startsWith('/phone') && !tenantParam) {      const defaultTenant = import.meta.env.VITE_DEFAULT_DEV_TENANT || 'arkline';
       window.location.replace(

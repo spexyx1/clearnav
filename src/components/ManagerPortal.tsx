@@ -176,7 +176,14 @@ export default function ManagerPortal() {
                 {activeTab === 'clients' && <ClientManager />}
                 {activeTab === 'communications' && <Communications />}
                 {activeTab === 'newsletters' && <NewsletterManager />}
-                {activeTab === 'email' && <EmailClient />}
+                {activeTab === 'email' && (
+                  <EmailClient
+                    onOpenFullScreen={() => {
+                      window.history.pushState({}, '', '/mail');
+                      window.dispatchEvent(new PopStateEvent('popstate'));
+                    }}
+                  />
+                )}
                 {activeTab === 'community' && <CommunityHub />}
                 {activeTab === 'whitelabel' && <WhiteLabelManager />}
                 {activeTab === 'ai_agents' && <AIAgentManagement />}
