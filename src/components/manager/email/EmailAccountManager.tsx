@@ -75,6 +75,7 @@ export default function EmailAccountManager() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<EmailAccount | null>(null);
   const [saving, setSaving] = useState(false);
+  const [inboundState, setInboundState] = useState<{ busy: boolean; message: string | null; ok: boolean }>({ busy: false, message: null, ok: false });
 
   const [createForm, setCreateForm] = useState<CreateAccountForm>({
     email_handle: '',
@@ -367,6 +368,29 @@ export default function EmailAccountManager() {
 
   const emailDomain = getEmailDomain();
 
+  const connectInbound = async () => {
+    setInboundState({ busy: true, message: null, ok: false });
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('resend-inbound-setup', { body: {} });
+      if (fnError || !data || data.error) {
+        let msg = data?.error as string | undefined;
+        if (!msg && fnError && 'context' in fnError) {
+          try { msg = (await (fnError as { context: Response }).context.json())?.error; } catch { /* ignore */ }
+        }
+        setInboundState({ busy: false, ok: false, message: msg || 'Could not connect incoming mail. Please try again.' });
+        return;
+      }
+      const labels: Record<string, string> = {
+        created: 'Incoming mail connected. New emails will now arrive in your inboxes.',
+        updated: 'Incoming mail connection repaired and active.',
+        already_connected: 'Incoming mail is already connected and active.',
+      };
+      setInboundState({ busy: false, ok: true, message: labels[data.status] || 'Incoming mail connected.' });
+    } catch {
+      setInboundState({ busy: false, ok: false, message: 'Could not reach the server. Please try again.' });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -417,6 +441,28 @@ export default function EmailAccountManager() {
               ? `Email provider active: ${emailSettings.provider_type === 'resend' ? 'Resend' : 'SendGrid'}`
               : 'Email provider not configured — emails will be stored locally only'}
           </span>
+          {emailSettings.is_active && emailSettings.provider_type === 'resend' && (
+            <button
+              onClick={connectInbound}
+              disabled={inboundState.busy}
+              className="ml-auto flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-green-600/20 hover:bg-green-600/30 text-green-200 rounded-md border border-green-500/40 transition-colors disabled:opacity-60 whitespace-nowrap"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${inboundState.busy ? 'animate-spin' : ''}`} />
+              {inboundState.busy ? 'Connecting...' : 'Connect incoming mail'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {inboundState.message && (
+        <div className={`px-4 py-3 rounded-lg border flex items-center gap-3 text-sm ${
+          inboundState.ok
+            ? 'bg-green-500/10 border-green-500/30 text-green-300'
+            : 'bg-red-500/10 border-red-500/30 text-red-300'
+        }`}>
+          {inboundState.ok ? <Check className="h-4 w-4 flex-shrink-0" /> : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
+          <span>{inboundState.message}</span>
+          <button className="ml-auto" onClick={() => setInboundState(s => ({ ...s, message: null }))}><X className="h-4 w-4" /></button>
         </div>
       )}
 

@@ -89,3 +89,7 @@ enabled = true
 [functions.resend-inbound]
 enabled = true
 verify_jwt = false
+
+[functions.resend-inbound-setup]
+enabled = true
+verify_jwt = false

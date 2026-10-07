@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Landmark, LogOut, LayoutDashboard, RefreshCw, ShieldAlert } from 'lucide-react';
+import { KeyRound, Landmark, LogOut, LayoutDashboard, RefreshCw, ShieldAlert } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import EmailClient from '../manager/EmailClient';
@@ -41,7 +41,7 @@ export default function MailApp({ onExit }: MailAppProps) {
   if (loading || roleChecking) return <FullPageSpinner />;
 
   if (!user || recovery) {
-    return <MailSignIn recovery={recovery} onPasswordUpdated={() => setRecovery(false)} />;
+    return <MailSignIn recovery={recovery} onPasswordUpdated={() => setRecovery(false)} onCancel={user ? () => setRecovery(false) : undefined} />;
   }
 
   if (!roleCategory || !STAFF_ROLES.includes(roleCategory)) {
@@ -89,6 +89,14 @@ export default function MailApp({ onExit }: MailAppProps) {
           >
             <LayoutDashboard className="h-4 w-4" />
             <span className="hidden sm:inline">Staff portal</span>
+          </button>
+          <button
+            onClick={() => setRecovery(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            title="Change password"
+          >
+            <KeyRound className="h-4 w-4" />
+            <span className="hidden md:inline">Password</span>
           </button>
           <button
             onClick={signOut}

@@ -8,12 +8,13 @@ type Mode = 'signin' | 'forgot' | 'reset';
 interface MailSignInProps {
   recovery?: boolean;
   onPasswordUpdated?: () => void;
+  onCancel?: () => void;
 }
 
 const inputClass =
   'w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all';
 
-export default function MailSignIn({ recovery, onPasswordUpdated }: MailSignInProps) {
+export default function MailSignIn({ recovery, onPasswordUpdated, onCancel }: MailSignInProps) {
   const { signIn } = useAuth();
   const [mode, setMode] = useState<Mode>(recovery ? 'reset' : 'signin');
   const [email, setEmail] = useState('');
@@ -224,6 +225,16 @@ export default function MailSignIn({ recovery, onPasswordUpdated }: MailSignInPr
               )}
             </button>
           </form>
+
+          {mode === 'reset' && onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="mt-4 w-full text-center text-sm text-slate-400 hover:text-white transition-colors"
+            >
+              Cancel and return to mail
+            </button>
+          )}
 
           <p className="mt-8 text-xs text-slate-500 leading-relaxed">
             Don't have a login? Ask your Arkline Trust administrator to invite you from the staff area.
