@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { KeyRound, Landmark, LogOut, LayoutDashboard, RefreshCw, ShieldAlert } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import EmailClient from '../manager/EmailClient';
 import MailSignIn from './MailSignIn';
@@ -26,10 +25,6 @@ export default function MailApp({ onExit }: MailAppProps) {
 
   useEffect(() => {
     document.title = 'Mail | Arkline Trust';
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
-    });
-    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {

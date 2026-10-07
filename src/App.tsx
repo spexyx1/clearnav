@@ -49,6 +49,7 @@ const InvestorReport = lazyWithReload(() => import('./components/InvestorReport'
 const InvestorApplicationForm = lazyWithReload(() => import('./components/vault/InvestorApplicationForm'));
 const InvoicePublicView = lazyWithReload(() => import('./components/manager/invoicing/InvoicePublicView'));
 const MailApp = lazyWithReload(() => import('./components/mail/MailApp'));
+const ResetPassword = lazyWithReload(() => import('./components/ResetPassword'));
 
 function AppContent() {
   const { user, loading, roleCategory, currentTenant } = useAuth();
@@ -164,6 +165,16 @@ function AppContent() {
       <ErrorBoundary>
         <Suspense fallback={<Fallback />}>
           <MailApp onExit={() => navigate('/')} />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  if (route === 'reset-password') {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<Fallback />}>
+          <ResetPassword />
         </Suspense>
       </ErrorBoundary>
     );

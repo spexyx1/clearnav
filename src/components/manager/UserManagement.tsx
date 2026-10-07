@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { UserPlus, Mail, X, Search, Shield, User, Clock, Check, Ban, CreditCard as Edit2, Trash2, DollarSign, Copy, Link, AlertCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { getAuthRedirectUrl } from '../../lib/authRedirect';
 
 interface Invitation {
   id: string;
@@ -327,7 +328,7 @@ export default function UserManagement() {
       password,
       options: {
         data: { full_name: clientForm.full_name },
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: getAuthRedirectUrl('/?login=1'),
       },
     });
 

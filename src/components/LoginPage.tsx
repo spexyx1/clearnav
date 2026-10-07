@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Mail, Lock, AlertCircle, Loader2, UserPlus, LogIn } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
+import { getAuthRedirectUrl } from '../lib/authRedirect';
 
 interface LoginPageProps {
   onBack: () => void;
@@ -32,6 +33,8 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
   const [tenantSettings, setTenantSettings] = useState<any>(null);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [forgot, setForgot] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const isClearNavLogin = !tenantId;
   const defaults = isClearNavLogin ? CLEARNAV_DEFAULTS : TENANT_DEFAULTS;
@@ -63,6 +66,21 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
     e.preventDefault();
     setLoading(true);
     setError('');
+    setNotice('');
+
+    if (forgot) {
+      try {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: getAuthRedirectUrl('/?login=1'),
+        });
+        if (resetError) setError('Could not send the reset email. Please try again.');
+        else setNotice('If that address has an account, a reset link is on its way.');
+      } catch {
+        setError('Network error. Check your connection and try again.');
+      }
+      setLoading(false);
+      return;
+    }
 
     const { error: signInError } = await signIn(email, password);
     setLoading(false);
@@ -121,7 +139,7 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
               {isClearNavLogin ? 'Platform Login' : 'Investor Portal'}
             </h2>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              Sign in to access your account
+              {forgot ? "Enter your email and we'll send you a reset link" : 'Sign in to access your account'}
             </p>
           </div>
 
@@ -155,10 +173,21 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
               </div>
             </div>
 
+            {!forgot && (
             <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label htmlFor="password" className="block text-sm font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { setForgot(true); setError(''); setNotice(''); }}
+                  className="text-xs font-medium transition-opacity hover:opacity-80"
+                  style={{ color: accentColor }}
+                >
+                  Forgot password?
+                </button>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <Lock className="w-5 h-5 transition-all duration-200" style={{
@@ -183,6 +212,7 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
                 />
               </div>
             </div>
+            )}
 
             {error && (
               <div className="flex items-start space-x-3 p-4 rounded-xl" style={{
@@ -191,6 +221,16 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
               }}>
                 <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
                 <p className="text-sm font-medium" style={{ color: '#ef4444' }}>{error}</p>
+              </div>
+            )}
+
+            {notice && (
+              <div className="p-4 rounded-xl text-sm font-medium" style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                color: '#34d399',
+              }}>
+                {notice}
               </div>
             )}
 
@@ -208,16 +248,27 @@ export default function LoginPage({ onBack, onSignup, tenantId }: LoginPageProps
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Signing In...</span>
+                    <span>{forgot ? 'Sending...' : 'Signing In...'}</span>
                   </>
                 ) : (
                   <>
-                    <LogIn className="w-5 h-5" />
-                    <span>Sign In</span>
+                    {forgot ? <Mail className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
+                    <span>{forgot ? 'Send Reset Link' : 'Sign In'}</span>
                   </>
                 )}
               </span>
             </button>
+
+            {forgot && (
+              <button
+                type="button"
+                onClick={() => { setForgot(false); setError(''); setNotice(''); }}
+                className="w-full text-sm transition-colors hover:text-white"
+                style={{ color: 'rgba(255,255,255,0.5)' }}
+              >
+                Back to sign in
+              </button>
+            )}
           </form>
 
           {/* Create Account section */}

@@ -2,6 +2,7 @@ import { useState, FormEvent } from 'react';
 import { Landmark, Mail, Lock, ArrowRight, RefreshCw, ArrowLeft, ShieldCheck, Inbox, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { getAuthRedirectUrl } from '../../lib/authRedirect';
 
 type Mode = 'signin' | 'forgot' | 'reset';
 
@@ -43,7 +44,7 @@ export default function MailSignIn({ recovery, onPasswordUpdated, onCancel }: Ma
         }
       } else if (mode === 'forgot') {
         const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: `${window.location.origin}/mail`,
+          redirectTo: getAuthRedirectUrl('/mail'),
         });
         if (error) setError('Could not send the reset email. Please try again.');
         else setNotice('If that address belongs to a staff account, a reset link is on its way.');
