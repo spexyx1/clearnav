@@ -323,6 +323,26 @@
         });
         obs.observe(root, { childList: true });
       }
+
+      // If the app crashes before it can render anything, show a reload prompt instead of a blank screen
+      (function () {
+        function showStartupError() {
+          var r = document.getElementById('root');
+          if (!r || r.childElementCount > 0 || document.getElementById('startup-error')) return;
+          if (shell) shell.style.display = 'none';
+          var box = document.createElement('div');
+          box.id = 'startup-error';
+          box.setAttribute('style', 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#F9FAFB;font-family:Inter,system-ui,sans-serif;padding:24px;z-index:9999');
+          box.innerHTML = '<div style="max-width:360px;text-align:center;background:#fff;border:1px solid #E5E7EB;border-radius:16px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,.06)">' +
+            '<h1 style="margin:0 0 8px;font-size:18px;font-weight:600;color:#111827">Something went wrong</h1>' +
+            '<p style="margin:0 0 24px;font-size:14px;line-height:1.5;color:#6B7280">The page could not load. Please reload to try again.</p>' +
+            '<button id="startup-reload" style="background:#2563EB;color:#fff;border:0;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:500;cursor:pointer">Reload</button></div>';
+          document.body.appendChild(box);
+          document.getElementById('startup-reload').onclick = function () { location.reload(); };
+        }
+        window.addEventListener('error', function () { setTimeout(showStartupError, 1500); });
+        window.addEventListener('unhandledrejection', function () { setTimeout(showStartupError, 1500); });
+      })();
     </script>
 
     <script type="module" src="/src/main.tsx"></script>
