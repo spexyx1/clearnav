@@ -100,23 +100,23 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
     setActivityLoading(false);
   }
 
-  async function recordPayment() {
-    if (!invoice || !payment.amount || payment.amount <= 0) return;
-    const cappedAmount = Math.min(payment.amount, invoice.balance_due);
-    if (cappedAmount <= 0) return;
+  async function savePayment(entry: typeof payment): Promise<boolean> {
+    if (!invoice || !entry.amount || entry.amount <= 0) return false;
+    const cappedAmount = Math.min(entry.amount, invoice.balance_due);
+    if (cappedAmount <= 0) return false;
     const { error } = await supabase.from('invoice_payments').insert({
       invoice_id: invoice.id,
       amount: cappedAmount,
       currency: invoice.currency,
-      payment_date: payment.payment_date,
-      method: payment.method,
-      reference: payment.reference || null,
-      notes: payment.notes || null,
+      payment_date: entry.payment_date,
+      method: entry.method,
+      reference: entry.reference || null,
+      notes: entry.notes || null,
       recorded_by: userId,
     });
     if (error) {
       setPaymentError(error.message || 'Could not record payment. Please try again.');
-      return;
+      return false;
     }
     setPaymentError(null);
 
@@ -130,12 +130,34 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
       invoice_id: invoice.id,
       actor_id: userId,
       action: 'payment_recorded',
-      metadata: { amount: cappedAmount, method: payment.method },
+      metadata: { amount: cappedAmount, method: entry.method },
     });
 
-    if (updated) setInvoice(updated as Invoice);
-    setShowPaymentForm(false);
+    if (updated) {
+      setInvoice(updated as Invoice);
+      setPayment(p => ({ ...p, amount: (updated as Invoice).balance_due }));
+    }
     await loadPaymentsAndActivity(invoice.id);
+    return true;
+  }
+
+  async function recordPayment() {
+    if (await savePayment(payment)) setShowPaymentForm(false);
+  }
+
+  const [markingPaid, setMarkingPaid] = useState(false);
+
+  async function markAsPaid() {
+    if (!invoice || invoice.balance_due <= 0) return;
+    setMarkingPaid(true);
+    await savePayment({
+      amount: invoice.balance_due,
+      method: 'manual',
+      payment_date: new Date().toISOString().slice(0, 10),
+      reference: '',
+      notes: 'Marked as paid',
+    });
+    setMarkingPaid(false);
   }
 
   const [sendError, setSendError] = useState<string | null>(null);
@@ -291,9 +313,19 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {!isVoid && !isPaid && invoice.balance_due > 0 && (
+            <button
+              onClick={markAsPaid}
+              disabled={markingPaid}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors shadow-sm disabled:opacity-60"
+            >
+              {markingPaid ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              Mark as Paid
+            </button>
+          )}
           {!isVoid && !isPaid && (
             <button
-              onClick={() => setShowPaymentForm(true)}
+              onClick={() => { setPaymentError(null); setShowPaymentForm(true); }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm transition-colors border border-emerald-200"
             >
               <DollarSign className="w-4 h-4" />
@@ -379,6 +411,13 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
       )}
 
       {/* Send error banner */}
+      {paymentError && !showPaymentForm && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+          <DollarSign className="w-5 h-5 text-red-600 shrink-0" />
+          <span className="text-sm text-red-700">{paymentError}</span>
+          <button onClick={() => setPaymentError(null)} className="ml-auto text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
+        </div>
+      )}
       {sendError && (
         <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
           <Mail className="w-5 h-5 text-red-600 shrink-0" />

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Plus, Search, Filter, Download, RefreshCw, Receipt,
   ChevronDown, X, ArrowUpDown, Loader2, AlertCircle,
-  DollarSign, ChevronLeft, ChevronRight, Calendar,
+  DollarSign, ChevronLeft, ChevronRight, Calendar, CheckCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Invoice, InvoiceSettings, InvoiceStatus, formatCurrency } from '../manager/invoicing/types';
@@ -211,37 +211,49 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
     URL.revokeObjectURL(url);
   }
 
+  async function savePayment(inv: Invoice, form: typeof paymentForm): Promise<boolean> {
+    const cappedAmount = Math.min(form.amount, inv.balance_due);
+    if (cappedAmount <= 0) return false;
+    const { error: payErr } = await supabase.from('invoice_payments').insert({
+      invoice_id: inv.id,
+      amount: cappedAmount,
+      currency: inv.currency,
+      payment_date: form.payment_date,
+      method: form.method,
+      reference: form.reference || null,
+      notes: form.notes || null,
+      recorded_by: userId,
+    });
+    if (payErr) {
+      setError(payErr.message || 'Could not record payment. Please try again.');
+      return false;
+    }
+    await supabase.from('invoice_activity').insert({
+      invoice_id: inv.id,
+      actor_id: userId,
+      action: 'payment_recorded',
+      metadata: { amount: cappedAmount, method: form.method },
+    });
+    load();
+    return true;
+  }
+
   async function handleRecordPayment() {
     if (!recordPaymentId || !paymentForm.amount) return;
     const inv = invoices.find(i => i.id === recordPaymentId);
     if (!inv) return;
-    const cappedAmount = Math.min(paymentForm.amount, inv.balance_due);
-    if (cappedAmount <= 0) return;
     setPaymentSaving(true);
-    const { error: payErr } = await supabase.from('invoice_payments').insert({
-      invoice_id: recordPaymentId,
-      amount: cappedAmount,
-      currency: inv.currency,
-      payment_date: paymentForm.payment_date,
-      method: paymentForm.method,
-      reference: paymentForm.reference || null,
-      notes: paymentForm.notes || null,
-      recorded_by: userId,
-    });
-    if (payErr) {
-      setPaymentSaving(false);
-      setError(payErr.message || 'Could not record payment. Please try again.');
-      return;
-    }
-    await supabase.from('invoice_activity').insert({
-      invoice_id: recordPaymentId,
-      actor_id: userId,
-      action: 'payment_recorded',
-      metadata: { amount: cappedAmount, method: paymentForm.method },
-    });
-    setRecordPaymentId(null);
+    const ok = await savePayment(inv, paymentForm);
     setPaymentSaving(false);
-    load();
+    if (ok) setRecordPaymentId(null);
+  }
+
+  const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
+
+  async function handleMarkPaid(inv: Invoice) {
+    setMarkingPaidId(inv.id);
+    await savePayment(inv, { amount: inv.balance_due, method: 'manual', payment_date: new Date().toISOString().slice(0, 10), reference: '', notes: 'Marked as paid' });
+    setMarkingPaidId(null);
   }
 
   const recordPaymentInv = recordPaymentId ? invoices.find(i => i.id === recordPaymentId) : null;
@@ -423,6 +435,16 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
                             title="Record Payment"
                           >
                             <DollarSign className="w-4 h-4" />
+                          </button>
+                        )}
+                        {!['paid', 'void'].includes(inv.status) && inv.balance_due > 0 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleMarkPaid(inv); }}
+                            disabled={markingPaidId === inv.id}
+                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Mark as Paid"
+                          >
+                            {markingPaidId === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                           </button>
                         )}
                       </div>

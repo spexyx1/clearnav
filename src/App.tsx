@@ -23,14 +23,20 @@ function lazyWithReload<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
 ) {
   return lazy(() =>
-    factory().catch(() => {
-      if (!sessionStorage.getItem('chunk_reload')) {
-        sessionStorage.setItem('chunk_reload', '1');
-        window.location.reload();
-      }
-      // Return a no-op component while the reload happens
-      return { default: (() => null) as unknown as T };
-    })
+    factory()
+      .then((mod) => {
+        sessionStorage.removeItem('chunk_reload');
+        return mod;
+      })
+      .catch((err) => {
+        if (!sessionStorage.getItem('chunk_reload')) {
+          sessionStorage.setItem('chunk_reload', '1');
+          window.location.reload();
+          return { default: (() => null) as unknown as T };
+        }
+        // Already reloaded once — surface the failure instead of rendering a blank screen
+        throw err;
+      })
   );
 }
 
