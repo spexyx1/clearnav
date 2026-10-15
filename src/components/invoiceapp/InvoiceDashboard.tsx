@@ -119,7 +119,7 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
       const overdueIds: string[] = [];
       for (const inv of allInvoices) {
         if (
-          ['sent', 'viewed', 'partial'].includes(inv.status) &&
+          ['sent', 'viewed'].includes(inv.status) &&
           inv.due_date &&
           inv.due_date < today
         ) {
@@ -230,17 +230,9 @@ export default function InvoiceDashboard({ userId, onNewInvoice, onOpenInvoice }
     });
     if (payErr) {
       setPaymentSaving(false);
+      setError(payErr.message || 'Could not record payment. Please try again.');
       return;
     }
-    const newPaid = inv.amount_paid + cappedAmount;
-    const newBalanceDue = Math.max(inv.total - newPaid, 0);
-    const newStatus = newBalanceDue <= 0 ? 'paid' : 'partial';
-    await supabase.from('invoices').update({
-      amount_paid: newPaid,
-      balance_due: newBalanceDue,
-      status: newStatus,
-      paid_at: newStatus === 'paid' ? new Date().toISOString() : null,
-    }).eq('id', recordPaymentId);
     await supabase.from('invoice_activity').insert({
       invoice_id: recordPaymentId,
       actor_id: userId,

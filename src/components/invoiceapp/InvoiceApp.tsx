@@ -19,6 +19,12 @@ const InvoiceAuth = lazy(() => import('./InvoiceAuth'));
 const InvoiceOnboarding = lazy(() => import('./InvoiceOnboarding'));
 
 const SIGNED_OUT_KEY = 'invoice_app_signed_out';
+const GUEST_EMAIL_DOMAIN = '@guest.clearnav.cv';
+const LOAD_TIMEOUT_MS = 10000;
+
+function InvoiceLoader() {
+  return <FullPageLoader background="#F9FAFB" />;
+}
 
 type AppView =
   | 'dashboard'
@@ -356,18 +362,44 @@ function InvoiceAppContainer() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const loadProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase
+  const loadProfile = useCallback(async (userId: string, email?: string) => {
+    const { data, error } = await supabase
       .from('invoice_app_profiles')
       .select('*')
       .eq('user_id', userId)
       .maybeSingle();
-    setProfile(data as InvoiceAppProfile | null);
+    if (error) {
+      setProvisionError('Could not load your account. Please try again.');
+      return;
+    }
+    if (data) {
+      setProfile(data as InvoiceAppProfile);
+      return;
+    }
+
+    const isGuest = !!email?.endsWith(GUEST_EMAIL_DOMAIN);
+    const name = email?.split('@')[0] || 'account';
+    const { data: created, error: createErr } = await supabase
+      .from('invoice_app_profiles')
+      .insert({
+        user_id: userId,
+        username: name,
+        display_name: name,
+        is_guest: isGuest,
+        onboarding_complete: isGuest,
+      })
+      .select()
+      .maybeSingle();
+    if (createErr || !created) {
+      setProvisionError('Could not set up your account. Please try again.');
+      return;
+    }
+    setProfile(created as InvoiceAppProfile);
   }, []);
 
   useEffect(() => {
     if (session?.user) {
-      loadProfile(session.user.id);
+      loadProfile(session.user.id, session.user.email);
     } else if (session === null && localStorage.getItem(SIGNED_OUT_KEY) === '1') {
       setProfile(null);
       setSignedOut(true);
@@ -436,9 +468,23 @@ function InvoiceAppContainer() {
     autoSignIn();
   }
 
+  const stillLoading = !provisionError && !(session === null && signedOut) && (session === undefined || session === null || !profile);
+
+  useEffect(() => {
+    if (!stillLoading) return;
+    const t = setTimeout(() => {
+      setProvisionError('This is taking longer than expected. Please try again.');
+    }, LOAD_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [stillLoading]);
+
   function retry() {
-    provisioning.current = true;
     setProvisionError(null);
+    if (session?.user) {
+      loadProfile(session.user.id, session.user.email);
+      return;
+    }
+    provisioning.current = true;
     autoSignIn();
   }
 
@@ -472,7 +518,7 @@ function InvoiceAppContainer() {
   }
 
   if (session === undefined || session === null || !profile) {
-    return <FullPageLoader />;
+    return <InvoiceLoader />;
   }
 
   if (!profile.onboarding_complete && !profile.is_guest && !onboardingDismissed) {
@@ -482,7 +528,7 @@ function InvoiceAppContainer() {
           userId={session.user.id}
           onComplete={() => {
             setOnboardingDismissed(true);
-            loadProfile(session.user.id);
+            loadProfile(session.user.id, session.user.email);
           }}
         />
       </Suspense>

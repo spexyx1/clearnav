@@ -87,12 +87,13 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, tenan
   }
 
   async function recordPayment() {
-    if (!payment.amount || payment.amount <= 0) return;
+    const amount = Math.min(payment.amount, invoice.balance_due);
+    if (!amount || amount <= 0) return;
     const { error } = await supabase
       .from('invoice_payments')
       .insert({
         invoice_id: invoice.id,
-        amount: payment.amount,
+        amount,
         currency: invoice.currency,
         payment_date: payment.payment_date,
         method: payment.method,
@@ -104,24 +105,17 @@ export default function InvoiceDetail({ invoice: initialInvoice, settings, tenan
       .single();
     if (error) return;
 
-    const newPaid = invoice.amount_paid + payment.amount;
-    const newStatus = newPaid >= invoice.total ? 'paid' : 'partial';
     const { data: updated } = await supabase
       .from('invoices')
-      .update({
-        amount_paid: newPaid,
-        status: newStatus,
-        paid_at: newStatus === 'paid' ? new Date().toISOString() : null,
-      })
+      .select('*')
       .eq('id', invoice.id)
-      .select()
-      .single();
+      .maybeSingle();
 
     await supabase.from('invoice_activity').insert({
       invoice_id: invoice.id,
       actor_id: user?.id ?? null,
       action: 'payment_recorded',
-      metadata: { amount: payment.amount, method: payment.method },
+      metadata: { amount, method: payment.method },
     });
 
     if (updated) {

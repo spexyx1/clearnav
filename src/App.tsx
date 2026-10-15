@@ -108,7 +108,7 @@ function AppContent() {
 
   // Invoice app at invoice.clearnav.cv — completely independent component tree
   if (isInvoiceApp) {
-    return <Suspense fallback={<Fallback />}><InvoiceApp /></Suspense>;
+    return <Suspense fallback={<FullPageLoader background="#F9FAFB" />}><InvoiceApp /></Suspense>;
   }
 
   if (route === 'debug' && import.meta.env.DEV) {

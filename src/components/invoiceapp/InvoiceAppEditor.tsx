@@ -257,7 +257,6 @@ export default function InvoiceAppEditor({ userId, invoiceId, prefillClientId, d
         user_id: userId,
         tenant_id: null,
         ...totals,
-        balance_due: totals.total - (invoice?.amount_paid ?? 0),
         status: sendAfter ? 'sent' : (invoice?.status ?? 'draft'),
         sent_at: sendAfter ? new Date().toISOString() : (invoice?.sent_at ?? null),
         created_by: userId,

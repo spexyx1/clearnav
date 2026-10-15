@@ -48,6 +48,7 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
   const [loading, setLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [copying, setCopying] = useState(false);
   const [sending, setSending] = useState(false);
@@ -113,22 +114,17 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
       notes: payment.notes || null,
       recorded_by: userId,
     });
-    if (error) return;
+    if (error) {
+      setPaymentError(error.message || 'Could not record payment. Please try again.');
+      return;
+    }
+    setPaymentError(null);
 
-    const newPaid = invoice.amount_paid + cappedAmount;
-    const newBalanceDue = Math.max(invoice.total - newPaid, 0);
-    const newStatus = newBalanceDue <= 0 ? 'paid' : 'partial';
     const { data: updated } = await supabase
       .from('invoices')
-      .update({
-        amount_paid: newPaid,
-        balance_due: newBalanceDue,
-        status: newStatus,
-        paid_at: newStatus === 'paid' ? new Date().toISOString() : null,
-      })
+      .select('*')
       .eq('id', invoice.id)
-      .select()
-      .single();
+      .maybeSingle();
 
     await supabase.from('invoice_activity').insert({
       invoice_id: invoice.id,
@@ -637,6 +633,9 @@ export default function InvoiceAppDetail({ userId, invoiceId, onEdit, onBack, on
                 />
               </div>
             </div>
+            {paymentError && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{paymentError}</p>
+            )}
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setShowPaymentForm(false)}

@@ -32,11 +32,11 @@ export function Spinner({ size = 'md', colorClass = 'border-cyan-500', className
 }
 
 /** Full-page centred loading gate. Uses CSS variables so tenant themes show correctly. */
-export function FullPageLoader({ message }: { message?: string }) {
+export function FullPageLoader({ message, background }: { message?: string; background?: string }) {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center gap-4"
-      style={{ backgroundColor: 'var(--color-background, #FFFFFF)' }}
+      style={{ backgroundColor: background ?? 'var(--color-background, #FFFFFF)' }}
       aria-busy="true"
     >
       <div

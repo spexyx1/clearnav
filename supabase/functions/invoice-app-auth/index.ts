@@ -114,15 +114,17 @@ Deno.serve(async (req: Request) => {
       return err("We couldn't create your account. Please try again.", 500);
     }
 
-    await adminClient.from("invoice_app_profiles").insert({
+    const { error: profileInsertErr } = await adminClient.from("invoice_app_profiles").insert({
       user_id: userData.user.id,
       username: trimmed,
       display_name: trimmed,
       is_guest: true,
       onboarding_complete: true,
     });
+    if (profileInsertErr) console.error("guest profile insert error:", profileInsertErr.message);
 
-    return ok({ email, onboarding_complete: true });
+    // The browser keeps this random credential so a no-account visitor can resume on this device.
+    return ok({ email, temp_password: tempPassword, onboarding_complete: true });
   }
 
   // ── email_signup ──────────────────────────────────────────────────────────────
