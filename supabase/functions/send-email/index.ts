@@ -1,6 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,9 +80,17 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const rateLimitResult = checkRateLimit(user.id, { maxRequests: 50, windowMs: 60000 });
-    if (!rateLimitResult.allowed) {
-      return rateLimitResponse(rateLimitResult.resetAt);
+    const { data: withinLimit, error: limitError } = await supabase.rpc("consume_rate_limit", {
+      p_bucket: `send-email:${user.id}`,
+      p_max: 50,
+      p_window_seconds: 60,
+    });
+    if (limitError) throw limitError;
+    if (!withinLimit) {
+      return new Response(JSON.stringify({ error: "Too many emails sent in a short time. Please wait a minute." }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "60" },
+      });
     }
 
     const payload: SendEmailPayload = await req.json();

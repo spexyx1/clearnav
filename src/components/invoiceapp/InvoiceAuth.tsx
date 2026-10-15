@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase';
 
 interface Props {
   onAuthenticated: () => void;
+  onContinueAsGuest?: () => void;
 }
 
 type Mode = 'username' | 'password-required' | 'email-signin' | 'email-signup';
@@ -32,7 +33,7 @@ async function extractFnError(fnErr: unknown, fallback = 'Something went wrong. 
   return (fnErr as any)?.message || fallback;
 }
 
-export default function InvoiceAuth({ onAuthenticated }: Props) {
+export default function InvoiceAuth({ onAuthenticated, onContinueAsGuest }: Props) {
   const [mode, setMode] = useState<Mode>('username');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -74,6 +75,11 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
           password: fnData.temp_password,
         });
         if (signInErr) throw signInErr;
+
+        localStorage.setItem('invoice_app_creds', JSON.stringify({
+          email: fnData.email,
+          temp_password: fnData.temp_password,
+        }));
 
         const guestToken = localStorage.getItem('invoice_guest_token');
         if (guestToken) {
@@ -134,7 +140,7 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
   async function handleEmailSignUp(e: React.FormEvent) {
     e.preventDefault();
     if (!nameInput.trim()) { setError('Please enter your name.'); return; }
-    if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (password.length < 10) { setError('Password must be at least 10 characters.'); return; }
     setLoading(true);
     setError(null);
 
@@ -151,7 +157,11 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
       email: emailInput,
       password,
     });
-    if (signInErr) { setError(signInErr.message); setLoading(false); return; }
+    if (signInErr) {
+      setError("We couldn't create an account with those details. If you already have an account, sign in instead.");
+      setLoading(false);
+      return;
+    }
 
     const guestToken = localStorage.getItem('invoice_guest_token');
     if (guestToken) {
@@ -224,6 +234,15 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
                     Continue
                   </button>
                 </form>
+
+                {onContinueAsGuest && (
+                  <button
+                    onClick={onContinueAsGuest}
+                    className="mt-3 w-full py-2.5 px-4 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Continue on this device
+                  </button>
+                )}
 
                 <div className="mt-6 border-t border-gray-100 pt-5">
                   <button
@@ -437,8 +456,8 @@ export default function InvoiceAuth({ onAuthenticated }: Props) {
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         required
-                        minLength={6}
-                        placeholder="Min. 6 characters"
+                        minLength={10}
+                        placeholder="Min. 10 characters"
                         className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
                       />
                       <button

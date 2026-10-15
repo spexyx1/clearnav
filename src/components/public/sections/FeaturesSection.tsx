@@ -1,5 +1,5 @@
-import React from 'react';
-import * as Icons from 'lucide-react';
+import { Star } from 'lucide-react';
+import DynamicIcon from '../../shared/DynamicIcon';
 
 interface Feature {
   icon?: string;
@@ -35,11 +35,6 @@ export function FeaturesSection({ content }: FeaturesSectionProps) {
 
   const displayTitle = heading || title || 'Our Features';
   const displaySubtitle = subheading || subtitle;
-
-  const getIcon = (iconName?: string) => {
-    if (!iconName) return Icons.Star;
-    return (Icons as Record<string, any>)[iconName] || Icons.Star;
-  };
 
   const colClass =
     columns === 2
@@ -89,7 +84,6 @@ export function FeaturesSection({ content }: FeaturesSectionProps) {
 
         <div className={`grid grid-cols-1 ${colClass} gap-6`}>
           {features.map((feature, index) => {
-            const IconComponent = getIcon(feature.icon);
             return (
               <div
                 key={index}
@@ -119,7 +113,7 @@ export function FeaturesSection({ content }: FeaturesSectionProps) {
                     borderRadius: '2px',
                   }}
                 >
-                  <IconComponent size={20} color="var(--color-accent, #B8934A)" />
+                  <DynamicIcon name={feature.icon} fallback={Star} size={20} color="var(--color-accent, #B8934A)" />
                 </div>
 
                 <h3

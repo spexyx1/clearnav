@@ -41,6 +41,9 @@ Deno.serve(async (req: Request) => {
 
     if (!action || !tenant_id) return err("action and tenant_id are required");
 
+    const { data: isMember, error: memberErr } = await supabase.rpc("is_tenant_member", { p_tenant_id: tenant_id });
+    if (memberErr || isMember !== true) return err("Forbidden", 403);
+
     // Fetch the Apollo API key for this tenant
     const { data: integration, error: intErr } = await supabase
       .from("tenant_integration_settings")

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart, Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe, CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Video as LucideIcon, Bot, Phone, PhoneCall, BarChart2, CreditCard, BookOpen, Star, HelpCircle, FileText, Calendar, UserPlus, Lock, Smartphone, Target } from 'lucide-react';
+import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart, Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe, CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, type LucideIcon, Bot, Phone, PhoneCall, BarChart2, CreditCard, BookOpen, Star, HelpCircle, FileText, Calendar, UserPlus, Lock, Smartphone, Target, Link2, Landmark, MessagesSquare, SlidersHorizontal, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
-export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'trade_upload' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'invoices' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'lead_sourcing' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'business_phone' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'scheduler' | 'subscribers' | 'invitation_templates' | 'email_templates' | 'account_settings' | 'vault_docs';
+export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'trade_upload' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'invoices' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'lead_sourcing' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'business_phone' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'scheduler' | 'subscribers' | 'invitation_templates' | 'email_templates' | 'account_settings' | 'vault_docs' | 'accounting' | 'regulatory_tax' | 'ai_agent_config' | 'ai_conversations' | 'security';
 
 interface NavItem {
   id: TabType;
@@ -97,7 +97,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
     setCollapsedSections(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
-  const navGroups: NavGroup[] = [
+  const allNavGroups: NavGroup[] = [
     {
       label: t('navGroups.portfolio'),
       items: [
@@ -120,6 +120,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
         { id: 'invoices', label: t('nav.invoices'), icon: CreditCard },
         { id: 'exchange', label: t('nav.exchange'), icon: ShoppingCart },
         { id: 'vault_docs' as TabType, label: 'Investor Vault', icon: Lock },
+        { id: 'accounting' as TabType, label: 'Accounting Sync', icon: Link2 },
       ],
     },
     {
@@ -129,6 +130,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
         { id: 'performance', label: t('nav.performance'), icon: PieChart },
         { id: 'reports', label: t('nav.reports'), icon: FolderOpen },
         { id: 'tax_docs', label: t('nav.taxDocs'), icon: FileCheck },
+        { id: 'regulatory_tax' as TabType, label: 'Regulatory & Tax', icon: Landmark },
       ],
     },
     {
@@ -163,6 +165,8 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
       label: t('navGroups.agents'),
       items: [
         { id: 'ai_agents', label: t('nav.aiAgents'), icon: Bot },
+        { id: 'ai_agent_config' as TabType, label: 'Agent Settings', icon: SlidersHorizontal },
+        { id: 'ai_conversations' as TabType, label: 'AI Conversations', icon: MessagesSquare },
         { id: 'voice_setup', label: t('nav.voiceSetup'), icon: Settings },
         { id: 'voice_live', label: t('nav.voiceLive'), icon: Phone },
         { id: 'voice_dialer', label: t('nav.voiceDialer'), icon: PhoneCall },
@@ -194,13 +198,15 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
           { id: 'compliance' as TabType, label: t('nav.compliance'), icon: Shield },
         ] : []),
         { id: 'tasks' as TabType, label: t('nav.tasks'), icon: CheckSquare },
+        ...(isTenantAdmin ? [
+          { id: 'security' as TabType, label: 'Security', icon: ShieldAlert },
+        ] : []),
         { id: 'analytics' as TabType, label: t('nav.analytics'), icon: Briefcase },
         { id: 'account_settings' as TabType, label: t('nav.accountSettings'), icon: CreditCard },
       ],
     },
-  ].filter(g => g.items.length > 0);
-
-  const activeGroupLabel = navGroups.find(g => g.items.some(i => i.id === activeTab))?.label;
+  ];
+  const navGroups = allNavGroups.filter(g => g.items.length > 0);
 
   return (
     <aside

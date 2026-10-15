@@ -191,7 +191,7 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
 
   async function secureAccount() {
     setSecError(null);
-    if (secPassword.length < 8) { setSecError('Password must be at least 8 characters.'); return; }
+    if (secPassword.length < 10) { setSecError('Password must be at least 10 characters.'); return; }
     if (secPassword !== secConfirm) { setSecError('Passwords do not match.'); return; }
     if (!profile?.username) { setSecError('No username found on your account.'); return; }
 
@@ -734,7 +734,7 @@ export default function InvoiceAppSettings({ userId, profile, onProfileUpdate }:
                       type={secShowPass ? 'text' : 'password'}
                       value={secPassword}
                       onChange={e => setSecPassword(e.target.value)}
-                      placeholder="At least 8 characters"
+                      placeholder="At least 10 characters"
                       className={`${inputCls} pl-9 pr-9`}
                     />
                     <button

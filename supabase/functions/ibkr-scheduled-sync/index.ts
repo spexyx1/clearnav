@@ -19,8 +19,8 @@ Deno.serve(async (req: Request) => {
     // Auth is mandatory — reject if secret not configured or token invalid
     if (!cronSecret) {
       console.error("CRON_SECRET not configured — rejecting sync request");
-      return new Response(JSON.stringify({ error: 'Cron secret not configured' }), {
-        status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     if (authHeader !== `Bearer ${cronSecret}`) {

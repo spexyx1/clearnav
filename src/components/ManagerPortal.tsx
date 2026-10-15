@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, useCallback } from 'react';
+import { useState, lazy, Suspense, type ReactNode } from 'react';
 import { LogOut } from 'lucide-react';
 import LanguageSelector from './shared/LanguageSelector';
 import { useAuth } from '../lib/auth';
@@ -65,6 +65,15 @@ const BusinessPhone = lazy(() => import('./manager/phone/BusinessPhone'));
 const LeadSourcing = lazy(() => import('./manager/LeadSourcing'));
 const TradeUpload = lazy(() => import('./manager/TradeUpload'));
 const OperatorDashboard = lazy(() => import('./manager/OperatorDashboard'));
+const AccountingIntegrations = lazy(() => import('./manager/AccountingIntegrations'));
+const RegulatoryTaxCenter = lazy(() => import('./manager/RegulatoryTaxCenter'));
+const AIAgentConfig = lazy(() => import('./manager/AIAgentConfig'));
+const AIConversationDashboard = lazy(() => import('./manager/AIConversationDashboard'));
+const SecurityDashboard = lazy(() => import('./manager/SecurityDashboard'));
+
+function LightPanel({ children }: { children: ReactNode }) {
+  return <div className="rounded-xl bg-white p-6 shadow-xl">{children}</div>;
+}
 
 function TabFallback() {
   return <PanelLoader />;
@@ -209,6 +218,11 @@ export default function ManagerPortal() {
                 {activeTab === 'business_phone' && <BusinessPhone />}
                 {activeTab === 'lead_sourcing' && <LeadSourcing />}
                 {activeTab === 'trade_upload' && <TradeUpload />}
+                {activeTab === 'accounting' && <LightPanel><AccountingIntegrations /></LightPanel>}
+                {activeTab === 'regulatory_tax' && <RegulatoryTaxCenter />}
+                {activeTab === 'ai_agent_config' && <LightPanel><AIAgentConfig /></LightPanel>}
+                {activeTab === 'ai_conversations' && <LightPanel><AIConversationDashboard /></LightPanel>}
+                {activeTab === 'security' && isTenantAdmin && <SecurityDashboard />}
               </Suspense>
             </div>
           </div>

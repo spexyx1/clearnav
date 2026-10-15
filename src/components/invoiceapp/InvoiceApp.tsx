@@ -15,6 +15,10 @@ const InvoiceAppClients = lazy(() => import('./InvoiceAppClients'));
 const InvoiceAppProducts = lazy(() => import('./InvoiceAppProducts'));
 const InvoiceAppSettings = lazy(() => import('./InvoiceAppSettings'));
 const InvoicePublicView = lazy(() => import('../manager/invoicing/InvoicePublicView'));
+const InvoiceAuth = lazy(() => import('./InvoiceAuth'));
+const InvoiceOnboarding = lazy(() => import('./InvoiceOnboarding'));
+
+const SIGNED_OUT_KEY = 'invoice_app_signed_out';
 
 type AppView =
   | 'dashboard'
@@ -88,6 +92,7 @@ function AuthedApp({ session, profile, onProfileUpdate }: AuthedAppProps) {
   }
 
   async function signOut() {
+    localStorage.setItem(SIGNED_OUT_KEY, '1');
     await supabase.auth.signOut();
   }
 
@@ -339,6 +344,8 @@ function InvoiceAppContainer() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [profile, setProfile] = useState<InvoiceAppProfile | null>(null);
   const [provisionError, setProvisionError] = useState<string | null>(null);
+  const [signedOut, setSignedOut] = useState(() => localStorage.getItem(SIGNED_OUT_KEY) === '1');
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const provisioning = useRef(false);
 
   useEffect(() => {
@@ -361,6 +368,9 @@ function InvoiceAppContainer() {
   useEffect(() => {
     if (session?.user) {
       loadProfile(session.user.id);
+    } else if (session === null && localStorage.getItem(SIGNED_OUT_KEY) === '1') {
+      setProfile(null);
+      setSignedOut(true);
     } else if (session === null && !provisioning.current) {
       provisioning.current = true;
       autoSignIn();
@@ -415,6 +425,17 @@ function InvoiceAppContainer() {
     }
   }
 
+  function clearSignedOut() {
+    localStorage.removeItem(SIGNED_OUT_KEY);
+    setSignedOut(false);
+  }
+
+  function continueAsGuest() {
+    clearSignedOut();
+    provisioning.current = true;
+    autoSignIn();
+  }
+
   function retry() {
     provisioning.current = true;
     setProvisionError(null);
@@ -442,8 +463,30 @@ function InvoiceAppContainer() {
     );
   }
 
+  if (session === null && signedOut) {
+    return (
+      <Suspense fallback={<FullPageLoader />}>
+        <InvoiceAuth onAuthenticated={clearSignedOut} onContinueAsGuest={continueAsGuest} />
+      </Suspense>
+    );
+  }
+
   if (session === undefined || session === null || !profile) {
     return <FullPageLoader />;
+  }
+
+  if (!profile.onboarding_complete && !profile.is_guest && !onboardingDismissed) {
+    return (
+      <Suspense fallback={<FullPageLoader />}>
+        <InvoiceOnboarding
+          userId={session.user.id}
+          onComplete={() => {
+            setOnboardingDismissed(true);
+            loadProfile(session.user.id);
+          }}
+        />
+      </Suspense>
+    );
   }
 
   return (

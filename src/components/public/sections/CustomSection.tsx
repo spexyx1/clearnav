@@ -1,6 +1,6 @@
-import React from 'react';
 import DOMPurify from 'dompurify';
-import * as Icons from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
+import DynamicIcon from '../../shared/DynamicIcon';
 
 interface CustomSectionProps {
   content: {
@@ -19,11 +19,6 @@ interface CustomSectionProps {
     // process
     steps?: Array<{ number: string; title: string; description: string }>;
   };
-}
-
-function getIcon(name?: string) {
-  if (!name) return Icons.CheckCircle;
-  return (Icons as Record<string, any>)[name] || Icons.CheckCircle;
 }
 
 function LeadershipSection({ content }: { content: CustomSectionProps['content'] }) {
@@ -139,7 +134,6 @@ function GovernanceSection({ content }: { content: CustomSectionProps['content']
 
         <div className="grid md:grid-cols-2 gap-6">
           {items.map((item, i) => {
-            const IconComponent = getIcon(item.icon);
             return (
               <div
                 key={i}
@@ -150,7 +144,7 @@ function GovernanceSection({ content }: { content: CustomSectionProps['content']
                   className="w-11 h-11 flex-shrink-0 flex items-center justify-center"
                   style={{ backgroundColor: 'var(--color-primary, #1B3A2D)', borderRadius: '2px' }}
                 >
-                  <IconComponent size={20} color="var(--color-accent, #B8934A)" />
+                  <DynamicIcon name={item.icon} fallback={CheckCircle} size={20} color="var(--color-accent, #B8934A)" />
                 </div>
                 <div>
                   <h3
@@ -255,7 +249,6 @@ function RiskSection({ content }: { content: CustomSectionProps['content'] }) {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {items.map((item, i) => {
-            const IconComponent = getIcon(item.icon);
             return (
               <div
                 key={i}
@@ -266,7 +259,7 @@ function RiskSection({ content }: { content: CustomSectionProps['content'] }) {
                   className="w-11 h-11 flex items-center justify-center mb-5"
                   style={{ backgroundColor: 'var(--color-primary, #1B3A2D)', borderRadius: '2px' }}
                 >
-                  <IconComponent size={20} color="var(--color-accent, #B8934A)" />
+                  <DynamicIcon name={item.icon} fallback={CheckCircle} size={20} color="var(--color-accent, #B8934A)" />
                 </div>
                 <h3
                   className="text-lg font-semibold mb-2"

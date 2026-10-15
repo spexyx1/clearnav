@@ -13,10 +13,34 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  return bytes;
+function decodeKeyBytes(value: string): Uint8Array {
+  const v = value.trim();
+  if (/^[0-9a-fA-F]+$/.test(v) && v.length % 2 === 0) {
+    const bytes = new Uint8Array(v.length / 2);
+    for (let i = 0; i < v.length; i += 2) bytes[i / 2] = parseInt(v.substring(i, i + 2), 16);
+    return bytes;
+  }
+  return Uint8Array.from(atob(v), (c) => c.charCodeAt(0));
+}
+
+async function verifyTelnyxRequest(req: Request, rawBody: string): Promise<boolean> {
+  const publicKey = Deno.env.get("TELNYX_PUBLIC_KEY");
+  if (publicKey) {
+    const signature = (req.headers.get("telnyx-signature-ed25519") || "").split(",")[0];
+    const timestamp = req.headers.get("telnyx-timestamp") || "";
+    if (!signature || !/^\d+$/.test(timestamp)) return false;
+    if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false;
+    try {
+      const key = await crypto.subtle.importKey("raw", decodeKeyBytes(publicKey), { name: "Ed25519" }, false, ["verify"]);
+      return await crypto.subtle.verify("Ed25519", key, decodeKeyBytes(signature), new TextEncoder().encode(`${timestamp}|${rawBody}`));
+    } catch {
+      return false;
+    }
+  }
+  const sharedSecret = Deno.env.get("TELNYX_WEBHOOK_SECRET");
+  if (!sharedSecret) return false;
+  const provided = req.headers.get("telnyx-shared-secret") || req.headers.get("x-telnyx-secret") || "";
+  return timingSafeEqual(provided, sharedSecret);
 }
 
 interface TelnyxWebhookEvent {
@@ -47,43 +71,12 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Verify Telnyx webhook signature (Ed25519)
-  const telnyxPublicKey = Deno.env.get("TELNYX_PUBLIC_KEY");
   const rawBody = await req.text();
-
-  if (telnyxPublicKey) {
-    const signatureHeader = req.headers.get("telnyx-signature-ed25519") || "";
-    const timestampHeader = req.headers.get("telnyx-timestamp") || "";
-    if (!signatureHeader || !timestampHeader) {
-      return new Response(JSON.stringify({ error: "Missing signature" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    try {
-      const sig = signatureHeader.split(",")[0];
-      const message = new TextEncoder().encode(timestampHeader + rawBody);
-      const key = await crypto.subtle.importKey("raw", hexToBytes(telnyxPublicKey), { name: "Ed25519" }, false, ["verify"]);
-      const valid = await crypto.subtle.verify("Ed25519", key, hexToBytes(sig), message);
-      if (!valid) {
-        return new Response(JSON.stringify({ error: "Invalid signature" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    } catch {
-      return new Response(JSON.stringify({ error: "Signature verification failed" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-  } else {
-    const sharedSecret = Deno.env.get("TELNYX_WEBHOOK_SECRET");
-    if (sharedSecret) {
-      const provided = req.headers.get("telnyx-shared-secret") || req.headers.get("x-telnyx-secret");
-      if (!provided || !timingSafeEqual(provided, sharedSecret)) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
+  if (!(await verifyTelnyxRequest(req, rawBody))) {
+    console.warn("Rejected Telnyx webhook: signature or secret check failed");
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {

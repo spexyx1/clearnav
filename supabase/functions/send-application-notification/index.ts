@@ -1,21 +1,21 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { requireUser, unauthorizedResponse } from "../_shared/auth.ts";
 
-const ALLOWED_ORIGINS = [
-  "https://arklinetrust.com",
-  "https://www.arklinetrust.com",
-  "https://arkline.vercel.app",
-];
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+};
 
-function getCorsHeaders(origin: string | null): Record<string, string> {
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-  return {
-    "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-    "Vary": "Origin",
-  };
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
@@ -35,7 +35,7 @@ const INVESTOR_TYPE_LABELS: Record<string, string> = {
 // deno-lint-ignore no-explicit-any
 function row(label: string, value: any) {
   if (value === null || value === undefined || value === "") return "";
-  return `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;white-space:nowrap;vertical-align:top;">${label}</td><td style="padding:4px 0;color:#111827;">${value}</td></tr>`;
+  return `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;white-space:nowrap;vertical-align:top;">${label}</td><td style="padding:4px 0;color:#111827;">${escapeHtml(value)}</td></tr>`;
 }
 
 function section(title: string, rows: string) {
@@ -47,9 +47,6 @@ function section(title: string, rows: string) {
 }
 
 Deno.serve(async (req: Request) => {
-  const origin = req.headers.get("origin");
-  const corsHeaders = getCorsHeaders(origin);
-
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
@@ -62,20 +59,16 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const auth = await requireUser(req);
-    if (!auth) return unauthorizedResponse(corsHeaders);
+    const body = await req.json().catch(() => ({}));
+    const resumeToken = typeof body?.resume_token === "string" ? body.resume_token : "";
 
-    const body = await req.json();
-    const { application_id } = body;
-
-    if (!application_id) {
-      return new Response(JSON.stringify({ error: "Missing application_id" }), {
+    if (!/^[a-f0-9]{64}$/.test(resumeToken)) {
+      return new Response(JSON.stringify({ error: "Invalid request" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Fetch the application from the database using the service role key
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -83,17 +76,22 @@ Deno.serve(async (req: Request) => {
 
     const { data: app, error: dbError } = await supabase
       .from("investor_applications")
+      .update({ notified_at: new Date().toISOString() })
+      .eq("resume_token_hash", await sha256Hex(resumeToken))
+      .eq("status", "submitted")
+      .is("notified_at", null)
       .select("*")
-      .eq("id", application_id)
-      .single();
+      .maybeSingle();
 
     if (dbError || !app) {
-      console.error("DB fetch error:", dbError);
+      if (dbError) console.error("DB fetch error:", dbError);
       return new Response(JSON.stringify({ error: "Application not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const application_id = app.id as string;
 
     const investorTypeLabel = INVESTOR_TYPE_LABELS[app.investor_type] ?? app.investor_type ?? "Unknown";
 
@@ -199,7 +197,7 @@ Deno.serve(async (req: Request) => {
         A new investor application has been submitted.
       </p>
       <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">
-        Applicant: <strong style="color:#111827;">${primaryName || "—"}</strong> &nbsp;|&nbsp; Type: <strong style="color:#111827;">${investorTypeLabel}</strong>
+        Applicant: <strong style="color:#111827;">${escapeHtml(primaryName || "—")}</strong> &nbsp;|&nbsp; Type: <strong style="color:#111827;">${escapeHtml(investorTypeLabel)}</strong>
         ${application_id ? `&nbsp;|&nbsp; ID: <code style="font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:3px;">${application_id}</code>` : ""}
       </p>
 
@@ -239,7 +237,7 @@ Deno.serve(async (req: Request) => {
     const emailPayload = {
       from: "Arkline Trust <applications@clearnav.cv>",
       to: ["noah@key13.co"],
-      subject: `New Application – ${primaryName || "Unknown Applicant"} (${investorTypeLabel})`,
+      subject: `New Application – ${(primaryName || "Unknown Applicant").replace(/[\r\n]+/g, " ").slice(0, 120)} (${investorTypeLabel})`,
       html: htmlBody,
       text: textBody,
     };
@@ -256,7 +254,8 @@ Deno.serve(async (req: Request) => {
     if (!resendRes.ok) {
       const errText = await resendRes.text();
       console.error("Resend error:", resendRes.status, errText);
-      return new Response(JSON.stringify({ error: "Failed to send email", detail: errText }), {
+      await supabase.from("investor_applications").update({ notified_at: null }).eq("id", application_id);
+      return new Response(JSON.stringify({ error: "Failed to send email" }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

@@ -50,7 +50,12 @@ Deno.serve(async (req: Request) => {
   if (authError || !user) return err("Unauthorized", 401);
 
   // Resolve owner: prefer tenant, fall back to user_id for standalone phone app users
-  const { data: tenantId } = await supabase.rpc("get_user_tenant_id");
+  const userClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authHeader } } },
+  );
+  const { data: tenantId } = await userClient.rpc("get_user_tenant_id");
   const ownerId: { tenant_id: string | null; user_id: string | null } = tenantId
     ? { tenant_id: tenantId, user_id: null }
     : { tenant_id: null, user_id: user.id };

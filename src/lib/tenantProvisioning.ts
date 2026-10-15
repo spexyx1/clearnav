@@ -63,7 +63,6 @@ export async function validateSlug(slug: string): Promise<{ available: boolean; 
 
 export async function provisionTenant(data: SignupData): Promise<ProvisioningResult> {
   try {
-    console.log('Starting tenant provisioning for:', data.companyName);
     const slug = data.requestedSlug || generateSlug(data.companyName);
 
     const validation = await validateSlug(slug);
@@ -72,29 +71,24 @@ export async function provisionTenant(data: SignupData): Promise<ProvisioningRes
       return { success: false, error: validation.error };
     }
 
-    console.log('Creating signup request for slug:', slug);
-
-    const { data: signupRequest, error: signupError } = await supabase
+    const signupRequestId = crypto.randomUUID();
+    const { error: signupError } = await supabase
       .from('signup_requests')
       .insert({
+        id: signupRequestId,
         requested_slug: slug,
         company_name: data.companyName,
         contact_name: data.contactName,
         contact_email: data.contactEmail,
         phone: data.phone,
-        status: 'processing',
-      })
-      .select()
-      .single();
+        status: 'pending',
+      });
 
     if (signupError) {
       console.error('Signup request insert error:', signupError);
-      return { success: false, error: `Failed to create signup request: ${signupError.message || signupError.code || 'Unknown error'}` };
+      return { success: false, error: 'We could not start your signup. Please try again.' };
     }
 
-    console.log('Signup request created successfully:', signupRequest.id);
-
-    console.log('Creating auth user for email:', data.contactEmail);
     const { data: authUser, error: authError } = await supabase.auth.signUp({
       email: data.contactEmail,
       password: data.password,
@@ -108,20 +102,12 @@ export async function provisionTenant(data: SignupData): Promise<ProvisioningRes
 
     if (authError || !authUser.user) {
       console.error('Auth user creation error:', authError);
-      await supabase
-        .from('signup_requests')
-        .update({ status: 'failed' })
-        .eq('id', signupRequest.id);
-
       return {
         success: false,
         error: `Failed to create user account: ${authError?.message || 'Unknown error'}`
       };
     }
 
-    console.log('Auth user created successfully:', authUser.user.id);
-
-    console.log('Calling secure tenant provisioning function');
     const { data: provisionResult, error: provisionError } = await supabase.rpc('provision_tenant', {
       p_user_id: authUser.user.id,
       p_company_name: data.companyName,
@@ -133,42 +119,20 @@ export async function provisionTenant(data: SignupData): Promise<ProvisioningRes
       p_aum_range: ''
     });
 
-    if (provisionError) {
-      console.error('Tenant provisioning RPC error:', provisionError);
-      await supabase
-        .from('signup_requests')
-        .update({ status: 'failed' })
-        .eq('id', signupRequest.id);
-
-      return {
-        success: false,
-        error: `Failed to provision tenant: ${provisionError.message || 'Unknown error'}`
-      };
-    }
-
-    if (!provisionResult || !provisionResult.success) {
-      console.error('Tenant provisioning failed:', provisionResult?.error);
-      await supabase
-        .from('signup_requests')
-        .update({ status: 'failed' })
-        .eq('id', signupRequest.id);
-
+    if (provisionError || !provisionResult?.success) {
+      console.error('Tenant provisioning failed:', provisionError || provisionResult?.error);
+      await supabase.rpc('complete_signup_request', { p_request_id: signupRequestId, p_status: 'failed' });
       return {
         success: false,
         error: provisionResult?.error || 'Failed to provision tenant'
       };
     }
 
-    console.log('Tenant provisioned successfully:', provisionResult.tenant_id);
-
-    await supabase
-      .from('signup_requests')
-      .update({
-        status: 'completed',
-        tenant_id: provisionResult.tenant_id,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', signupRequest.id);
+    await supabase.rpc('complete_signup_request', {
+      p_request_id: signupRequestId,
+      p_status: 'completed',
+      p_tenant_id: provisionResult.tenant_id,
+    });
 
     const baseDomain = 'clearnav.cv';
     const subdomainUrl = `https://${slug}.${baseDomain}`;

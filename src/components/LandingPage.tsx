@@ -4,7 +4,7 @@ import InquiryForm from './InquiryForm';
 import PageFooter from './shared/PageFooter';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
-import * as LucideIcons from 'lucide-react';
+import DynamicIcon from './shared/DynamicIcon';
 
 interface TenantSettings {
   branding: {
@@ -137,11 +137,6 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
       phone: '',
       address: 'Melbourne, Australia',
     },
-  };
-
-  const getIcon = (iconName: string) => {
-    const Icon = (LucideIcons as any)[iconName] || TrendingUp;
-    return Icon;
   };
 
   return (
@@ -277,11 +272,10 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
 
         <div className="max-w-7xl mx-auto mt-32 grid grid-cols-3 gap-8">
           {landingPage.features.map((feature, index) => {
-            const Icon = getIcon(feature.icon);
             return (
               <div key={index} className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-lg backdrop-blur-sm hover:border-primary/30 transition-all duration-300 group" style={{ '--hover-border': `${branding.colors.primary}30` } as React.CSSProperties}>
                 <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: `${branding.colors.primary}1a` }}>
-                  <Icon className="w-6 h-6" style={{ color: branding.colors.primary }} />
+                  <DynamicIcon name={feature.icon} fallback={TrendingUp} className="w-6 h-6" style={{ color: branding.colors.primary }} />
                 </div>
                 <h3 className="text-xl font-semibold text-white mb-3">{feature.title}</h3>
                 <p className="text-slate-400 leading-relaxed">

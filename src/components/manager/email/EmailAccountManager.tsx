@@ -59,7 +59,7 @@ function formatStorage(bytes: number): string {
 }
 
 export default function EmailAccountManager() {
-  const { tenantId, currentTenant, user } = useAuth();
+  const { tenantId, currentTenant, user, isPlatformAdmin } = useAuth();
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [accessGrants, setAccessGrants] = useState<Record<string, AccessGrant[]>>({});
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
@@ -441,7 +441,7 @@ export default function EmailAccountManager() {
               ? `Email provider active: ${emailSettings.provider_type === 'resend' ? 'Resend' : 'SendGrid'}`
               : 'Email provider not configured — emails will be stored locally only'}
           </span>
-          {emailSettings.is_active && emailSettings.provider_type === 'resend' && (
+          {isPlatformAdmin && emailSettings.is_active && emailSettings.provider_type === 'resend' && (
             <button
               onClick={connectInbound}
               disabled={inboundState.busy}

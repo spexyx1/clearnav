@@ -37,7 +37,7 @@ Deno.serve(async (req: Request) => {
         .select("role_category")
         .eq("user_id", userData.user.id)
         .eq("status", "active")
-        .in("role_category", ["superadmin", "tenant_admin"]);
+        .eq("role_category", "superadmin");
       if (!roles || roles.length === 0) return json({ error: "Forbidden" }, 403);
     }
 
@@ -76,12 +76,13 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({ endpoint: target, events: ["email.received"] }),
     });
     if (!createRes.ok) {
-      const detail = await createRes.text();
-      return json({ error: `Could not create the Resend webhook (${createRes.status})`, detail }, 502);
+      console.error("Resend webhook create failed:", createRes.status, await createRes.text());
+      return json({ error: `Could not create the Resend webhook (${createRes.status})` }, 502);
     }
     const created = await createRes.json();
     return json({ status: "created", webhook_id: created?.id ?? null });
   } catch (err) {
-    return json({ error: err instanceof Error ? err.message : "Unexpected error" }, 500);
+    console.error("resend-inbound-setup error:", err);
+    return json({ error: "Unexpected error" }, 500);
   }
 });

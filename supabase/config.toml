@@ -67,6 +67,7 @@ enabled = true
 
 [functions.didit-webhook]
 enabled = true
+verify_jwt = false
 
 [functions.evaluate-approval-requirement]
 enabled = true
@@ -76,12 +77,14 @@ enabled = true
 
 [functions.ibkr-scheduled-sync]
 enabled = true
+verify_jwt = false
 
 [functions.ibkr-sync-portfolio]
 enabled = true
 
 [functions.telnyx-webhook]
 enabled = true
+verify_jwt = false
 
 [functions.verify-tenant-email]
 enabled = true
@@ -93,3 +96,39 @@ verify_jwt = false
 [functions.resend-inbound-setup]
 enabled = true
 verify_jwt = false
+
+[functions.ai-help-chat]
+enabled = true
+verify_jwt = false
+
+[functions.apollo-proxy]
+enabled = true
+verify_jwt = true
+
+[functions.get-vault-documents]
+enabled = true
+verify_jwt = false
+
+[functions.invoice-app-auth]
+enabled = true
+verify_jwt = false
+
+[functions.phone-forward-webhook]
+enabled = true
+verify_jwt = false
+
+[functions.phone-number-provision]
+enabled = true
+verify_jwt = true
+
+[functions.send-application-notification]
+enabled = true
+verify_jwt = true
+
+[functions.send-invoice-email]
+enabled = true
+verify_jwt = true
+
+[functions.send-test-welcome-email]
+enabled = true
+verify_jwt = true

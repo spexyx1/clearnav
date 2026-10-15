@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ChevronLeft, ChevronRight, CheckCircle, Loader2, AlertCircle,
-  PenLine, Type, Download, Send, Plus, Trash2, FileText
+  PenLine, Type, Download, Send, Plus, Trash2, FileText, Link2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import {
@@ -423,19 +423,55 @@ const STEP_LABELS: Record<StepId, string> = {
 // ─── Main component ─────────────────────────────────────────────────────────────
 interface Props {
   onBack: () => void;
-  passphrase: string;
 }
 
 const ARKLINE_TENANT_SLUG = 'arkline';
+const RESUME_STORAGE_KEY = 'arkline_application_resume';
 
-export default function InvestorApplicationForm({ onBack, passphrase }: Props) {
+function readInitialToken(): string | null {
+  const fromUrl = new URLSearchParams(window.location.search).get('resume');
+  if (fromUrl && /^[a-f0-9]{64}$/.test(fromUrl)) return fromUrl;
+  try {
+    return localStorage.getItem(RESUME_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberToken(token: string | null) {
+  try {
+    if (token) localStorage.setItem(RESUME_STORAGE_KEY, token);
+    else localStorage.removeItem(RESUME_STORAGE_KEY);
+  } catch {
+    // storage unavailable (private mode); the resume link still works
+  }
+}
+
+function rowToForm(row: Record<string, unknown>): ApplicationFormData {
+  const next = { ...INITIAL_FORM } as Record<string, unknown>;
+  for (const key of Object.keys(INITIAL_FORM)) {
+    const value = row[key];
+    if (value === null || value === undefined) continue;
+    next[key] = typeof (INITIAL_FORM as Record<string, unknown>)[key] === 'string' && typeof value === 'number'
+      ? String(value)
+      : value;
+  }
+  return next as ApplicationFormData;
+}
+
+export default function InvestorApplicationForm({ onBack }: Props) {
   const [form, setForm] = useState<ApplicationFormData>(INITIAL_FORM);
   const [stepIndex, setStepIndex] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
-  const [applicationId, setApplicationId] = useState<string | null>(null);
+  const [resumeToken, setResumeToken] = useState<string | null>(readInitialToken);
+  const [loadingDraft, setLoadingDraft] = useState(() => readInitialToken() !== null);
+  const [restored, setRestored] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const savingRef = useRef<Promise<string> | null>(null);
 
   const steps = getSteps(form);
   const currentStep = steps[stepIndex];
@@ -449,40 +485,62 @@ export default function InvestorApplicationForm({ onBack, passphrase }: Props) {
     return () => { document.head.removeChild(link); };
   }, []);
 
+  useEffect(() => {
+    const token = readInitialToken();
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error: loadErr } = await supabase.rpc('load_investor_application', { p_token: token });
+      if (cancelled) return;
+      if (loadErr || !data || typeof data !== 'object' || (data as { status?: string }).status !== 'draft') {
+        rememberToken(null);
+        setResumeToken(null);
+      } else {
+        rememberToken(token);
+        setForm(rowToForm(data as Record<string, unknown>));
+        setRestored(true);
+      }
+      setLoadingDraft(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const set = useCallback(<K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => {
     setForm(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  async function getTenantId() {
-    const { data } = await supabase
-      .from('platform_tenants')
-      .select('id')
-      .eq('slug', ARKLINE_TENANT_SLUG)
-      .maybeSingle();
-    return data?.id ?? null;
+  async function persist(submit: boolean): Promise<string> {
+    const pending = savingRef.current;
+    const priorToken = pending ? await pending.catch(() => resumeToken) : resumeToken;
+    const run = (async () => {
+      const { data, error: rpcErr } = await supabase.rpc('save_investor_application', {
+        p_token: priorToken,
+        p_tenant_slug: ARKLINE_TENANT_SLUG,
+        p_payload: buildPayload(form),
+        p_submit: submit,
+      });
+      if (rpcErr) throw new Error(rpcErr.message || 'Could not save your application.');
+      const token = (data as { token?: string } | null)?.token;
+      if (!token) throw new Error('Could not save your application.');
+      setResumeToken(token);
+      return token;
+    })();
+    savingRef.current = run;
+    try {
+      return await run;
+    } finally {
+      if (savingRef.current === run) savingRef.current = null;
+    }
   }
 
   async function saveDraft() {
     setSaving(true);
-    setError('');
+    setSaveError(false);
     try {
-      const tenantId = await getTenantId();
-      if (!tenantId) throw new Error('Unable to resolve tenant');
-
-      const payload = buildPayload(form, tenantId, 'draft');
-      if (applicationId) {
-        await supabase.from('investor_applications').update(payload).eq('id', applicationId);
-      } else {
-        const { data, error: err } = await supabase
-          .from('investor_applications')
-          .insert(payload)
-          .select('id')
-          .single();
-        if (err) throw err;
-        setApplicationId(data.id);
-      }
+      const token = await persist(false);
+      rememberToken(token);
     } catch {
-      // silent on draft save
+      setSaveError(true);
     } finally {
       setSaving(false);
     }
@@ -492,35 +550,28 @@ export default function InvestorApplicationForm({ onBack, passphrase }: Props) {
     setSubmitting(true);
     setError('');
     try {
-      const tenantId = await getTenantId();
-      if (!tenantId) throw new Error('Unable to resolve tenant');
-
-      const payload = buildPayload(form, tenantId, 'submitted');
-      let id = applicationId;
-
-      if (id) {
-        await supabase.from('investor_applications').update(payload).eq('id', id);
-      } else {
-        const { data, error: err } = await supabase
-          .from('investor_applications')
-          .insert(payload)
-          .select('id')
-          .single();
-        if (err) throw err;
-        id = data.id;
-        setApplicationId(id);
-      }
-
-      // Trigger notification email
+      const token = await persist(true);
+      rememberToken(null);
       await supabase.functions.invoke('send-application-notification', {
-        body: { application_id: id },
+        body: { resume_token: token },
       });
-
       setSubmitted(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Submission failed. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function copyResumeLink() {
+    if (!resumeToken) return;
+    const url = `${window.location.origin}/vault/apply?resume=${resumeToken}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    } catch {
+      window.prompt('Copy your private resume link:', url);
     }
   }
 
@@ -539,6 +590,14 @@ export default function InvestorApplicationForm({ onBack, passphrase }: Props) {
   }
 
   if (submitted) return <SuccessScreen onBack={onBack} />;
+
+  if (loadingDraft) {
+    return (
+      <div className="min-h-screen flex items-center justify-center gap-3 text-sm" style={{ backgroundColor: GREEN, fontFamily: SANS, color: CREAM }}>
+        <Loader2 size={16} className="animate-spin" style={{ color: GOLD }} /> Restoring your saved application...
+      </div>
+    );
+  }
 
   return (
     <div
@@ -579,6 +638,15 @@ export default function InvestorApplicationForm({ onBack, passphrase }: Props) {
       {/* Progress bar */}
       <div className="px-6 pt-6 pb-0">
         <div className="max-w-3xl mx-auto">
+          {restored && (
+            <div
+              className="mb-5 px-4 py-3 rounded-sm text-sm flex items-start gap-2"
+              style={{ backgroundColor: 'rgba(184,147,74,0.1)', border: `1px solid ${GOLD}33` }}
+            >
+              <CheckCircle size={15} className="mt-0.5 flex-shrink-0" style={{ color: GOLD }} />
+              <span>Welcome back. Your saved answers have been restored. Keep your private resume link safe; anyone with it can view this draft.</span>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs uppercase tracking-widest" style={{ color: GOLD, opacity: 0.8 }}>
               Step {stepIndex + 1} of {steps.length}
@@ -651,8 +719,23 @@ export default function InvestorApplicationForm({ onBack, passphrase }: Props) {
             <ChevronLeft size={15} /> Previous
           </button>
 
-          <div className="flex items-center gap-2 text-xs opacity-30">
-            {saving && <><Loader2 size={12} className="animate-spin" /> Saving...</>}
+          <div className="flex items-center gap-3 text-xs min-w-0">
+            {saving && <span className="flex items-center gap-1.5 opacity-50"><Loader2 size={12} className="animate-spin" /> Saving...</span>}
+            {!saving && saveError && (
+              <span className="flex items-center gap-1.5" style={{ color: '#F2A7A0' }}>
+                <AlertCircle size={12} /> Draft not saved
+              </span>
+            )}
+            {!saving && !saveError && resumeToken && (
+              <button
+                onClick={copyResumeLink}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm transition-all hover:brightness-125"
+                style={{ color: GOLD, border: `1px solid ${GOLD}44`, backgroundColor: 'rgba(184,147,74,0.08)' }}
+                title="Copy a private link to continue this application later"
+              >
+                {linkCopied ? <><CheckCircle size={12} /> Link copied</> : <><Link2 size={12} /> Save &amp; resume later</>}
+              </button>
+            )}
           </div>
 
           <button
@@ -1759,18 +1842,14 @@ function SuccessScreen({ onBack }: { onBack: () => void }) {
 }
 
 // ─── Build Supabase payload ─────────────────────────────────────────────────────
-function buildPayload(form: ApplicationFormData, tenantId: string, status: string) {
+function buildPayload(form: ApplicationFormData) {
   const totalCapital =
     (parseFloat(form.amount_class_a) || 0) +
     (parseFloat(form.amount_class_b) || 0) +
     (parseFloat(form.amount_class_c) || 0);
 
   return {
-    tenant_id: tenantId,
-    status,
-    submitted_at: status === 'submitted' ? new Date().toISOString() : null,
     declaration_agreed: form.declaration_agreed,
-    declaration_agreed_at: form.declaration_agreed ? new Date().toISOString() : null,
 
     contact_title: form.contact_title || null,
     contact_given_names: form.contact_given_names || null,

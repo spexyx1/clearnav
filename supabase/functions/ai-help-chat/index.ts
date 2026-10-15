@@ -33,6 +33,20 @@ interface Message {
   content: string;
 }
 
+const PORTALS = ["client", "manager", "platform_admin"] as const;
+const MAX_MESSAGE_LENGTH = 4000;
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function clip(value: unknown, max = 120): string | undefined {
+  return typeof value === "string" && value.trim() ? value.replace(/[\r\n]+/g, " ").slice(0, max) : undefined;
+}
+
 interface RequestBody {
   conversation_id?: string;
   message: string;
@@ -71,22 +85,43 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const body: RequestBody = await req.json();
-    const { message, portal_context, current_route, user_role, tenant_name } = body;
-    let { conversation_id } = body;
+    const body: RequestBody = await req.json().catch(() => ({} as RequestBody));
+    const message = typeof body.message === "string" ? body.message.trim() : "";
+    const portal_context = PORTALS.includes(body.portal_context) ? body.portal_context : "client";
+    const current_route = clip(body.current_route);
+    const user_role = clip(body.user_role, 60);
+    const tenant_name = clip(body.tenant_name);
+    let conversation_id = typeof body.conversation_id === "string" ? body.conversation_id : undefined;
 
-    if (!message?.trim()) {
-      return new Response(JSON.stringify({ error: "Message is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!message) return jsonResponse({ error: "Message is required" }, 400);
+    if (message.length > MAX_MESSAGE_LENGTH) {
+      return jsonResponse({ error: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters` }, 400);
     }
 
-    // Use service role for inserting ai/agent messages
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    const { data: allowed, error: limitError } = await supabaseAdmin.rpc("consume_rate_limit", {
+      p_bucket: `ai-help-chat:${user.id}`,
+      p_max: 30,
+      p_window_seconds: 600,
+    });
+    if (limitError) throw limitError;
+    if (!allowed) {
+      return jsonResponse({ error: "You're sending messages too quickly. Please wait a few minutes." }, 429);
+    }
+
+    if (conversation_id) {
+      const { data: owned } = await supabaseAdmin
+        .from("support_conversations")
+        .select("id")
+        .eq("id", conversation_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!owned) return jsonResponse({ error: "Conversation not found" }, 404);
+    }
 
     // Get or create conversation
     if (!conversation_id) {
@@ -118,13 +153,15 @@ Deno.serve(async (req: Request) => {
       .from("support_messages")
       .select("sender_type, body_markdown")
       .eq("conversation_id", conversation_id)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(20);
 
-    const messages: Message[] = (history || []).map((m) => ({
+    const messages: Message[] = (history || []).reverse().map((m) => ({
       role: m.sender_type === "user" ? "user" : "assistant",
       content: m.body_markdown,
     }));
+
+    while (messages.length > 0 && messages[0].role === "assistant") messages.shift();
 
     // Context-aware system prompt addition
     const contextNote = [
@@ -298,12 +335,6 @@ Deno.serve(async (req: Request) => {
     );
   } catch (err) {
     console.error("ai-help-chat error:", err);
-    return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Internal server error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return jsonResponse({ error: "The assistant is unavailable right now. Please try again shortly." }, 500);
   }
 });

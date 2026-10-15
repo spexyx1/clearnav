@@ -19,7 +19,7 @@ import './i18n/config';
 
 // Wraps lazy() so a stale-deployment chunk 404 triggers a one-time page reload
 // rather than surfacing a raw "Failed to fetch dynamically imported module" error.
-function lazyWithReload<T extends React.ComponentType<unknown>>(
+function lazyWithReload<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
 ) {
   return lazy(() =>
@@ -208,7 +208,7 @@ function AppContent() {
     return (
       <ErrorBoundary>
         <Suspense fallback={<Fallback />}>
-          <InvestorApplicationForm onBack={() => navigate('/vault')} passphrase={vaultPassphrase} />
+          <InvestorApplicationForm onBack={() => navigate('/vault')} />
         </Suspense>
       </ErrorBoundary>
     );

@@ -13,6 +13,18 @@ function guestEmail(username: string) {
   return `${username.toLowerCase().trim()}@${GUEST_DOMAIN}`;
 }
 
+const MIN_PASSWORD_LENGTH = 10;
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const LOGO_TYPES: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
+
+function clientIp(req: Request): string {
+  return (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+}
+
 function ok(data: object) {
   return new Response(JSON.stringify(data), {
     status: 200,
@@ -48,6 +60,19 @@ Deno.serve(async (req: Request) => {
   }
 
   const { mode } = body;
+
+  if (mode === "guest_create" || mode === "email_signup") {
+    const { data: allowed, error: limitErr } = await adminClient.rpc("consume_rate_limit", {
+      p_bucket: `invoice-signup:${clientIp(req)}`,
+      p_max: 10,
+      p_window_seconds: 3600,
+    });
+    if (limitErr) {
+      console.error("rate limit error:", limitErr);
+      return err("Sign-up is temporarily unavailable. Please try again shortly.", 503);
+    }
+    if (!allowed) return err("Too many sign-up attempts. Please try again later.", 429);
+  }
 
   // ── guest_create ──────────────────────────────────────────────────────────────
   if (mode === "guest_create") {
@@ -85,7 +110,8 @@ Deno.serve(async (req: Request) => {
       if (msg.toLowerCase().includes("already been registered") || msg.toLowerCase().includes("already exists")) {
         return err("Username already taken. Please choose a different one.", 409);
       }
-      return err(`Failed to create account: ${msg}`, 500);
+      console.error("guest create error:", msg);
+      return err("We couldn't create your account. Please try again.", 500);
     }
 
     await adminClient.from("invoice_app_profiles").insert({
@@ -103,8 +129,8 @@ Deno.serve(async (req: Request) => {
   if (mode === "email_signup") {
     const { email, password, name } = body;
 
-    if (!email || !password || password.length < 6) {
-      return err("Email and password (min 6 characters) are required.");
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || !password || password.length < MIN_PASSWORD_LENGTH || password.length > 72) {
+      return err(`A valid email and a password of at least ${MIN_PASSWORD_LENGTH} characters are required.`);
     }
 
     const { data: userData, error: createErr } = await adminClient.auth.admin.createUser({
@@ -115,10 +141,12 @@ Deno.serve(async (req: Request) => {
     });
 
     if (createErr) {
-      if (createErr.message?.toLowerCase().includes("already been registered")) {
-        return err("An account with this email already exists.", 409);
+      const msg = createErr.message?.toLowerCase() ?? "";
+      if (msg.includes("already been registered") || msg.includes("already exists")) {
+        return ok({ success: true });
       }
-      return err(createErr.message);
+      console.error("email signup error:", createErr.message);
+      return err("We couldn't create your account. Please try again.", 500);
     }
 
     await adminClient.from("invoice_app_profiles").insert({
@@ -134,8 +162,8 @@ Deno.serve(async (req: Request) => {
   // ── secure_guest ──────────────────────────────────────────────────────────────
   if (mode === "secure_guest") {
     const { password } = body;
-    if (!password || password.length < 8) {
-      return err("Password must be at least 8 characters.");
+    if (!password || password.length < MIN_PASSWORD_LENGTH || password.length > 72) {
+      return err(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
     }
 
     const authHeader = req.headers.get("Authorization");
@@ -169,7 +197,8 @@ Deno.serve(async (req: Request) => {
     });
 
     if (updateErr) {
-      return err(updateErr.message, 500);
+      console.error("secure guest error:", updateErr.message);
+      return err("We couldn't secure your account. Please try again.", 500);
     }
 
     const { data: updatedProfile, error: profileErr } = await adminClient
@@ -180,7 +209,8 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (profileErr) {
-      return err(profileErr.message, 500);
+      console.error("profile update error:", profileErr.message);
+      return err("We couldn't secure your account. Please try again.", 500);
     }
 
     return ok({ success: true, profile: updatedProfile });
@@ -197,17 +227,28 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: userErr } = await callerClient.auth.getUser();
     if (userErr || !user) return err("Invalid or expired session.", 401);
 
-    const { file_base64, file_name, content_type } = body;
-    if (!file_base64 || !file_name || !content_type) {
-      return err("file_base64, file_name, and content_type are required.");
+    const { file_base64, content_type } = body;
+    const ext = LOGO_TYPES[content_type ?? ""];
+    if (!file_base64 || !ext) {
+      return err("Logos must be PNG, JPEG or WebP images.");
+    }
+    if (file_base64.length > Math.ceil(MAX_LOGO_BYTES * 4 / 3) + 4) {
+      return err("Logos must be 2 MB or smaller.");
     }
 
-    // Decode base64 → Uint8Array
-    const binaryStr = atob(file_base64);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+    let bytes: Uint8Array;
+    try {
+      bytes = Uint8Array.from(atob(file_base64), (c) => c.charCodeAt(0));
+    } catch {
+      return err("The logo file could not be read.");
+    }
+    const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+    const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    const isWebp = bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+    if (!((ext === "png" && isPng) || (ext === "jpg" && isJpeg) || (ext === "webp" && isWebp))) {
+      return err("The logo file does not match its image type.");
+    }
 
-    const ext = file_name.split(".").pop()?.toLowerCase() || "png";
     const path = `${user.id}/logo.${ext}`;
 
     // Use service-role client to bypass RLS
@@ -215,7 +256,10 @@ Deno.serve(async (req: Request) => {
       .from("invoice-logos")
       .upload(path, bytes, { contentType: content_type, upsert: true });
 
-    if (upErr) return err(upErr.message, 500);
+    if (upErr) {
+      console.error("logo upload error:", upErr.message);
+      return err("We couldn't upload your logo. Please try again.", 500);
+    }
 
     const { data: urlData } = adminClient.storage.from("invoice-logos").getPublicUrl(path);
     return ok({ public_url: urlData.publicUrl });
