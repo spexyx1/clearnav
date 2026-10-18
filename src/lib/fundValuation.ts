@@ -11,6 +11,7 @@ export interface UploadRow {
 }
 
 export interface ItemRow {
+  id?: string;
   upload_id: string;
   trade_date: string;
   instrument: string;
@@ -256,7 +257,7 @@ export async function loadFundData(fundId: string): Promise<FundData> {
   let items: ItemRow[] = [];
   if (ids.length) {
     const { data: it, error: iErr } = await supabase.from('trade_upload_items')
-      .select('upload_id, trade_date, instrument, direction, quantity, price, fees, proceeds, multiplier, asset_category')
+      .select('id, upload_id, trade_date, instrument, direction, quantity, price, fees, proceeds, multiplier, asset_category')
       .in('upload_id', ids);
     if (iErr) throw new Error(iErr.message);
     items = (it ?? []) as ItemRow[];
