@@ -2,6 +2,10 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, ChevronDown, DownloadCloud, Loader2, RefreshCw, Save, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { useTenantId } from '../../lib/useTenantId';
+import { describeResult, runFundAutomation } from '../../lib/fundAutomation';
+import FundReviewQueue from './FundReviewQueue';
+import TenantNotice from './TenantNotice';
 import {
   approveMonth, loadFundData, refreshMarketPrices, saveDrafts, setManualPrice, valueFund,
   type ClassValuation, type FundData,
@@ -63,7 +67,9 @@ function UnitPriceChart({ valuations, names }: { valuations: ClassValuation[]; n
 }
 
 export default function FundValue() {
-  const { currentTenant, user } = useAuth();
+  const { user } = useAuth();
+  const { tenantId, state: tenantState, retry } = useTenantId();
+  const [reviewKey, setReviewKey] = useState(0);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [fundId, setFundId] = useState('');
   const [data, setData] = useState<FundData | null>(null);
@@ -75,14 +81,14 @@ export default function FundValue() {
   const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!currentTenant?.id) return;
+    if (!tenantId) return;
     (async () => {
-      const { data: f, error: fErr } = await supabase.from('funds').select('id, fund_name').eq('tenant_id', currentTenant.id).eq('status', 'active').order('fund_name');
-      if (fErr) { setError(fErr.message); return; }
+      const { data: f, error: fErr } = await supabase.from('funds').select('id, fund_name').eq('tenant_id', tenantId).eq('status', 'active').order('fund_name');
+      if (fErr) { console.error('funds load failed', fErr); setError('Could not load your funds. Please try again.'); return; }
       setFunds(f ?? []);
       if (f?.length) setFundId((cur) => cur || f[0].id);
     })();
-  }, [currentTenant?.id]);
+  }, [tenantId]);
 
   const reload = useCallback(async () => {
     if (!fundId) return;
@@ -92,11 +98,12 @@ export default function FundValue() {
       const d = await loadFundData(fundId);
       const { data: navs, error: nErr } = await supabase.from('nav_calculations')
         .select('share_class_id, nav_date, status, nav_per_share').eq('fund_id', fundId).neq('calculation_method', 'opening');
-      if (nErr) throw new Error(nErr.message);
+      if (nErr) throw nErr;
       setData(d);
       setSaved((navs ?? []) as SavedNav[]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load fund value');
+      console.error('fund value load failed', e);
+      setError('Could not load the fund value. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -121,16 +128,18 @@ export default function FundValue() {
       setMessage(await fn());
       await reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong');
+      console.error('fund value action failed', e);
+      setError('That did not work. Please try again.');
     } finally {
       setBusy(null);
     }
   }
 
   const doRefresh = () => run('prices', async () => {
-    if (!data || !currentTenant?.id) return '';
-    const r = await refreshMarketPrices(currentTenant.id, fundId, valuations, data);
-    return r.failed.length ? `Updated ${r.updated} prices. No market price found for ${r.failed.join(', ')}; set these by hand.` : `Updated ${r.updated} month-end prices.`;
+    if (!data || !tenantId) return '';
+    const r = await refreshMarketPrices(tenantId, fundId, valuations, data);
+    const prices = r.failed.length ? `Updated ${r.updated} prices. No market price found for ${r.failed.join(', ')}; set these by hand.` : `Updated ${r.updated} month-end prices.`;
+    return `${prices} ${await automate()}`.trim();
   });
   const doSave = () => run('save', async () => {
     if (!user?.id) return '';
@@ -144,13 +153,27 @@ export default function FundValue() {
     const n = await approveMonth(fundId, date, user.id);
     return n ? `Approved ${monthLabel(month)} for ${n} class${n === 1 ? '' : 'es'}.` : 'Nothing to approve. Save drafts first.';
   });
-  const onSetPrice = async (symbol: string, date: string, price: number | null) => {
-    if (!currentTenant?.id) return;
+  async function automate() {
+    if (!tenantId || !user?.id || !fundId) return '';
     try {
-      await setManualPrice(currentTenant.id, fundId, symbol, date, price);
+      return describeResult(await runFundAutomation(tenantId, fundId, user.id));
+    } catch (e) {
+      console.error('fund automation failed', e);
+      return 'Figures could not be updated automatically; try again shortly.';
+    } finally {
+      setReviewKey((k) => k + 1);
+    }
+  }
+
+  const onSetPrice = async (symbol: string, date: string, price: number | null) => {
+    if (!tenantId) return;
+    try {
+      await setManualPrice(tenantId, fundId, symbol, date, price);
+      setMessage(await automate());
       await reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save price');
+      console.error('manual price save failed', e);
+      setError('Could not save that price. Please try again.');
     }
   };
 
@@ -182,6 +205,11 @@ export default function FundValue() {
           </button>
         </div>
       </div>
+
+      <TenantNotice state={tenantState} retry={retry} />
+      {tenantId && user?.id && (
+        <FundReviewQueue tenantId={tenantId} userId={user.id} refreshKey={reviewKey} onApplied={(m) => { setMessage(m); reload(); }} />
+      )}
 
       {error && <div className="flex items-start gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3"><AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />{error}</div>}
       {message && <div className="flex items-start gap-2 text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-4 py-3"><CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />{message}</div>}

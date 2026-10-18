@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { useTenantId } from '../../lib/useTenantId';
+import TenantNotice from './TenantNotice';
 
 interface DashboardData {
   totalAum: number;
@@ -17,6 +19,7 @@ interface DashboardData {
   recentUploads: { id: string; upload_month: string; status: string; trade_count: number }[];
   missingMonthlyReport: boolean;
   missingTradeUpload: boolean;
+  openReviewItems: number;
 }
 
 const currFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -38,38 +41,49 @@ const statusIcon = (s: string) => {
 
 export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const { currentTenant, user } = useAuth();
+  const { tenantId, state: tenantState, retry } = useTenantId();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { fetchDashboard(); }, [currentTenant?.id]);
+  useEffect(() => {
+    if (tenantId) fetchDashboard(tenantId);
+    else if (tenantState === 'missing' || tenantState === 'error') setLoading(false);
+  }, [tenantId, tenantState]);
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = async (tid: string) => {
     try {
       setLoading(true);
       setError(null);
       const mk = monthKey();
 
-      const [aumRes, navRes, mtdRes, investorRes, reportsRes, uploadsRes, mrRes, muRes] =
+      const [aumRes, navRes, mtdRes, investorRes, reportsRes, uploadsRes, mrRes, muRes, reviewRes] =
         await Promise.all([
-          supabase.from('trust_account').select('total_aum').maybeSingle(),
+          supabase.from('capital_accounts').select('cost_basis, metadata').eq('tenant_id', tid),
           supabase.from('nav_calculations').select('nav_per_share, nav_date, status')
+            .eq('status', 'approved').neq('calculation_method', 'opening')
             .order('nav_date', { ascending: false }).limit(1).maybeSingle(),
           supabase.from('performance_metrics').select('period_return')
             .eq('period_type', 'monthly').order('period_end', { ascending: false }).limit(1).maybeSingle(),
           supabase.from('client_profiles').select('id', { count: 'exact', head: true }),
-          supabase.from('reports').select('id, report_type, created_at, status')
+          supabase.from('reports').select('id, report_type, created_at, status').eq('tenant_id', tid)
             .order('created_at', { ascending: false }).limit(5),
-          supabase.from('trade_uploads').select('id, upload_year, upload_month, status, trade_upload_items(count)')
+          supabase.from('trade_uploads').select('id, upload_year, upload_month, status, trade_upload_items(count)').eq('tenant_id', tid)
             .neq('status', 'superseded').order('created_at', { ascending: false }).limit(5),
-          supabase.from('reports').select('id', { count: 'exact', head: true })
+          supabase.from('reports').select('id', { count: 'exact', head: true }).eq('tenant_id', tid)
             .eq('report_type', 'monthly_update').gte('created_at', `${mk}-01`),
-          supabase.from('trade_uploads').select('id', { count: 'exact', head: true })
+          supabase.from('trade_uploads').select('id', { count: 'exact', head: true }).eq('tenant_id', tid)
             .eq('status', 'confirmed').eq('upload_year', Number(mk.slice(0, 4))).eq('upload_month', Number(mk.slice(5, 7))),
+          supabase.from('fund_review_items').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).eq('status', 'open'),
         ]);
 
+      const totalAum = (aumRes.data ?? []).reduce((s, a) => {
+        const cv = Number((a.metadata as { current_value?: number } | null)?.current_value);
+        return s + (Number.isFinite(cv) ? cv : Number(a.cost_basis) || 0);
+      }, 0);
+
       setData({
-        totalAum: aumRes.data?.total_aum ?? 0,
+        totalAum,
         latestNav: navRes.data?.nav_per_share ?? null,
         latestNavDate: navRes.data?.nav_date ?? null,
         mtdReturn: mtdRes.data?.period_return ?? null,
@@ -83,15 +97,18 @@ export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: st
         })),
         missingMonthlyReport: (mrRes.count ?? 0) === 0,
         missingTradeUpload: (muRes.count ?? 0) === 0,
+        openReviewItems: reviewRes.count ?? 0,
       });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard');
+      console.error('dashboard load failed', err);
+      setError('Could not load the dashboard. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   const alerts = !data ? [] : [
+    ...(data.openReviewItems ? [{ msg: `${data.openReviewItems} item${data.openReviewItems === 1 ? '' : 's'} from your statements need${data.openReviewItems === 1 ? 's' : ''} your decision`, action: 'Review', tab: 'trade_upload' }] : []),
     ...(data.missingMonthlyReport ? [{ msg: `No report generated for ${monthLabel()}`, action: 'Generate Report', tab: 'reports' }] : []),
     ...(data.missingTradeUpload ? [{ msg: `Trade upload pending for ${monthLabel()}`, action: 'Upload Trades', tab: 'trade_upload' }] : []),
   ];
@@ -134,6 +151,7 @@ export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: st
         </h1>
         <p className="text-slate-400 mt-1">{currentTenant?.fund_name ?? 'Fund'} &mdash; Operator Dashboard</p>
       </div>
+      <TenantNotice state={tenantState} retry={retry} />
 
       {/* Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

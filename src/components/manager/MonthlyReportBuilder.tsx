@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, ChevronRight, FileText, Loader2, Plus, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { useTenantId } from '../../lib/useTenantId';
+import TenantNotice from './TenantNotice';
 import { MONTH_NAMES, buildReportNumbers, emptyNarrative, type ReportContent } from '../../lib/monthlyReport';
 import MonthlyReportEditor, { type ReportRecord } from './MonthlyReportEditor';
 
@@ -22,7 +24,8 @@ function lastMonth() {
 }
 
 export default function MonthlyReportBuilder() {
-  const { currentTenant, user } = useAuth();
+  const { user } = useAuth();
+  const { tenant: currentTenant, state: tenantState, retry } = useTenantId();
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,14 +43,17 @@ export default function MonthlyReportBuilder() {
         .eq('tenant_id', currentTenant.id).eq('report_type', 'monthly_update').order('period_start', { ascending: false }),
       supabase.from('funds').select('id, fund_name').eq('tenant_id', currentTenant.id).eq('status', 'active').order('fund_name'),
     ]);
-    if (rErr || fErr) setError((rErr || fErr)!.message);
+    if (rErr || fErr) { console.error('reports load failed', rErr || fErr); setError('Could not load your reports. Please try again.'); }
     setReports((r ?? []) as ReportRow[]);
     setFunds(f ?? []);
     setForm((cur) => ({ ...cur, fundId: cur.fundId || f?.[0]?.id || '' }));
     setLoading(false);
   }, [currentTenant?.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (currentTenant?.id) load();
+    else if (tenantState === 'missing' || tenantState === 'error') setLoading(false);
+  }, [load, currentTenant?.id, tenantState]);
 
   async function open(r: ReportRow) {
     const c = r.report_content as Partial<ReportContent> & { commentary?: string } | null;
@@ -60,10 +66,11 @@ export default function MonthlyReportBuilder() {
       const month = r.parameters?.month != null ? r.parameters.month + 1 : +r.period_start.slice(5, 7);
       const upgraded: ReportContent = { version: 2, ...emptyNarrative(), ...(await buildReportNumbers(r.fund_id, fund?.fund_name ?? 'Arkline Trust', year, month)), commentary: c?.commentary ?? '' };
       const { error: uErr } = await supabase.from('reports').update({ report_content: upgraded }).eq('id', r.id);
-      if (uErr) throw new Error(uErr.message);
+      if (uErr) throw uErr;
       setActive({ ...r, report_content: upgraded });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not open report');
+      console.error('report open failed', e);
+      setError('Could not open that report. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -85,12 +92,13 @@ export default function MonthlyReportBuilder() {
         period_start: nums.period.start, period_end: nums.period.end, report_content: content,
         parameters: { year: form.year, month: form.month - 1, fund_id: form.fundId },
       }).select('id, report_name, fund_id, status, report_content, sent_at').maybeSingle();
-      if (iErr || !data) throw new Error(iErr?.message || 'Could not create the report');
+      if (iErr || !data) throw iErr ?? new Error('report insert returned no row');
       setCreating(false);
       setActive(data as ReportRecord);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create the report');
+      console.error('report create failed', e);
+      setError('Could not create the report. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -103,6 +111,7 @@ export default function MonthlyReportBuilder() {
 
   return (
     <div className="space-y-6">
+      <TenantNotice state={tenantState} retry={retry} />
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold text-white">Monthly Investor Reports</h2>

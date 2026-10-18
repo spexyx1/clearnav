@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Eye, AlertCircle, FileText, ArrowLeft, Plus, CheckCircle } from 'lucide-react';
+import { Eye, AlertCircle, FileText, ArrowLeft, Plus, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { useTenantId } from '../../lib/useTenantId';
+import { describeResult, runTenantAutomation } from '../../lib/fundAutomation';
 import StatementImport from './StatementImport';
+import FundReviewQueue from './FundReviewQueue';
 import type { CashEvent } from '../../lib/statementParser';
 
 interface TradeUploadRecord {
@@ -43,7 +46,10 @@ function statusBadge(status: string) {
 }
 
 export default function TradeUpload() {
-  const { currentTenant } = useAuth();
+  const { user } = useAuth();
+  const { tenantId, state: tenantState, retry } = useTenantId();
+  const [processing, setProcessing] = useState(false);
+  const [queueKey, setQueueKey] = useState(0);
   const [view, setView] = useState<'history' | 'upload' | 'detail'>('history');
   const [uploads, setUploads] = useState<TradeUploadRecord[]>([]);
   const [classNames, setClassNames] = useState<Record<string, string>>({});
@@ -55,20 +61,39 @@ export default function TradeUpload() {
   const [detailItems, setDetailItems] = useState<TradeItem[]>([]);
 
   useEffect(() => {
-    if (currentTenant) loadUploads();
-  }, [currentTenant]);
+    if (tenantId) loadUploads();
+    else if (tenantState === 'missing' || tenantState === 'error') setLoading(false);
+  }, [tenantId, tenantState]);
+
+  async function processUploads(prefix: string) {
+    if (!tenantId || !user) return;
+    setProcessing(true);
+    setError('');
+    try {
+      const result = await runTenantAutomation(tenantId, user.id);
+      setNotice(`${prefix}${describeResult(result)}`);
+    } catch (e) {
+      setNotice(prefix);
+      setError(e instanceof Error ? e.message : 'The fund figures could not be updated. Please try again.');
+    } finally {
+      setProcessing(false);
+      setQueueKey((k) => k + 1);
+    }
+  }
 
   async function loadUploads() {
+    if (!tenantId) return;
     setLoading(true);
     const { data, error: err } = await supabase
       .from('trade_uploads')
       .select('id, fund_id, share_class_id, broker_account, upload_month, upload_year, status, filename, created_at, statement_data, trade_upload_items(count)')
-      .eq('tenant_id', currentTenant!.id)
+      .eq('tenant_id', tenantId)
       .order('upload_year', { ascending: false })
       .order('upload_month', { ascending: false })
       .order('created_at', { ascending: false });
     if (err) {
-      setError(err.message);
+      console.error('load uploads failed', err);
+      setError('Could not load your uploads. Please try again.');
     } else {
       const rows = (data || []).map((u: any) => ({ ...u, item_count: u.trade_upload_items?.[0]?.count ?? 0 }));
       setUploads(rows);
@@ -85,7 +110,7 @@ export default function TradeUpload() {
     setSelected(upload);
     setView('detail');
     const { data, error: err } = await supabase.from('trade_upload_items').select('*').eq('upload_id', upload.id).order('trade_date').order('sort_order');
-    if (err) setError(err.message);
+    if (err) { console.error('load trades failed', err); setError('Could not load the trades for this month.'); }
     setDetailItems(data || []);
   }
 
@@ -93,7 +118,11 @@ export default function TradeUpload() {
     return (
       <StatementImport
         onCancel={() => setView('history')}
-        onDone={(saved) => { setView('history'); setNotice(`${saved} month record${saved === 1 ? '' : 's'} saved. Open Fund Value to update the monthly figures.`); loadUploads(); }}
+        onDone={(saved) => {
+          setView('history');
+          loadUploads();
+          processUploads(`${saved} month record${saved === 1 ? '' : 's'} saved. `);
+        }}
       />
     );
   }
@@ -175,12 +204,30 @@ export default function TradeUpload() {
             <input type="checkbox" checked={showReplaced} onChange={(e) => setShowReplaced(e.target.checked)} className="rounded border-slate-600 bg-slate-800" />
             Show replaced
           </label>
-          <button onClick={() => { setNotice(''); setView('upload'); }} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm transition-colors">
-            <Plus className="w-4 h-4" /> Upload statement
+          <button onClick={() => processUploads('')} disabled={processing || !tenantId} className="flex items-center gap-2 border border-slate-700 hover:border-slate-500 text-slate-200 px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50">
+            <RefreshCw className={`w-4 h-4 ${processing ? 'animate-spin' : ''}`} /> Update figures
+          </button>
+          <button onClick={() => { setNotice(''); setError(''); setView('upload'); }} disabled={processing} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50">
+            <Plus className="w-4 h-4" /> {uploads.length ? 'Upload another statement' : 'Upload statement'}
           </button>
         </div>
       </div>
 
+      {processing && (
+        <div className="flex items-center gap-2 bg-sky-500/10 border border-sky-500/30 text-sky-300 px-4 py-3 rounded-lg text-sm">
+          <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> Valuing each month, checking for anything unusual and updating investor balances…
+        </div>
+      )}
+      {(tenantState === 'error' || tenantState === 'missing') && (
+        <div className="flex flex-wrap items-center gap-3 bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {tenantState === 'missing' ? 'Your account is not linked to a company yet.' : 'Your company details took too long to load.'}
+          <button onClick={retry} className="underline hover:text-white">Try again</button>
+        </div>
+      )}
+      {tenantId && user && !processing && (
+        <FundReviewQueue tenantId={tenantId} userId={user.id} refreshKey={queueKey} onApplied={(m) => { setNotice(m); loadUploads(); }} />
+      )}
       {notice && (
         <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-4 py-3 rounded-lg text-sm">
           <CheckCircle className="w-4 h-4 shrink-0" /> {notice}

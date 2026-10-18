@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Calculator, Save, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { useTenantId } from '../../lib/useTenantId';
 import { calculateNAV, NAVLineItem } from '../../lib/navCalculation';
 
 interface NAVCalculatorProps {
@@ -57,7 +58,8 @@ const LIABILITY_CATEGORIES = [
 ];
 
 export default function NAVCalculator({ onClose, onSuccess, fundId: initialFundId }: NAVCalculatorProps) {
-  const { user, currentTenant } = useAuth();
+  const { user } = useAuth();
+  const { tenant: currentTenant } = useTenantId();
   const [funds, setFunds] = useState<Fund[]>([]);
   const [shareClasses, setShareClasses] = useState<ShareClass[]>([]);
   const [selectedFund, setSelectedFund] = useState(initialFundId || '');
@@ -70,7 +72,7 @@ export default function NAVCalculator({ onClose, onSuccess, fundId: initialFundI
   const [calculating, setCalculating] = useState(false);
 
   useEffect(() => {
-    loadFunds();
+    if (currentTenant) loadFunds();
   }, [currentTenant]);
 
   useEffect(() => {

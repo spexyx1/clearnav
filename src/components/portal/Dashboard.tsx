@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Calendar, PieChart, RefreshCw, Percent } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import FundHoldingsOverview, { type FundAccount } from './FundHoldingsOverview';
 
 interface DashboardProps {
   profile: any;
@@ -12,6 +13,7 @@ export default function Dashboard({ profile }: DashboardProps) {
   const [clientUnits, setClientUnits] = useState<any>(null);
   const [trustAccount, setTrustAccount] = useState<any>(null);
   const [trustPositions, setTrustPositions] = useState<any[]>([]);
+  const [fundAccounts, setFundAccounts] = useState<FundAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
@@ -24,7 +26,7 @@ export default function Dashboard({ profile }: DashboardProps) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [unitsRes, trustRes, positionsRes] = await Promise.all([
+      const [unitsRes, trustRes, positionsRes, fundRes] = await Promise.all([
         supabase
           .from('client_units')
           .select('*')
@@ -37,8 +39,16 @@ export default function Dashboard({ profile }: DashboardProps) {
         supabase
           .from('trust_positions')
           .select('*')
-          .order('market_value', { ascending: false })
+          .order('market_value', { ascending: false }),
+        supabase
+          .from('capital_accounts')
+          .select('id, shares_owned, cost_basis, metadata')
+          .eq('investor_id', user?.id)
+          .eq('status', 'active')
       ]);
+
+      if (fundRes.error) console.warn('Fund accounts load error:', fundRes.error);
+      setFundAccounts((fundRes.data ?? []) as FundAccount[]);
 
       if (unitsRes.error) throw unitsRes.error;
       if (trustRes.error) throw trustRes.error;
@@ -84,6 +94,8 @@ export default function Dashboard({ profile }: DashboardProps) {
       </div>
     );
   }
+
+  if (fundAccounts.length) return <FundHoldingsOverview accounts={fundAccounts} />;
 
   if (!clientUnits || !trustAccount) {
     return (

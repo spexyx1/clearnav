@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { TrendingUp, DollarSign, Calendar, CheckCircle, Clock, Plus, Eye, LineChart, ThumbsUp, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { useTenantId } from '../../lib/useTenantId';
+import TenantNotice from './TenantNotice';
 import { getLatestNAV, getNAVHistory, approveNAV } from '../../lib/navCalculation';
 import NAVCalculator from './NAVCalculator';
 
@@ -25,7 +27,8 @@ interface NAVCalculation {
 }
 
 export default function NAVDashboard() {
-  const { currentTenant, user } = useAuth();
+  const { user } = useAuth();
+  const { tenant: currentTenant, state: tenantState, retry } = useTenantId();
   const [funds, setFunds] = useState<Fund[]>([]);
   const [selectedFund, setSelectedFund] = useState<string>('');
   const [latestNAV, setLatestNAV] = useState<NAVCalculation | null>(null);
@@ -35,8 +38,9 @@ export default function NAVDashboard() {
   const [showCalculator, setShowCalculator] = useState(false);
 
   useEffect(() => {
-    loadFunds();
-  }, [currentTenant]);
+    if (currentTenant) loadFunds();
+    else if (tenantState === 'missing' || tenantState === 'error') setLoading(false);
+  }, [currentTenant, tenantState]);
 
   useEffect(() => {
     if (selectedFund) {
@@ -131,6 +135,7 @@ export default function NAVDashboard() {
 
   return (
     <div className="space-y-6">
+      <TenantNotice state={tenantState} retry={retry} />
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-white">NAV Dashboard</h2>

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Eye, Building2, DollarSign, Calendar, TrendingUp, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
+import { useTenantId } from '../../lib/useTenantId';
+import TenantNotice from './TenantNotice';
 import FundDocumentUpload from './documents/FundDocumentUpload';
 import DocumentExtractionReview from './documents/DocumentExtractionReview';
 
@@ -23,7 +24,7 @@ type ActiveTab = 'funds' | 'documents';
 type DocumentView = 'list' | 'review';
 
 export default function FundManagement() {
-  const { currentTenant } = useAuth();
+  const { tenant: currentTenant, state: tenantState, retry } = useTenantId();
   const [activeTab, setActiveTab] = useState<ActiveTab>('funds');
   const [documentView, setDocumentView] = useState<DocumentView>('list');
   const [reviewDocumentId, setReviewDocumentId] = useState<string | null>(null);
@@ -46,8 +47,9 @@ export default function FundManagement() {
   });
 
   useEffect(() => {
-    loadFunds();
-  }, [currentTenant]);
+    if (currentTenant) loadFunds();
+    else if (tenantState === 'missing' || tenantState === 'error') setLoading(false);
+  }, [currentTenant, tenantState]);
 
   const loadFunds = async () => {
     setLoading(true);
@@ -118,6 +120,7 @@ export default function FundManagement() {
 
   return (
     <div className="space-y-6">
+      <TenantNotice state={tenantState} retry={retry} />
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-white">Fund Management</h2>

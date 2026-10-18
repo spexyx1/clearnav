@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Layers, DollarSign, Percent } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
+import { useTenantId } from '../../lib/useTenantId';
+import TenantNotice from './TenantNotice';
 
 interface Fund {
   id: string;
@@ -27,7 +28,7 @@ interface ShareClass {
 }
 
 export default function ShareClassManager() {
-  const { currentTenant } = useAuth();
+  const { tenant: currentTenant, state: tenantState, retry } = useTenantId();
   const [funds, setFunds] = useState<Fund[]>([]);
   const [shareClasses, setShareClasses] = useState<ShareClass[]>([]);
   const [selectedFund, setSelectedFund] = useState('');
@@ -47,8 +48,9 @@ export default function ShareClassManager() {
   });
 
   useEffect(() => {
-    loadFunds();
-  }, [currentTenant]);
+    if (currentTenant) loadFunds();
+    else if (tenantState === 'missing' || tenantState === 'error') setLoading(false);
+  }, [currentTenant, tenantState]);
 
   useEffect(() => {
     if (selectedFund) {
@@ -176,6 +178,7 @@ export default function ShareClassManager() {
 
   return (
     <div className="space-y-6">
+      <TenantNotice state={tenantState} retry={retry} />
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-white">Share Class Management</h2>

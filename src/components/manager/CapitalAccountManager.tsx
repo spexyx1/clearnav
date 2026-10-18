@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Users, DollarSign, TrendingUp, ArrowDownCircle, ArrowUpCircle, Wallet } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
+import { useTenantId } from '../../lib/useTenantId';
+import TenantNotice from './TenantNotice';
 
 interface Fund {
   id: string;
@@ -44,7 +45,7 @@ interface CapitalAccount {
 }
 
 export default function CapitalAccountManager() {
-  const { currentTenant } = useAuth();
+  const { tenant: currentTenant, state: tenantState, retry } = useTenantId();
   const [accounts, setAccounts] = useState<CapitalAccount[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [shareClasses, setShareClasses] = useState<ShareClass[]>([]);
@@ -61,8 +62,9 @@ export default function CapitalAccountManager() {
   });
 
   useEffect(() => {
-    loadData();
-  }, [currentTenant]);
+    if (currentTenant) loadData();
+    else if (tenantState === 'missing' || tenantState === 'error') setLoading(false);
+  }, [currentTenant, tenantState]);
 
   useEffect(() => {
     if (selectedFund) {
@@ -193,6 +195,7 @@ export default function CapitalAccountManager() {
 
   return (
     <div className="space-y-6">
+      <TenantNotice state={tenantState} retry={retry} />
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-white">Capital Account Management</h2>
