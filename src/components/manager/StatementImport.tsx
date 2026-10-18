@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, Check, ChevronDown, FileSpreadsheet, Loader2, RefreshCw, UploadCloud, Wand2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -32,19 +32,46 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
   const [showSkipped, setShowSkipped] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (!currentTenant?.id) return;
-    (async () => {
-      const { data: f, error: fErr } = await supabase.from('funds').select('id, fund_name, fund_code').eq('tenant_id', currentTenant.id).eq('status', 'active').order('fund_name');
-      if (fErr) { setError(fErr.message); return; }
-      setFunds(f ?? []);
-      if (f?.length) setFundId((cur) => cur || f[0].id);
-      const ids = (f ?? []).map((x) => x.id);
-      if (!ids.length) return;
-      const { data: sc } = await supabase.from('share_classes').select('id, fund_id, class_code, class_name').in('fund_id', ids).order('class_code');
-      setClasses(sc ?? []);
-    })();
-  }, [currentTenant?.id]);
+  const [tenantId, setTenantId] = useState('');
+  const [tenantName, setTenantName] = useState('');
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'no_company' | 'failed'>('loading');
+
+  const loadFunds = useCallback(async () => {
+    if (!user) return;
+    setLoadState('loading');
+    setError('');
+    try {
+      let tid = currentTenant?.id ?? '';
+      let tname = currentTenant?.name ?? '';
+      if (!tid) {
+        const { data: links, error: lErr } = await supabase.from('tenant_users').select('tenant_id, platform_tenants(name)').eq('user_id', user.id).limit(1);
+        if (lErr) throw lErr;
+        const link = links?.[0] as { tenant_id: string; platform_tenants: { name: string } | { name: string }[] | null } | undefined;
+        if (!link) { setLoadState('no_company'); return; }
+        tid = link.tenant_id;
+        const pt = Array.isArray(link.platform_tenants) ? link.platform_tenants[0] : link.platform_tenants;
+        tname = pt?.name ?? '';
+      }
+      setTenantId(tid);
+      setTenantName(tname);
+      const { data: f, error: fErr } = await supabase.from('funds').select('id, fund_name, fund_code').eq('tenant_id', tid).eq('status', 'active').order('fund_name');
+      if (fErr) throw fErr;
+      const list = f ?? [];
+      setFunds(list);
+      setFundId((cur) => (list.some((x) => x.id === cur) ? cur : list[0]?.id ?? ''));
+      if (list.length) {
+        const { data: sc, error: scErr } = await supabase.from('share_classes').select('id, fund_id, class_code, class_name').in('fund_id', list.map((x) => x.id)).order('class_code');
+        if (scErr) throw scErr;
+        setClasses(sc ?? []);
+      }
+      setLoadState('ready');
+    } catch (e) {
+      console.error('could not load funds', e);
+      setLoadState('failed');
+    }
+  }, [user, currentTenant?.id, currentTenant?.name]);
+
+  useEffect(() => { loadFunds(); }, [loadFunds]);
 
   const fundClasses = classes.filter((c) => c.fund_id === fundId);
 
@@ -85,10 +112,20 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
       if (result.kind === 'needs_mapping') setMappingState(result);
       else await finishParse(result.statement);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'The file could not be read.');
+      console.error('statement read failed', e);
+      setError('This file could not be read. Please check it is the CSV export from your broker and try again.');
     } finally {
       setReading(false);
     }
+  }
+
+  function pickFile(f: File) {
+    if (!fundId) {
+      setFile(f);
+      setError(loadState === 'loading' ? 'Still loading your funds. Please try again in a moment.' : 'Choose a fund before uploading. See the message on the left.');
+      return;
+    }
+    readFile(f);
   }
 
   const batches = useMemo(() => (statement ? buildMonthlyBatches(statement, accountToClass) : []), [statement, accountToClass]);
@@ -99,14 +136,14 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
   }, [accountToClass]);
 
   async function save() {
-    if (!statement || !currentTenant || !user || !file) return;
+    if (!statement || !tenantId || !user || !file) return;
     setSaving(true);
     setError('');
     try {
-      const saved = await saveStatementBatches({ tenantId: currentTenant.id, fundId, userId: user.id, filename: file.name, statement, batches, accountToClass });
+      const saved = await saveStatementBatches({ tenantId, fundId, userId: user.id, filename: file.name, statement, batches, accountToClass });
       onDone(saved);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Saving failed.');
+      setError(e instanceof Error ? e.message : 'The statement could not be saved. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -133,27 +170,48 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5">
           <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Fund</label>
-          {funds.length === 0 ? (
-            <p className="text-sm text-slate-400">No active funds yet. Create a fund first.</p>
+          {loadState === 'loading' ? (
+            <p className="flex items-center gap-2 text-sm text-slate-400"><Loader2 className="w-4 h-4 animate-spin" /> Loading funds…</p>
+          ) : loadState !== 'ready' || funds.length === 0 ? (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-300">
+                {loadState === 'no_company'
+                  ? 'This sign-in is not linked to a fund company. Sign in with your company account to upload statements.'
+                  : loadState === 'failed'
+                    ? 'Your funds could not be loaded right now.'
+                    : 'No active fund was found for this company yet.'}
+              </p>
+              {loadState !== 'no_company' && (
+                <button onClick={loadFunds} className="flex items-center gap-2 text-sm text-blue-300 hover:text-blue-200 transition-colors">
+                  <RefreshCw className="w-4 h-4" /> Try again
+                </button>
+              )}
+            </div>
+          ) : funds.length === 1 ? (
+            <p className="text-sm text-white font-medium">{funds[0].fund_name} <span className="text-slate-500 font-normal">({funds[0].fund_code})</span></p>
           ) : (
             <select value={fundId} onChange={(e) => { setFundId(e.target.value); setStatement(null); setFile(null); }} className={fieldCls}>
               {funds.map((f) => <option key={f.id} value={f.id}>{f.fund_name}</option>)}
             </select>
           )}
-          <p className="text-xs text-slate-500 mt-3">{fundClasses.length} share class{fundClasses.length === 1 ? '' : 'es'}: {fundClasses.map((c) => c.class_name).join(', ') || 'none'}</p>
+          {tenantName && <p className="text-xs text-slate-500 mt-3">Company: <span className="text-slate-300">{tenantName}</span>{user?.email ? ` · signed in as ${user.email}` : ''}</p>}
+          <p className="text-xs text-slate-500 mt-1">{fundClasses.length} share class{fundClasses.length === 1 ? '' : 'es'}: {fundClasses.map((c) => c.class_name).join(', ') || 'none'}</p>
         </div>
 
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
-          onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f && fundId) readFile(f); }}
-          onClick={() => fundId && fileRef.current?.click()}
-          className={`lg:col-span-2 cursor-pointer rounded-xl border-2 border-dashed p-8 flex flex-col items-center justify-center text-center transition-all ${dragging ? 'border-blue-400 bg-blue-500/10 scale-[1.01]' : 'border-slate-700 bg-slate-900/40 hover:border-slate-500 hover:bg-slate-900/70'} ${!fundId ? 'opacity-50 cursor-not-allowed' : ''}`}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) pickFile(f); }}
+          onClick={() => fileRef.current?.click()}
+          className={`lg:col-span-2 cursor-pointer rounded-xl border-2 border-dashed p-8 flex flex-col items-center justify-center text-center transition-all ${dragging ? 'border-blue-400 bg-blue-500/10 scale-[1.01]' : 'border-slate-700 bg-slate-900/40 hover:border-slate-500 hover:bg-slate-900/70'}`}
         >
-          <input ref={fileRef} type="file" accept=".csv,.txt,.tsv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f); e.target.value = ''; }} />
+          <input ref={fileRef} type="file" accept=".csv,.txt,.tsv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f); e.target.value = ''; }} />
           {reading ? <Loader2 className="w-9 h-9 text-blue-400 animate-spin" /> : <UploadCloud className="w-9 h-9 text-slate-400" />}
           <p className="mt-3 text-sm text-white font-medium">{file ? file.name : 'Drop a statement here or click to choose'}</p>
           <p className="text-xs text-slate-500 mt-1">CSV files from Interactive Brokers or any other broker</p>
+          <span className="mt-4 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            <UploadCloud className="w-4 h-4" /> Choose file
+          </span>
         </div>
       </div>
 

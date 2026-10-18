@@ -103,6 +103,19 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    const denied = () => new Response(JSON.stringify({ error: "No send permission for this account" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
+    const { data: account } = await supabase
+      .from("email_accounts")
+      .select("*, tenant_id")
+      .eq("id", account_id)
+      .maybeSingle();
+
+    if (!account) return denied();
+
     const { data: accessCheck } = await supabase
       .from("email_account_access")
       .select("access_level")
@@ -111,12 +124,22 @@ Deno.serve(async (req: Request) => {
       .in("access_level", ["full", "send_only"])
       .maybeSingle();
 
-    const { data: adminCheck } = await supabase
+    const { data: adminRole } = await supabase
       .from("user_roles")
-      .select("role_category")
+      .select("id")
       .eq("user_id", user.id)
+      .eq("tenant_id", account.tenant_id)
       .eq("role_category", "tenant_admin")
-      .maybeSingle();
+      .eq("status", "active")
+      .limit(1);
+
+    const { data: tenantAdmin } = await supabase
+      .from("tenant_users")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("tenant_id", account.tenant_id)
+      .in("role", ["owner", "admin"])
+      .limit(1);
 
     const { data: platformAdminCheck } = await supabase
       .from("platform_admin_users")
@@ -124,25 +147,7 @@ Deno.serve(async (req: Request) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (!accessCheck && !adminCheck && !platformAdminCheck) {
-      return new Response(JSON.stringify({ error: "No send permission for this account" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { data: account, error: accountError } = await supabase
-      .from("email_accounts")
-      .select("*, tenant_id")
-      .eq("id", account_id)
-      .single();
-
-    if (accountError || !account) {
-      return new Response(JSON.stringify({ error: "Email account not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!accessCheck && !adminRole?.length && !tenantAdmin?.length && !platformAdminCheck) return denied();
 
     let providerResult = { success: false, provider: "none", message_id: null as string | null };
 
@@ -283,7 +288,7 @@ Deno.serve(async (req: Request) => {
   } catch (error: any) {
     console.error("send-email error:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "Failed to send email" }),
+      JSON.stringify({ error: "Failed to send email" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

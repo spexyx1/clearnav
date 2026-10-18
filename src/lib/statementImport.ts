@@ -115,23 +115,17 @@ export async function saveStatementBatches({ tenantId, fundId, userId, filename,
   const mappings = Object.entries(accountToClass)
     .filter(([, cls]) => cls)
     .map(([account_id, share_class_id]) => ({ tenant_id: tenantId, fund_id: fundId, broker, account_id, share_class_id }));
-  if (mappings.length) {
-    const { error } = await supabase.from('fund_broker_accounts').upsert(mappings, { onConflict: 'fund_id,broker,account_id' });
-    if (error) throw new Error(`Could not remember account matches: ${error.message}`);
-  }
+  const fail = (step: string, cause: unknown): never => {
+    console.error(`statement save failed: ${step}`, cause);
+    throw new Error('The statement could not be saved. Nothing was changed. Please try again.');
+  };
 
-  let saved = 0;
+  const created: { id: string; batch: MonthlyBatch }[] = [];
+  const undo = async () => {
+    if (created.length) await supabase.from('trade_uploads').delete().in('id', created.map((c) => c.id));
+  };
+
   for (const b of batches) {
-    const { error: supErr } = await supabase
-      .from('trade_uploads')
-      .update({ status: 'superseded' })
-      .eq('fund_id', fundId)
-      .eq('share_class_id', b.shareClassId)
-      .eq('upload_year', b.year)
-      .eq('upload_month', b.month)
-      .eq('status', 'confirmed');
-    if (supErr) throw new Error(supErr.message);
-
     const { data: upload, error: upErr } = await supabase
       .from('trade_uploads')
       .insert({
@@ -151,11 +145,12 @@ export async function saveStatementBatches({ tenantId, fundId, userId, filename,
       })
       .select('id')
       .maybeSingle();
-    if (upErr || !upload) throw new Error(upErr?.message || 'Could not save the upload.');
+    if (upErr || !upload) { await undo(); fail('create upload', upErr); }
+    created.push({ id: upload!.id, batch: b });
 
     if (b.trades.length) {
       const items = b.trades.map((t, i) => ({
-        upload_id: upload.id,
+        upload_id: upload!.id,
         trade_date: t.date,
         instrument: t.symbol,
         direction: t.direction,
@@ -172,15 +167,31 @@ export async function saveStatementBatches({ tenantId, fundId, userId, filename,
         sort_order: i + 1,
       }));
       const { error: itemsErr } = await supabase.from('trade_upload_items').insert(items);
-      if (itemsErr) throw new Error(itemsErr.message);
+      if (itemsErr) { await undo(); fail('save trades', itemsErr); }
     }
+  }
 
+  // Only after every month is stored do older versions get replaced, so a failure above leaves them untouched.
+  for (const { id, batch: b } of created) {
+    const { error: supErr } = await supabase
+      .from('trade_uploads')
+      .update({ status: 'superseded' })
+      .eq('fund_id', fundId)
+      .eq('share_class_id', b.shareClassId)
+      .eq('upload_year', b.year)
+      .eq('upload_month', b.month)
+      .eq('status', 'confirmed');
+    if (supErr) fail('replace previous month', supErr);
     const { error: cErr } = await supabase
       .from('trade_uploads')
       .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
-      .eq('id', upload.id);
-    if (cErr) throw new Error(cErr.message);
-    saved++;
+      .eq('id', id);
+    if (cErr) fail('confirm month', cErr);
   }
-  return saved;
+
+  if (mappings.length) {
+    const { error } = await supabase.from('fund_broker_accounts').upsert(mappings, { onConflict: 'fund_id,broker,account_id' });
+    if (error) console.error('could not remember account matches', error);
+  }
+  return created.length;
 }

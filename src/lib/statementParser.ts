@@ -216,7 +216,9 @@ export function parseIbkrStatement(rows: string[][]): ParsedStatement {
   const out = emptyStatement('ibkr_activity');
   const headers: Record<string, string[]> = {};
   const accountSet = new Set<string>();
-  let defaultAccount = '';
+  // Combined files repeat a full statement per account; the latest Account Information block owns the rows after it.
+  let currentAccount = '';
+  let pendingName = '';
   const unsupportedForex = { count: 0 };
   const nonBase = new Set<string>();
 
@@ -226,29 +228,47 @@ export function parseIbkrStatement(rows: string[][]): ParsedStatement {
     const line = idx + 1;
     const section = row[0];
     const kind = row[1];
-    if (kind === 'Header') { headers[section] = row.slice(2); return; }
+    if (kind === 'Header') {
+      headers[section] = row.slice(2);
+      if (section === 'Statement') currentAccount = '';
+      return;
+    }
     if (kind !== 'Data') return;
     const head = headers[section];
     if (!head) return;
     const f: Record<string, string> = {};
     head.forEach((h, i) => { f[h] = row[i + 2] ?? ''; });
-    const acct = f['Account'] || defaultAccount || 'MAIN';
+    const rowAccount = (f['Account'] || '').split(/\s/)[0];
+    const acct = rowAccount && !/^total/i.test(rowAccount) ? rowAccount : currentAccount || 'MAIN';
     const skip = (reason: string) => out.skipped.push({ line, section, reason, text: row.slice(2).join(', ').slice(0, 160) });
 
     switch (section) {
       case 'Statement': {
         if (f['Field Name'] === 'Period') {
           const p = parsePeriod(f['Field Value'] || '');
-          out.periodStart = p.start; out.periodEnd = p.end;
+          if (p.start && (!out.periodStart || p.start < out.periodStart)) out.periodStart = p.start;
+          if (p.end && (!out.periodEnd || p.end > out.periodEnd)) out.periodEnd = p.end;
         }
         break;
       }
       case 'Account Information': {
+        if (rowAccount) {
+          accountSet.add(rowAccount);
+          if (f['Name']) summary(rowAccount).name = f['Name'];
+          break;
+        }
         if (f['Field Name'] === 'Account') {
           const id = (f['Field Value'] || '').split(/\s/)[0];
-          if (id) { defaultAccount = defaultAccount || id; accountSet.add(id); }
+          if (id) {
+            currentAccount = id;
+            accountSet.add(id);
+            if (pendingName) { summary(id).name = pendingName; pendingName = ''; }
+          }
         }
-        if (f['Field Name'] === 'Name' && defaultAccount) summary(defaultAccount).name = f['Field Value'];
+        if (f['Field Name'] === 'Name') {
+          if (currentAccount) summary(currentAccount).name = f['Field Value'];
+          else pendingName = f['Field Value'] || '';
+        }
         break;
       }
       case 'Net Asset Value': {
