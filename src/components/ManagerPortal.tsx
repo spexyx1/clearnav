@@ -64,6 +64,7 @@ const VaultDocumentManager = lazy(() => import('./manager/VaultDocumentManager')
 const BusinessPhone = lazy(() => import('./manager/phone/BusinessPhone'));
 const LeadSourcing = lazy(() => import('./manager/LeadSourcing'));
 const TradeUpload = lazy(() => import('./manager/TradeUpload'));
+const FundValue = lazy(() => import('./manager/FundValue'));
 const OperatorDashboard = lazy(() => import('./manager/OperatorDashboard'));
 const AccountingIntegrations = lazy(() => import('./manager/AccountingIntegrations'));
 const RegulatoryTaxCenter = lazy(() => import('./manager/RegulatoryTaxCenter'));
@@ -218,6 +219,7 @@ export default function ManagerPortal() {
                 {activeTab === 'business_phone' && <BusinessPhone />}
                 {activeTab === 'lead_sourcing' && <LeadSourcing />}
                 {activeTab === 'trade_upload' && <TradeUpload />}
+                {activeTab === 'fund_value' && <FundValue />}
                 {activeTab === 'accounting' && <LightPanel><AccountingIntegrations /></LightPanel>}
                 {activeTab === 'regulatory_tax' && <RegulatoryTaxCenter />}
                 {activeTab === 'ai_agent_config' && <LightPanel><AIAgentConfig /></LightPanel>}

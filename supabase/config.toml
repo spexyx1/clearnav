@@ -132,3 +132,7 @@ verify_jwt = true
 [functions.send-test-welcome-email]
 enabled = true
 verify_jwt = true
+
+[functions.market-prices]
+enabled = true
+verify_jwt = true

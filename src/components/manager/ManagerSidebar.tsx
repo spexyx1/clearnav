@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart, Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe, CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, type LucideIcon, Bot, Phone, PhoneCall, BarChart2, CreditCard, BookOpen, Star, HelpCircle, FileText, Calendar, UserPlus, Lock, Smartphone, Target, Link2, Landmark, MessagesSquare, SlidersHorizontal, ShieldAlert } from 'lucide-react';
+import { BarChart3, Building2, Layers, Wallet, TrendingUp, ArrowRightLeft, Bell, DollarSign, ArrowUpCircle, Percent, Receipt, PieChart, FolderOpen, Calculator, Coins, Package, FileCheck, ShoppingCart, Contact, UserCheck, Users, MessageSquare, Mail, Inbox, Globe, CheckSquare, Briefcase, Shield, UserCog, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, type LucideIcon, Bot, Phone, PhoneCall, BarChart2, CreditCard, BookOpen, Star, HelpCircle, FileText, Calendar, UserPlus, Lock, Smartphone, Target, Link2, Landmark, MessagesSquare, SlidersHorizontal, ShieldAlert, LineChart } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
-export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'trade_upload' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'invoices' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'lead_sourcing' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'business_phone' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'scheduler' | 'subscribers' | 'invitation_templates' | 'email_templates' | 'account_settings' | 'vault_docs' | 'accounting' | 'regulatory_tax' | 'ai_agent_config' | 'ai_conversations' | 'security';
+export type TabType = 'dashboard' | 'funds' | 'classes' | 'accounts' | 'nav' | 'transactions' | 'trade_upload' | 'fund_value' | 'capital_calls' | 'distributions' | 'redemptions' | 'fees' | 'invoices' | 'statements' | 'performance' | 'reports' | 'waterfall' | 'tax_docs' | 'carried_interest' | 'side_pockets' | 'exchange' | 'contacts' | 'onboarding' | 'clients' | 'lead_sourcing' | 'communications' | 'newsletters' | 'email' | 'community' | 'tasks' | 'analytics' | 'staff' | 'compliance' | 'users' | 'whitelabel' | 'ai_agents' | 'voice_setup' | 'voice_live' | 'voice_dialer' | 'voice_analytics' | 'business_phone' | 'blog' | 'testimonials' | 'faq' | 'forms' | 'scheduler' | 'subscribers' | 'invitation_templates' | 'email_templates' | 'account_settings' | 'vault_docs' | 'accounting' | 'regulatory_tax' | 'ai_agent_config' | 'ai_conversations' | 'security';
 
 interface NavItem {
   id: TabType;
@@ -108,6 +108,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
         { id: 'nav', label: t('nav.nav'), icon: TrendingUp },
         { id: 'transactions', label: t('nav.transactions'), icon: ArrowRightLeft },
         { id: 'trade_upload' as TabType, label: 'Trade Upload', icon: ArrowRightLeft },
+        { id: 'fund_value' as TabType, label: 'Fund Value', icon: LineChart },
       ],
     },
     {

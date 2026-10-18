@@ -60,12 +60,12 @@ export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: st
           supabase.from('client_profiles').select('id', { count: 'exact', head: true }),
           supabase.from('reports').select('id, report_type, created_at, status')
             .order('created_at', { ascending: false }).limit(5),
-          supabase.from('trade_uploads').select('id, upload_month, status, trade_count')
-            .order('created_at', { ascending: false }).limit(5),
+          supabase.from('trade_uploads').select('id, upload_year, upload_month, status, trade_upload_items(count)')
+            .neq('status', 'superseded').order('created_at', { ascending: false }).limit(5),
           supabase.from('reports').select('id', { count: 'exact', head: true })
             .eq('report_type', 'monthly_update').gte('created_at', `${mk}-01`),
           supabase.from('trade_uploads').select('id', { count: 'exact', head: true })
-            .eq('status', 'confirmed').eq('upload_month', mk),
+            .eq('status', 'confirmed').eq('upload_year', Number(mk.slice(0, 4))).eq('upload_month', Number(mk.slice(5, 7))),
         ]);
 
       setData({
@@ -75,7 +75,12 @@ export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: st
         mtdReturn: mtdRes.data?.period_return ?? null,
         totalInvestors: investorRes.count ?? 0,
         recentReports: reportsRes.data ?? [],
-        recentUploads: uploadsRes.data ?? [],
+        recentUploads: (uploadsRes.data ?? []).map((u) => ({
+          id: u.id,
+          upload_month: u.upload_year && u.upload_month ? `${u.upload_year}-${String(u.upload_month).padStart(2, '0')}` : '',
+          status: u.status,
+          trade_count: (u.trade_upload_items as unknown as { count: number }[] | null)?.[0]?.count ?? 0,
+        })),
         missingMonthlyReport: (mrRes.count ?? 0) === 0,
         missingTradeUpload: (muRes.count ?? 0) === 0,
       });
