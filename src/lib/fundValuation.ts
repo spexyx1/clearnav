@@ -1,10 +1,12 @@
 import { supabase } from './supabase';
 import { monthEnd, monthsBetween, type CashEvent, type ChangeInNav } from './statementParser';
 import type { StatementMonthData } from './statementImport';
+import { loadDealingTerms, numberOf } from './dealingTerms';
 
 export interface UploadRow {
   id: string;
   share_class_id: string;
+  broker_account?: string | null;
   upload_year: number;
   upload_month: number;
   statement_data: StatementMonthData;
@@ -80,6 +82,44 @@ export interface Movement {
   units?: number;
 }
 
+export interface Dealt {
+  ref: string;
+  kind: 'issue' | 'redeem';
+  name: string;
+  amount: number;
+  units: number;
+  price: number;
+}
+
+export interface DealingSubscription {
+  id: string;
+  classId: string;
+  key: string;
+  name: string;
+  kind: 'cash' | 'in_kind';
+  dealingDate: string;
+}
+
+export interface DealingRedemption {
+  id: string;
+  classId: string;
+  name: string;
+  dealingDate: string;
+  shares: number | null;
+  amount: number | null;
+}
+
+export interface OfficialDealing {
+  launchPrice: number;
+  subscriptions: DealingSubscription[];
+  redemptions: DealingRedemption[];
+}
+
+export interface OfficialAccount {
+  account: string;
+  fromMonth: string;
+}
+
 export interface Charges {
   management: number;
   performance: number;
@@ -125,6 +165,10 @@ export interface MonthResult {
   final: boolean;
   finalReasons: string[];
   changeInNav: ChangeInNav | null;
+  trackRecord: boolean;
+  uninvestedCash: number;
+  redemptionsPayable: number;
+  dealt: Dealt[];
 }
 
 export interface ClassValuation {
@@ -191,6 +235,7 @@ export function valueClass(
   fallbackMonths: string[],
   labels: Record<string, MovementLabel> = {},
   classNames: Record<string, string> = {},
+  official?: OfficialDealing,
 ): ClassValuation {
   const notes: string[] = [];
   const own = uploads.filter((u) => u.share_class_id === cls.id);
@@ -220,6 +265,7 @@ export function valueClass(
         holdings: [], holdingsValue: 0, accountValue: capital, computedValue: capital, brokerValue: null, income: 0, fees: 0,
         tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [], unofficialPrices: [], missingFx: [], unexplained: 0, tradeFx: {},
         final: false, finalReasons: ['No IBKR account activity for this class yet.'], changeInNav: null,
+        trackRecord: !official, uninvestedCash: 0, redemptionsPayable: 0, dealt: [],
       })),
     };
   }
@@ -336,11 +382,14 @@ export function valueClass(
 
   let unitPrice = cls.startPrice;
   let units = cls.units;
-  if (opening?.nav != null && Math.abs(units * unitPrice - opening.nav) > 1) {
+  if (!official && opening?.nav != null && Math.abs(units * unitPrice - opening.nav) > 1) {
     notes.push(`The class started with ${units.toLocaleString('en-US')} units at ${unitPrice}, but the broker's opening value is ${round(opening.nav).toLocaleString('en-US')} USD. Units were set to match the broker so every unit starts at ${unitPrice}.`);
     units = opening.nav / unitPrice;
   }
   const results: MonthResult[] = [];
+  let pending: Array<{ key: string; amount: number; date: string; sub?: DealingSubscription }> = [];
+  let payable = 0;
+  const subByKey = new Map((official?.subscriptions ?? []).filter((s) => s.classId === cls.id).map((s) => [s.key, s]));
 
   allMonths.forEach((mk) => {
     const up = byMonth.get(mk);
@@ -498,17 +547,75 @@ export function valueClass(
       // Units for money in or out are dealt at the price the month opened at, which keeps units x price equal to the account value.
       const unitsStart = units;
       const startPrice = unitPrice;
-      const dailyNav = data?.daily_nav ?? {};
-      const navDays = Object.keys(dailyNav).sort();
-      const dealt = movements.filter((x) => x.label !== 'fee');
       const unpricedDays: string[] = [];
-      let price = unitPrice;
-      let valueAfter = prevValue;
+      const dealingReasons: string[] = [];
+      const dealt: Dealt[] = [];
       let issued = 0;
       let redeemed = 0;
+      if (official) {
+        movements.filter((x) => x.label !== 'fee').forEach((x) => {
+          if (x.amount > 0) {
+            const sub = subByKey.get(x.key);
+            pending.push({ key: x.key, amount: x.amount, date: x.date, sub });
+            x.label = 'investor';
+            x.confirmed = !!sub;
+            x.reason = sub
+              ? `Application money from ${sub.name}. Held outside the class value until units are issued at the ${sub.dealingDate} price.`
+              : 'Needs your answer: confirm which approved application this money belongs to on the Onboarding page. Until then it is kept outside the class value.';
+          } else if (payable + x.amount >= -0.01) {
+            payable += x.amount;
+            x.confirmed = true;
+            x.reason = 'Pays out a withdrawal already dealt at an earlier month-end price.';
+          } else {
+            x.confirmed = false;
+            x.reason = 'Needs your answer: money left the account but no withdrawal was dealt at an earlier month-end. Record the withdrawal request on the Onboarding page.';
+          }
+        });
+        // Money waiting for its dealing day and withdrawals not yet paid out are not part of the class value.
+        const pendingTotal = pending.reduce((s, p) => s + p.amount, 0);
+        const value = accountValue - pendingTotal - payable;
+        const launching = unitsStart < 1e-9;
+        const price = launching ? official.launchPrice : value / unitsStart;
+        if (!launching && price <= 0) dealingReasons.push('The class value after setting aside application money is not positive, so no unit price can be set.');
+        pending.filter((p) => p.sub && p.sub.dealingDate.slice(0, 7) < mk).forEach((p) => {
+          dealingReasons.push(`${p.sub!.name}'s money was due to be invested on ${p.sub!.dealingDate}, which has passed. Re-confirm the deposit so a new dealing day is set.`);
+        });
+        const due = pending.filter((p) => p.sub && p.sub.dealingDate.slice(0, 7) === mk);
+        const inKindDue = due.filter((p) => p.sub!.kind === 'in_kind');
+        const inKindTotal = inKindDue.reduce((s, p) => s + p.amount, 0);
+        const issueValue = (p: (typeof due)[number]) => (launching && p.sub!.kind === 'in_kind' && inKindTotal > 0 ? (value + inKindTotal) * (p.amount / inKindTotal) : p.amount);
+        if (launching && !inKindDue.length && Math.abs(value) >= 0.01) {
+          dealingReasons.push(`${usdText(value)} in the account does not belong to any application, and no units are on issue yet.`);
+        }
+        if (!launching && inKindDue.length) notes.push('Shares transferred in after launch are valued at the transfer price; check them before approving.');
+        if (price > 0) {
+          due.forEach((p) => {
+            const amount = round(issueValue(p));
+            const u = round(amount / price, 4);
+            issued += u;
+            dealt.push({ ref: `sub:${p.sub!.id}`, kind: 'issue', name: p.sub!.name, amount, units: u, price: round(price, 6) });
+          });
+          (official.redemptions ?? []).filter((r) => r.classId === cls.id && r.dealingDate.slice(0, 7) === mk).forEach((r) => {
+            const u = round(r.shares ?? (r.amount ?? 0) / price, 4);
+            const amount = round(u * price);
+            redeemed += u;
+            payable += amount;
+            dealt.push({ ref: `red:${r.id}`, kind: 'redeem', name: r.name, amount, units: u, price: round(price, 6) });
+          });
+          pending = pending.filter((p) => !due.includes(p));
+        }
+        if (redeemed > unitsStart + issued + 1e-6) dealingReasons.push('Withdrawals dealt this month are larger than the units on issue.');
+        units = unitsStart + issued - redeemed;
+        unitPrice = price > 0 ? price : unitPrice;
+      } else {
+      const dailyNav = data?.daily_nav ?? {};
+      const navDays = Object.keys(dailyNav).sort();
+      const dealtMoves = movements.filter((x) => x.label !== 'fee');
+      let price = unitPrice;
+      let valueAfter = prevValue;
       // Units for each day's money in or out are dealt at that day's IBKR close, excluding the day's own flows.
-      [...new Set(dealt.map((x) => x.date))].sort().forEach((d) => {
-        const dayMoves = dealt.filter((x) => x.date === d);
+      [...new Set(dealtMoves.map((x) => x.date))].sort().forEach((d) => {
+        const dayMoves = dealtMoves.filter((x) => x.date === d);
         const dayFlow = dayMoves.reduce((s, x) => s + x.amount, 0);
         const prior = navDays.filter((x) => x < d).pop();
         const navBefore = dailyNav[d] != null ? dailyNav[d] - dayFlow : prior ? dailyNav[prior] : null;
@@ -524,6 +631,7 @@ export function valueClass(
       });
       units = unitsStart + issued - redeemed;
       unitPrice = valueAfter > 0.01 ? price * accountValue / valueAfter : price;
+      }
       Object.keys(charges).forEach((k) => { charges[k as keyof Charges] = round(charges[k as keyof Charges]); });
       const unofficial = holdings.filter((h) => !isIbkrPrice(h.priceSource)).map((h) => h.symbol);
       const changeInNav = data?.change_in_nav ?? null;
@@ -538,6 +646,7 @@ export function valueClass(
       if (missingFx.size) finalReasons.push(`No IBKR exchange rate for ${[...missingFx].join(', ')}.`);
       const unexplainedMoves = movements.filter((x) => !x.confirmed).length;
       if (unexplainedMoves) finalReasons.push(`${unexplainedMoves} money or share movement${unexplainedMoves === 1 ? '' : 's'} not yet explained.`);
+      finalReasons.push(...dealingReasons);
       if (unpricedDays.length) finalReasons.push(`No IBKR daily value for ${unpricedDays.join(', ')}, so units moved that day could not be priced at the day's close. Make sure the IBKR report's NAV section is daily.`);
       results.push({
         month: mk, date, openingValue: round(prevValue), flows: round(flows), internalFlows: round(internalFlows), cash: round(cash), unitemisedCash: round(unitemisedCash), holdings, holdingsValue,
@@ -545,11 +654,12 @@ export function valueClass(
         investmentGain: round(accountValue - prevValue - flows - income + fees),
         unitsStart: round(unitsStart, 4), unitsIssued: round(issued, 4), unitsRedeemed: round(redeemed, 4),
         accountValue: round(accountValue), computedValue, brokerValue, income: round(income), fees: round(fees),
-        tradeCount: monthItems.length, monthReturn: startPrice > 0 ? unitPrice / startPrice - 1 : monthReturn, unitPrice: round(unitPrice, 6), units: round(units, 4),
+        tradeCount: monthItems.length, monthReturn: official && unitsStart < 1e-9 ? 0 : startPrice > 0 ? unitPrice / startPrice - 1 : monthReturn, unitPrice: round(unitPrice, 6), units: round(units, 4),
         classNav: round(unitPrice * units), missingPrices: holdings.filter((h) => h.priceSource === 'missing').map((h) => h.symbol),
         unofficialPrices: unofficial,
         missingFx: [...missingFx], unexplained: round(unexplained), tradeFx,
         final: finalReasons.length === 0, finalReasons, changeInNav,
+        trackRecord: !official, uninvestedCash: round(pending.reduce((s, p) => s + p.amount, 0)), redemptionsPayable: round(payable), dealt,
       });
     }
     prevValue = accountValue;
@@ -565,6 +675,8 @@ export interface FundData {
   marks: PriceMark[];
   labels: Record<string, MovementLabel>;
   inceptionMonth: string;
+  officialAccounts: Record<string, OfficialAccount>;
+  dealing: OfficialDealing;
 }
 
 export async function loadFundData(fundId: string): Promise<FundData> {
@@ -572,13 +684,13 @@ export async function loadFundData(fundId: string): Promise<FundData> {
   if (fErr || !fund) throw new Error(fErr?.message || 'Fund not found');
   const { data: sc, error: scErr } = await supabase.from('share_classes').select('id, class_code, class_name').eq('fund_id', fundId).order('class_code');
   if (scErr) throw new Error(scErr.message);
-  const { data: accts, error: aErr } = await supabase.from('capital_accounts').select('share_class_id, shares_owned').eq('fund_id', fundId);
+  const { data: accts, error: aErr } = await supabase.from('capital_accounts').select('share_class_id, shares_owned, metadata').eq('fund_id', fundId);
   if (aErr) throw new Error(aErr.message);
   const { data: openings } = await supabase.from('nav_calculations').select('share_class_id, nav_per_share, total_shares, nav_date').eq('fund_id', fundId).eq('calculation_method', 'opening');
   const { data: labelRows, error: lErr } = await supabase.from('fund_movement_labels').select('movement_key, label').eq('fund_id', fundId);
   if (lErr) throw new Error(lErr.message);
   const { data: uploads, error: uErr } = await supabase.from('trade_uploads')
-    .select('id, share_class_id, upload_year, upload_month, statement_data')
+    .select('id, share_class_id, broker_account, upload_year, upload_month, statement_data')
     .eq('fund_id', fundId).eq('status', 'confirmed').not('share_class_id', 'is', null);
   if (uErr) throw new Error(uErr.message);
   const ids = (uploads ?? []).map((u) => u.id);
@@ -592,6 +704,36 @@ export async function loadFundData(fundId: string): Promise<FundData> {
   }
   const { data: marks, error: mErr } = await supabase.from('fund_price_marks').select('symbol, price_date, price, source').eq('fund_id', fundId);
   if (mErr) throw new Error(mErr.message);
+  const { data: official, error: oErr } = await supabase.from('fund_broker_accounts').select('account_id, share_class_id, official_from').eq('fund_id', fundId).eq('account_role', 'official');
+  if (oErr) throw new Error(oErr.message);
+  const { data: subs, error: sErr } = await supabase.from('unit_subscriptions')
+    .select('id, share_class_id, broker_movement_key, investor_name, kind, dealing_date')
+    .eq('fund_id', fundId).in('status', ['money_received', 'units_issued']);
+  if (sErr) throw new Error(sErr.message);
+  const { data: reds, error: rErr } = await supabase.from('redemption_requests')
+    .select('id, redemption_date, shares_requested, amount_requested, capital_accounts(share_class_id), client_profiles(full_name)')
+    .eq('fund_id', fundId).in('status', ['approved', 'processing', 'completed']).not('redemption_date', 'is', null).not('capital_account_id', 'is', null);
+  if (rErr) throw new Error(rErr.message);
+  const terms = await loadDealingTerms(fundId);
+  const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? v[0] ?? null : v);
+  const dealing: OfficialDealing = {
+    launchPrice: (terms && numberOf(terms.terms.launch_unit_price)) || 1,
+    subscriptions: (subs ?? []).filter((s) => s.broker_movement_key && s.dealing_date).map((s) => ({
+      id: s.id, classId: s.share_class_id, key: s.broker_movement_key!, name: s.investor_name, kind: s.kind as 'cash' | 'in_kind', dealingDate: s.dealing_date!,
+    })),
+    redemptions: (reds ?? []).flatMap((r) => {
+      const classId = one(r.capital_accounts as { share_class_id: string } | { share_class_id: string }[] | null)?.share_class_id;
+      if (!classId) return [];
+      return [{
+        id: r.id, classId, dealingDate: r.redemption_date as string,
+        name: one(r.client_profiles as { full_name: string } | { full_name: string }[] | null)?.full_name ?? 'Investor',
+        shares: r.shares_requested != null ? Number(r.shares_requested) : null,
+        amount: r.amount_requested != null ? Number(r.amount_requested) : null,
+      }];
+    }),
+  };
+  const officialAccounts: Record<string, OfficialAccount> = Object.fromEntries((official ?? []).filter((o) => o.official_from)
+    .map((o) => [o.share_class_id, { account: o.account_id, fromMonth: String(o.official_from).slice(0, 7) }]));
 
   const classes: ClassInfo[] = (sc ?? []).map((c) => {
     const open = openings?.find((o) => o.share_class_id === c.id);
@@ -599,20 +741,39 @@ export async function loadFundData(fundId: string): Promise<FundData> {
       id: c.id,
       class_code: c.class_code,
       class_name: c.class_name,
-      units: open?.total_shares != null ? Number(open.total_shares) : (accts ?? []).filter((a) => a.share_class_id === c.id).reduce((s, a) => s + Number(a.shares_owned || 0), 0),
+      units: open?.total_shares != null ? Number(open.total_shares) : (accts ?? []).filter((a) => a.share_class_id === c.id && !(a.metadata as { official?: boolean } | null)?.official)
+        .reduce((s, a) => s + Number(a.shares_owned || 0), 0),
       startPrice: Number(open?.nav_per_share ?? 1),
     };
   });
   const inception = fund.inception_date ?? `${new Date().getFullYear()}-01-01`;
   const labels = Object.fromEntries((labelRows ?? []).map((l) => [l.movement_key, l.label as MovementLabel]));
-  return { classes, uploads: (uploads ?? []) as UploadRow[], items, marks: (marks ?? []) as PriceMark[], labels, inceptionMonth: inception.slice(0, 7) };
+  return {
+    classes, uploads: (uploads ?? []) as UploadRow[], items, marks: (marks ?? []) as PriceMark[], labels, inceptionMonth: inception.slice(0, 7), officialAccounts, dealing,
+  };
 }
 
+const uploadMonth = (u: UploadRow) => `${u.upload_year}-${String(u.upload_month).padStart(2, '0')}`;
+
 export function valueFund(d: FundData): ClassValuation[] {
-  const monthsWithData = [...new Set(d.uploads.map((u) => `${u.upload_year}-${String(u.upload_month).padStart(2, '0')}`))].sort();
+  const monthsWithData = [...new Set(d.uploads.map(uploadMonth))].sort();
   const fallback = monthsWithData.length ? monthsBetween(`${d.inceptionMonth}-01`, `${monthsWithData[monthsWithData.length - 1]}-01`) : [];
   const classNames = Object.fromEntries(d.classes.map((c) => [c.id, c.class_name]));
-  return d.classes.map((c) => valueClass(c, d.uploads, d.items, d.marks, d.inceptionMonth, fallback, d.labels, classNames));
+  return d.classes.map((c) => {
+    const off = d.officialAccounts[c.id];
+    if (!off) return valueClass(c, d.uploads, d.items, d.marks, d.inceptionMonth, fallback, d.labels, classNames);
+    const isOfficial = (u: UploadRow) => u.share_class_id === c.id && u.broker_account === off.account;
+    const trackUploads = d.uploads.filter((u) => u.share_class_id !== c.id || (!isOfficial(u) && uploadMonth(u) < off.fromMonth));
+    const officialUploads = d.uploads.filter((u) => u.share_class_id !== c.id || (isOfficial(u) && uploadMonth(u) >= off.fromMonth));
+    const track = valueClass(c, trackUploads, d.items, d.marks, d.inceptionMonth, fallback.filter((m) => m < off.fromMonth), d.labels, classNames);
+    const launchFallback = fallback.length ? monthsBetween(`${off.fromMonth}-01`, `${[fallback[fallback.length - 1], off.fromMonth].sort().pop()}-01`) : [off.fromMonth];
+    const live = valueClass({ ...c, units: 0, startPrice: d.dealing.launchPrice }, officialUploads, d.items, d.marks, off.fromMonth, launchFallback, d.labels, classNames, d.dealing);
+    return {
+      classId: c.id,
+      months: [...track.months.filter((m) => m.month < off.fromMonth), ...live.months],
+      notes: [...new Set([...track.notes.map((n) => `Pre-launch track record: ${n}`), ...live.notes])],
+    };
+  });
 }
 
 export async function refreshMarketPrices(tenantId: string, fundId: string, valuations: ClassValuation[], d: FundData) {
@@ -727,7 +888,7 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
         .order('version', { ascending: false }).limit(1).maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (existing?.status === 'approved') { skippedApproved++; continue; }
-      const signature = JSON.stringify([m.unitPrice, m.units, m.cash, m.accountValue, m.unexplained, m.final, m.finalReasons, v.notes.length, m.movements.map((x) => [x.key, x.label]), m.holdings.map((h) => [h.symbol, h.quantity, h.price, h.priceSource, h.marketValue])]);
+      const signature = JSON.stringify([m.unitPrice, m.units, m.cash, m.accountValue, m.unexplained, m.final, m.finalReasons, v.notes.length, m.movements.map((x) => [x.key, x.label]), m.holdings.map((h) => [h.symbol, h.quantity, h.price, h.priceSource, h.marketValue]), m.dealt, m.uninvestedCash, m.redemptionsPayable]);
       const prior = existing?.calculation_data as { signature?: string; previous?: unknown } | null;
       if (existing && prior?.signature === signature) continue;
       const previous = existing && Math.abs(Number(existing.nav_per_share) - m.unitPrice) > 1e-6
@@ -756,6 +917,7 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
           charges: m.charges, dividends: m.dividends, interest: m.interest, investment_gain: m.investmentGain,
           unexplained: m.unexplained, movements: m.movements,
           final: m.final, final_reasons: m.finalReasons, change_in_nav: m.changeInNav,
+          track_record: m.trackRecord, uninvested_cash: m.uninvestedCash, redemptions_payable: m.redemptionsPayable, dealt: m.dealt,
         },
       };
       let navId = existing?.id as string | undefined;

@@ -298,6 +298,9 @@ export default function FundValue() {
                           <span className="col-span-2 sm:col-span-2 flex items-center gap-2 text-slate-200">
                             <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${open === key ? 'rotate-180' : ''}`} />
                             {names[v.classId]}
+                            {r!.trackRecord && data?.officialAccounts[v.classId] && (
+                              <span title="Valued from the pre-launch account, before the official Arkline Trust account went live" className="text-xs px-2 py-0.5 rounded-full border border-slate-600 text-slate-400">Track record</span>
+                            )}
                           </span>
                           <span className="tabular-nums text-white">${r!.unitPrice.toFixed(4)}</span>
                           <span className={`tabular-nums ${r!.monthReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Eye, Building2, DollarSign, Calendar, TrendingUp, Sparkles, Scale } from 'lucide-react';
+import { Plus, Edit, Eye, Building2, DollarSign, Calendar, TrendingUp, Sparkles, Scale, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useTenantId } from '../../lib/useTenantId';
 import TenantNotice from './TenantNotice';
 import FundDocumentUpload from './documents/FundDocumentUpload';
 import DocumentExtractionReview from './documents/DocumentExtractionReview';
 import DealingRules from './DealingRules';
+import InvestorOnboarding from './onboarding/InvestorOnboarding';
 
 interface Fund {
   id: string;
@@ -21,7 +22,7 @@ interface Fund {
   created_at: string;
 }
 
-type ActiveTab = 'funds' | 'documents' | 'rules';
+type ActiveTab = 'funds' | 'documents' | 'rules' | 'investors';
 type DocumentView = 'list' | 'review';
 
 export default function FundManagement() {
@@ -134,7 +135,7 @@ export default function FundManagement() {
         )}
       </div>
 
-      <div className="flex space-x-1 bg-slate-800/50 rounded-xl p-1 border border-slate-700 w-fit">
+      <div className="flex space-x-1 bg-slate-800/50 rounded-xl p-1 border border-slate-700 w-fit max-w-full overflow-x-auto">
         <button
           onClick={() => setActiveTab('funds')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -173,7 +174,24 @@ export default function FundManagement() {
           <Scale className="w-4 h-4" />
           <span>Dealing Rules</span>
         </button>
+        <button
+          onClick={() => setActiveTab('investors')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'investors'
+              ? 'bg-slate-700 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Investors In & Out</span>
+        </button>
       </div>
+
+      {activeTab === 'investors' && currentTenant && (
+        <div className="bg-slate-800/30 rounded-xl border border-slate-700 p-6">
+          <InvestorOnboarding tenantId={currentTenant.id} funds={funds} />
+        </div>
+      )}
 
       {activeTab === 'rules' && currentTenant && (
         <div className="bg-slate-800/30 rounded-xl border border-slate-700 p-6">
