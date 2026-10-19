@@ -7,7 +7,7 @@ import { describeResult, runFundAutomation } from '../../lib/fundAutomation';
 import FundReviewQueue from './FundReviewQueue';
 import TenantNotice from './TenantNotice';
 import {
-  approveMonth, loadFundData, refreshMarketPrices, saveDrafts, setManualPrice, valueFund,
+  approveClassMonth, loadFundData, refreshMarketPrices, saveDrafts, setManualPrice, valueFund,
   type ClassValuation, type FundData,
 } from '../../lib/fundValuation';
 import FundValueHoldings from './FundValueHoldings';
@@ -118,7 +118,7 @@ export default function FundValue() {
     const rows = saved.filter((s) => s.share_class_id === classId && s.nav_date === date);
     return rows.find((r) => r.status === 'approved')?.status ?? rows[0]?.status ?? null;
   };
-  const missingCount = valuations.reduce((s, v) => s + v.months.reduce((t, m) => t + m.holdings.filter((h) => h.priceSource === 'trade' || h.priceSource === 'missing').length, 0), 0);
+  const missingCount = valuations.reduce((s, v) => s + v.months.reduce((t, m) => t + m.holdings.filter((h) => h.priceSource === 'trade' || h.priceSource === 'missing' || h.priceSource === 'broker_last').length, 0), 0);
 
   async function run(key: string, fn: () => Promise<string>) {
     setBusy(key);
@@ -138,7 +138,9 @@ export default function FundValue() {
   const doRefresh = () => run('prices', async () => {
     if (!data || !tenantId) return '';
     const r = await refreshMarketPrices(tenantId, fundId, valuations, data);
-    const prices = r.failed.length ? `Updated ${r.updated} prices. No market price found for ${r.failed.join(', ')}; set these by hand.` : `Updated ${r.updated} month-end prices.`;
+    const prices = r.failed.length
+      ? `Updated ${r.updated} prices. Still without a public price (the broker's last reported price is used where there is one): ${r.failed.map((s) => `${s} (${r.reasons[s] ?? 'not found'})`).join('; ')}. You can set any of these by hand.`
+      : `Updated ${r.updated} month-end prices.`;
     return `${prices} ${await automate()}`.trim();
   });
   const doSave = () => run('save', async () => {
@@ -146,12 +148,10 @@ export default function FundValue() {
     const r = await saveDrafts(fundId, user.id, valuations);
     return `Saved ${r.saved} monthly values as drafts${r.skippedApproved ? `; ${r.skippedApproved} already approved and left unchanged` : ''}.`;
   });
-  const doApprove = (month: string) => run(`approve-${month}`, async () => {
+  const doApprove = (classId: string, month: string, date: string) => run(`approve-${classId}-${month}`, async () => {
     if (!user?.id) return '';
-    const date = valuations.flatMap((v) => v.months).find((m) => m.month === month)?.date;
-    if (!date) return '';
-    const n = await approveMonth(fundId, date, user.id);
-    return n ? `Approved ${monthLabel(month)} for ${n} class${n === 1 ? '' : 'es'}.` : 'Nothing to approve. Save drafts first.';
+    const n = await approveClassMonth(fundId, classId, date, user.id);
+    return n ? `Approved ${names[classId]} for ${monthLabel(month)}.` : 'Nothing to approve. Save drafts first.';
   });
   async function automate() {
     if (!tenantId || !user?.id || !fundId) return '';
@@ -256,27 +256,18 @@ export default function FundValue() {
             {months.map((m) => {
               const rows = valuations.map((v) => ({ v, r: v.months.find((x) => x.month === m) })).filter((x) => x.r);
               const allApproved = rows.every(({ v, r }) => statusOf(v.classId, r!.date) === 'approved');
-              const anyDraft = rows.some(({ v, r }) => statusOf(v.classId, r!.date) && statusOf(v.classId, r!.date) !== 'approved');
               return (
                 <div key={m} className="border-b border-slate-800 last:border-0">
                   <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3 bg-slate-900/80">
                     <p className="text-white font-medium">{monthLabel(m)}</p>
-                    {allApproved ? (
-                      <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300"><ShieldCheck className="w-4 h-4" />Approved</span>
-                    ) : (
-                      <button onClick={() => doApprove(m)} disabled={!!busy || !anyDraft} title={anyDraft ? '' : 'Save drafts first'}
-                        className={`${btn} py-1.5 bg-emerald-600/15 text-emerald-300 hover:bg-emerald-600/25 border border-emerald-500/30`}>
-                        {busy === `approve-${m}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                        Approve month
-                      </button>
-                    )}
+                    {allApproved && <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300"><ShieldCheck className="w-4 h-4" />All classes approved</span>}
                   </div>
                   {rows.map(({ v, r }) => {
                     const key = `${v.classId}-${m}`;
                     const st = statusOf(v.classId, r!.date);
                     return (
                       <Fragment key={key}>
-                        <button onClick={() => setOpen(open === key ? null : key)} className="w-full grid grid-cols-2 sm:grid-cols-6 gap-2 items-center px-4 sm:px-6 py-3 text-left text-sm hover:bg-slate-800/50 transition-colors">
+                        <div role="button" tabIndex={0} onClick={() => setOpen(open === key ? null : key)} onKeyDown={(e) => { if (e.key === 'Enter') setOpen(open === key ? null : key); }} className="w-full cursor-pointer grid grid-cols-2 sm:grid-cols-6 gap-2 items-center px-4 sm:px-6 py-3 text-left text-sm hover:bg-slate-800/50 transition-colors">
                           <span className="col-span-2 sm:col-span-2 flex items-center gap-2 text-slate-200">
                             <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${open === key ? 'rotate-180' : ''}`} />
                             {names[v.classId]}
@@ -294,8 +285,15 @@ export default function FundValue() {
                               {st === 'approved' ? 'Approved' : st ? 'Draft' : 'Not saved'}
                             </span>
                             {r!.missingPrices.length > 0 && <span className="ml-2 text-xs text-red-300">{r!.missingPrices.length} unpriced</span>}
+                            {st && st !== 'approved' && (
+                              <button onClick={(e) => { e.stopPropagation(); doApprove(v.classId, m, r!.date); }} disabled={!!busy}
+                                className="ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-600/15 text-emerald-300 hover:bg-emerald-600/25 border border-emerald-500/30 transition disabled:opacity-50">
+                                {busy === `approve-${v.classId}-${m}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
+                                Approve
+                              </button>
+                            )}
                           </span>
-                        </button>
+                        </div>
                         {open === key && <FundValueHoldings month={r!} locked={st === 'approved'} onSetPrice={onSetPrice} />}
                       </Fragment>
                     );

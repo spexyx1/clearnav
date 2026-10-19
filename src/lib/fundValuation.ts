@@ -41,7 +41,7 @@ export interface ClassInfo {
   startPrice: number;
 }
 
-export type PriceSource = 'manual' | 'statement' | 'market' | 'trade' | 'missing' | 'expired';
+export type PriceSource = 'manual' | 'statement' | 'market' | 'trade' | 'broker_last' | 'missing' | 'expired';
 
 export interface HoldingValue {
   symbol: string;
@@ -62,6 +62,7 @@ export interface MonthResult {
   flows: number;
   internalFlows: number;
   cash: number;
+  unitemisedCash: number;
   holdings: HoldingValue[];
   holdingsValue: number;
   accountValue: number;
@@ -134,7 +135,7 @@ export function valueClass(
       classId: cls.id,
       notes,
       months: months.map((m) => ({
-        month: m, date: monthEnd(+m.slice(0, 4), +m.slice(5, 7)), openingValue: capital, flows: 0, internalFlows: 0, cash: capital,
+        month: m, date: monthEnd(+m.slice(0, 4), +m.slice(5, 7)), openingValue: capital, flows: 0, internalFlows: 0, cash: capital, unitemisedCash: 0,
         holdings: [], holdingsValue: 0, accountValue: capital, computedValue: capital, brokerValue: null, income: 0, fees: 0,
         tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [], missingFx: [], unexplained: 0, tradeFx: {},
       })),
@@ -180,6 +181,17 @@ export function valueClass(
   const positions = new Map<string, { quantity: number; multiplier: number; assetCategory: string }>();
   opening?.positions.forEach((p) => positions.set(p.symbol, { quantity: p.quantity, multiplier: fixMultiplier(p.multiplier, p.assetCategory, p.symbol), assetCategory: p.assetCategory }));
   const lastTrade = new Map<string, number>();
+  const brokerLast = new Map<string, Array<[string, number]>>();
+  own.forEach((u) => {
+    const c = u.statement_data.closing;
+    c?.positions.forEach((p) => { if (p.price) brokerLast.set(p.symbol, [...(brokerLast.get(p.symbol) ?? []), [c.as_of, p.price]]); });
+  });
+  const brokerPrice = (symbol: string, date: string) => {
+    const list = brokerLast.get(symbol);
+    if (!list?.length) return null;
+    const before = list.filter(([d]) => d <= date).sort((a, b) => b[0].localeCompare(a[0]))[0];
+    return (before ?? [...list].sort((a, b) => a[0].localeCompare(b[0]))[0])[1];
+  };
 
   const priceFor = (symbol: string, assetCategory: string, date: string, statementPrices: Map<string, number> | null): [number, PriceSource] => {
     const k = markKey(symbol, date);
@@ -189,6 +201,8 @@ export function valueClass(
     if (expiry && expiry < date) return [0, 'expired'];
     if (market.has(k)) return [market.get(k)!, 'market'];
     if (lastTrade.has(symbol)) return [lastTrade.get(symbol)!, 'trade'];
+    const bp = brokerPrice(symbol, date);
+    if (bp != null) return [bp, 'broker_last'];
     return [0, 'missing'];
   };
 
@@ -213,12 +227,18 @@ export function valueClass(
   if (!hasBrokerCash) notes.push('The file had no cash balance, so the class starting capital was used as opening cash.');
 
   let prevValue: number;
-  let openingGap = 0;
+  // Broker cash lines often cover only one currency; the rest of the broker's opening value is carried as cash so it is not booked as a loss.
+  let unitemisedCash = 0;
   if (opening?.nav != null) {
     prevValue = opening.nav;
-    if (opening.cash != null) {
-      openingGap = opening.nav - (opening.cash + valueHoldings(opening.as_of, null).reduce((s, h) => s + h.marketValue, 0));
+    const oh = valueHoldings(opening.as_of, null);
+    unitemisedCash = opening.nav - ((opening.cash ?? 0) + oh.reduce((s, h) => s + h.marketValue, 0));
+    if (opening.cash == null) cash = 0;
+    if (Math.abs(unitemisedCash) > 1) {
+      const unpriced = oh.filter((h) => h.priceSource === 'missing').map((h) => h.symbol);
+      notes.push(`The broker's opening value includes ${round(unitemisedCash).toLocaleString('en-US')} USD not itemised in the file (usually cash in other currencies). It is carried as cash until the broker's closing value takes over.${unpriced.length ? ` Unpriced at the start: ${unpriced.join(', ')}.` : ''}`);
     }
+    cash += unitemisedCash;
   } else {
     const oh = valueHoldings(opening?.as_of ?? `${keys[0]}-01`, null);
     prevValue = cash + oh.reduce((s, h) => s + h.marketValue, 0);
@@ -279,8 +299,7 @@ export function valueClass(
       else income += amount;
     });
 
-    let unexplained = openingGap;
-    openingGap = 0;
+    let unexplained = 0;
     let statementPrices: Map<string, number> | null = null;
     if (closing) {
       statementPrices = new Map(closing.positions.filter((p) => p.price).map((p) => [p.symbol, p.price!]));
@@ -294,16 +313,23 @@ export function valueClass(
         if (!cur || Math.abs(cur.quantity - p.quantity) > 1e-6) notes.push(`${p.symbol}: rebuilt quantity ${cur?.quantity ?? 0} differs from broker ${p.quantity} at ${closing.as_of}; broker figure used.`);
         positions.set(p.symbol, { quantity: p.quantity, multiplier: fixMultiplier(p.multiplier, p.assetCategory, p.symbol), assetCategory: p.assetCategory });
       });
-      if (closing.cash != null) {
+      if (closing.cash != null && closing.nav == null) {
         if (Math.abs(closing.cash - cash) > 1) notes.push(`Cash rebuilt from activity (${round(cash)}) differs from broker ending cash (${round(closing.cash)}); broker figure used.`);
         unexplained += closing.cash - cash;
         cash = closing.cash;
+        unitemisedCash = 0;
       }
     }
 
     const holdings = valueHoldings(date, statementPrices, stmtRates);
     const holdingsValue = round(holdings.reduce((s, h) => s + h.marketValue, 0));
     const computedValue = round(cash + holdingsValue);
+    if (closing?.nav != null) {
+      const impliedCash = closing.nav - holdingsValue;
+      unexplained += impliedCash - cash;
+      cash = impliedCash;
+      unitemisedCash = closing.cash != null ? impliedCash - closing.cash : 0;
+    }
     const brokerValue = closing?.nav ?? null;
     const accountValue = brokerValue ?? computedValue;
     const denom = prevValue + flows;
@@ -312,7 +338,7 @@ export function valueClass(
     if (mk >= inceptionMonth) {
       unitPrice = unitPrice * (1 + monthReturn);
       results.push({
-        month: mk, date, openingValue: round(prevValue), flows: round(flows), internalFlows: round(internalFlows), cash: round(cash), holdings, holdingsValue,
+        month: mk, date, openingValue: round(prevValue), flows: round(flows), internalFlows: round(internalFlows), cash: round(cash), unitemisedCash: round(unitemisedCash), holdings, holdingsValue,
         accountValue: round(accountValue), computedValue, brokerValue, income: round(income), fees: round(fees),
         tradeCount: monthItems.length, monthReturn, unitPrice: round(unitPrice, 6), units: cls.units,
         classNav: round(unitPrice * cls.units), missingPrices: holdings.filter((h) => h.priceSource === 'missing').map((h) => h.symbol),
@@ -377,7 +403,7 @@ export function valueFund(d: FundData): ClassValuation[] {
 export async function refreshMarketPrices(tenantId: string, fundId: string, valuations: ClassValuation[], d: FundData) {
   const needs = new Map<string, Set<string>>();
   valuations.forEach((v) => v.months.forEach((m) => m.holdings.forEach((h) => {
-    if ((h.priceSource === 'trade' || h.priceSource === 'missing') && isMarketPriceable(h.assetCategory)) {
+    if ((h.priceSource === 'trade' || h.priceSource === 'missing' || h.priceSource === 'broker_last') && isMarketPriceable(h.assetCategory)) {
       if (!needs.has(h.symbol)) needs.set(h.symbol, new Set());
       needs.get(h.symbol)!.add(m.date);
     }
@@ -404,13 +430,32 @@ export async function refreshMarketPrices(tenantId: string, fundId: string, valu
     if (!fxNeeds.has(ccy)) fxNeeds.set(ccy, new Set());
     fxNeeds.get(ccy)!.add(m.date);
   })));
-  if (!needs.size && !fxNeeds.size) return { updated: 0, failed: [] as string[] };
+  if (!needs.size && !fxNeeds.size) return { updated: 0, failed: [] as string[], reasons: {} as Record<string, string> };
 
   const items = [...needs.keys()].map((symbol) => ({ symbol, currency: symbolCcy.get(symbol) ?? guessCurrency(symbol) }));
   const dates = [...new Set([...needs.values(), ...fxNeeds.values()].flatMap((s) => [...s]))];
-  const { data, error } = await supabase.functions.invoke('market-prices', { body: { items, fx: [...fxNeeds.keys()], dates } });
-  if (error) throw new Error('The price service could not be reached.');
-  if (!data || typeof data.prices !== 'object') throw new Error('The price service returned an unexpected answer.');
+  const data = { prices: {} as Record<string, Record<string, number>>, rates: {} as Record<string, Record<string, number>>, errors: {} as Record<string, string> };
+  const batches: Array<{ items: typeof items; fx: string[] }> = [];
+  for (let i = 0; i < items.length; i += 15) batches.push({ items: items.slice(i, i + 15), fx: [] });
+  if (fxNeeds.size) batches.push({ items: [], fx: [...fxNeeds.keys()] });
+  let reached = 0;
+  for (const b of batches) {
+    let res: { prices?: unknown; rates?: unknown; errors?: unknown } | null = null;
+    for (let attempt = 0; attempt < 3 && !res; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, 800 * 2 ** attempt));
+      const { data: out, error } = await supabase.functions.invoke('market-prices', { body: { items: b.items, fx: b.fx, dates } });
+      if (!error && out && typeof out.prices === 'object') res = out;
+    }
+    if (!res) {
+      b.items.forEach((it) => { data.errors[it.symbol] = 'price service did not respond'; });
+      continue;
+    }
+    reached++;
+    Object.assign(data.prices, res.prices ?? {});
+    Object.assign(data.rates, res.rates ?? {});
+    Object.assign(data.errors, res.errors ?? {});
+  }
+  if (!reached) throw new Error('The price service could not be reached.');
 
   const manualKeys = new Set(d.marks.filter((m) => m.source === 'manual').map((m) => markKey(m.symbol, m.price_date)));
   const rows: Array<Record<string, unknown>> = [];
@@ -430,8 +475,8 @@ export async function refreshMarketPrices(tenantId: string, fundId: string, valu
     const { error: upErr } = await supabase.from('fund_price_marks').upsert(rows, { onConflict: 'fund_id,symbol,price_date' });
     if (upErr) throw new Error(upErr.message);
   }
-  const failed = Object.keys((data.errors ?? {}) as Record<string, string>);
-  return { updated: rows.length, failed };
+  const failed = Object.keys(data.errors).filter((k) => !k.startsWith('FX:'));
+  return { updated: rows.length, failed, reasons: data.errors };
 }
 
 export async function setManualPrice(tenantId: string, fundId: string, symbol: string, date: string, price: number | null) {
@@ -509,10 +554,10 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
   return { saved, skippedApproved };
 }
 
-export async function approveMonth(fundId: string, date: string, userId: string) {
+export async function approveClassMonth(fundId: string, classId: string, date: string, userId: string) {
   const { data, error } = await supabase.from('nav_calculations')
     .update({ status: 'approved', approved_by: userId, approved_at: new Date().toISOString() })
-    .eq('fund_id', fundId).eq('nav_date', date).in('status', ['draft', 'pending_approval']).select('id');
+    .eq('fund_id', fundId).eq('share_class_id', classId).eq('nav_date', date).in('status', ['draft', 'pending_approval']).select('id');
   if (error) throw new Error(error.message);
   return data?.length ?? 0;
 }

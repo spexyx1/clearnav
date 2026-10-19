@@ -48,16 +48,25 @@ function candidates(symbol: string, currency: string): string[] {
   if (currency !== "USD" && /\.(T|SW|TO|V|AX|L|HK|DE|PA|AS|MI)$/.test(s)) return [s];
   const base = s.replace(/\s+/g, "-").replace(/\./g, "-");
   const list = SUFFIXES[currency];
-  if (!list) return [base];
+  if (!list) return [...new Set([base, s.replace(/[\s.]+/g, ""), s.split(/[\s.]/)[0]])];
   const local = currency === "HKD" ? base.padStart(4, "0") : base;
   return list.map((x) => `${local}${x}`);
 }
 
+async function fetchChart(ticker: string, from: number, to: number) {
+  const hosts = ["query1", "query2"];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const url = `https://${hosts[attempt % 2]}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${from}&period2=${to}&interval=1d&events=split`;
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; ArklineFundPricing/1.0)" } });
+    if (res.ok) return await res.json();
+    if (res.status === 404) throw new Error("not found");
+    await new Promise((r) => setTimeout(r, 400 * 2 ** attempt));
+  }
+  throw new Error("price source busy");
+}
+
 async function fetchDailyCloses(ticker: string, from: number, to: number) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${from}&period2=${to}&interval=1d&events=split`;
-  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; ArklineFundPricing/1.0)" } });
-  if (!res.ok) throw new Error(`price source returned ${res.status}`);
-  const data = await res.json();
+  const data = await fetchChart(ticker, from, to);
   const r = data?.chart?.result?.[0];
   const quoteCcy: string = r?.meta?.currency ?? "";
   const scale = quoteCcy === "GBp" || quoteCcy === "ZAc" || quoteCcy === "ILA" ? 0.01 : 1;
@@ -127,19 +136,20 @@ Deno.serve(async (req: Request) => {
     const rates: Record<string, Record<string, number>> = {};
     const errors: Record<string, string> = {};
 
-    await inBatches(limited, 10, async ({ symbol, currency }) => {
+    await inBatches(limited, 5, async ({ symbol, currency }) => {
+      let reason = "no listing found under this ticker";
       for (const ticker of candidates(symbol, currency)) {
         try {
           const series = await fetchDailyCloses(ticker, from, to);
-          if (!series.length) continue;
+          if (!series.length) { reason = "listed, but no prices for these dates"; continue; }
           prices[symbol] = pick(series, dates);
           tickers[symbol] = ticker;
           return;
-        } catch {
-          // try the next exchange
+        } catch (e) {
+          if (e instanceof Error && e.message === "price source busy") reason = "price source was busy; try again";
         }
       }
-      errors[symbol] = "no prices found";
+      errors[symbol] = reason;
     });
 
     await inBatches(fx, 10, async (ccy) => {

@@ -9,6 +9,7 @@ const SOURCE_STYLE: Record<PriceSource, { label: string; cls: string }> = {
   statement: { label: 'Broker', cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
   market: { label: 'Market', cls: 'bg-sky-500/15 text-sky-300 border-sky-500/30' },
   trade: { label: 'Last trade', cls: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
+  broker_last: { label: 'Broker last price', cls: 'bg-teal-500/15 text-teal-300 border-teal-500/30' },
   missing: { label: 'No price', cls: 'bg-red-500/15 text-red-300 border-red-500/30' },
   expired: { label: 'Expired', cls: 'bg-slate-500/10 text-slate-400 border-slate-600/40' },
 };
@@ -56,6 +57,11 @@ export default function FundValueHoldings({ month, locked, onSetPrice }: Props) 
       {month.brokerValue != null && Math.abs(month.brokerValue - month.computedValue) > 1 && (
         <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
           Broker reported {usd(month.brokerValue)}; our rebuild gives {usd(month.computedValue)}. The broker figure is used.
+        </p>
+      )}
+      {Math.abs(month.unitemisedCash) > 1 && (
+        <p className="text-xs text-sky-300 bg-sky-500/10 border border-sky-500/20 rounded-lg px-3 py-2">
+          Cash includes {usd(month.unitemisedCash)} the broker counts in the account value but the file does not itemise (usually cash in other currencies). It is kept in the balance instead of being counted as a gain or loss.
         </p>
       )}
       {month.holdings.length === 0 ? (
