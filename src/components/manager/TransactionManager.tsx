@@ -163,7 +163,7 @@ export default function TransactionManager() {
       loadTransactions();
       updateCapitalAccount(formData.capital_account_id, formData.transaction_type, formData.amount, formData.shares);
     } else {
-      alert('Error creating transaction');
+      alert(`Could not create this transaction. ${error.message}`);
     }
   };
 

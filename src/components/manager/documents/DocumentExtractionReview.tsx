@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCircle, XCircle, Loader2, AlertTriangle, FileText, Spar
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
 import {
-  sanitizeTerms, hasValue, numberOf, loadDealingTerms,
+  sanitizeTerms, hasValue, numberOf, loadDealingTerms, saveDealingTerms,
   type DealingTerms, type DocumentClass, type TermEntry,
 } from '../../../lib/dealingTerms';
 import { TermsTable, ClassMappingTable, type ExistingClass } from './ReviewFields';
@@ -129,20 +129,13 @@ export default function DocumentExtractionReview({ documentId, onBack, onApprove
     setSaving(true);
     setError(null);
     try {
-      const filled = Object.fromEntries(Object.entries(terms).filter(([, t]) => hasValue(t))) as DealingTerms;
+      const filled = Object.fromEntries(Object.entries(terms).filter(([, t]) => hasValue(t))
+        .map(([k, t]) => [k, { ...t, document_id: doc.id, set_manually: false }])) as DealingTerms;
       const merged: DealingTerms = { ...current.terms, ...filled };
       const now = new Date().toISOString();
 
-      const { error: tErr } = await supabase.from('fund_dealing_terms').upsert({
-        tenant_id: doc.tenant_id,
-        fund_id: fundId,
-        terms: merged,
-        source_document_ids: Array.from(new Set([...current.sourceDocumentIds, doc.id])),
-        approved_by: user?.id ?? null,
-        approved_at: now,
-        updated_at: now,
-      }, { onConflict: 'fund_id' });
-      if (tErr) throw new Error(`Could not save dealing rules: ${tErr.message}`);
+      await saveDealingTerms(doc.tenant_id, fundId, merged,
+        Array.from(new Set([...current.sourceDocumentIds, doc.id])), user?.id ?? null);
 
       const hwm = merged.high_water_mark;
       let updatedCount = 0;

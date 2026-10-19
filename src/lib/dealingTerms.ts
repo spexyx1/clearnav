@@ -7,6 +7,8 @@ export interface TermEntry {
   clause?: string | null;
   page?: number | null;
   quote?: string | null;
+  document_id?: string | null;
+  set_manually?: boolean;
 }
 
 export type TermKey =
@@ -38,7 +40,7 @@ export interface TermField {
 }
 
 export const TERM_FIELDS: TermField[] = [
-  { key: 'dealing_frequency', label: 'Dealing frequency', kind: 'select', options: ['daily', 'weekly', 'monthly', 'quarterly'], group: 'Dealing' },
+  { key: 'dealing_frequency', label: 'Dealing frequency', kind: 'select', options: ['monthly', 'quarterly'], group: 'Dealing' },
   { key: 'valuation_point', label: 'Valuation point', kind: 'text', group: 'Dealing' },
   { key: 'application_cutoff_business_days', label: 'Application cut-off', kind: 'number', unit: 'business days before', group: 'Dealing' },
   { key: 'redemption_notice_days', label: 'Redemption notice', kind: 'number', unit: 'days', group: 'Dealing' },
@@ -94,6 +96,120 @@ export function sanitizeTerms(raw: unknown): DealingTerms {
     if (t && typeof t === 'object' && 'value' in t) out[f.key] = t as TermEntry;
   }
   return out;
+}
+
+export const DEFAULT_TERMS: Partial<Record<TermKey, TermValue>> = {
+  dealing_frequency: 'monthly',
+  valuation_point: 'Last calendar day of the month, at the IBKR close',
+  application_cutoff_business_days: 2,
+  redemption_notice_days: 30,
+  units_issued_when: 'At the first final month-end price after the money arrives',
+  application_money_handling: 'Uninvested cash, kept out of the class value until units are issued',
+  launch_unit_price: 1,
+};
+
+export type RuleSource = 'document' | 'manual' | 'default' | 'missing';
+
+export interface EffectiveRule {
+  field: TermField;
+  entry: TermEntry | null;
+  source: RuleSource;
+}
+
+export function effectiveRules(terms: DealingTerms): EffectiveRule[] {
+  return TERM_FIELDS.map(field => {
+    const entry = terms[field.key];
+    if (hasValue(entry)) return { field, entry, source: entry.set_manually && !entry.document_id ? 'manual' : 'document' };
+    const def = DEFAULT_TERMS[field.key];
+    if (def !== undefined) return { field, entry: { value: def }, source: 'default' };
+    return { field, entry: null, source: 'missing' };
+  });
+}
+
+export interface DealingSchedule {
+  frequency: 'monthly' | 'quarterly';
+  cutoffDays: number;
+  noticeDays: number;
+}
+
+export function scheduleFrom(terms: DealingTerms): DealingSchedule {
+  const freq = hasValue(terms.dealing_frequency) ? String(terms.dealing_frequency.value) : 'monthly';
+  return {
+    frequency: freq === 'quarterly' ? 'quarterly' : 'monthly',
+    cutoffDays: numberOf(terms.application_cutoff_business_days) ?? 2,
+    noticeDays: numberOf(terms.redemption_notice_days) ?? 30,
+  };
+}
+
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+const utc = (s: string) => new Date(`${s}T00:00:00Z`);
+
+function monthEnd(year: number, month: number) {
+  return new Date(Date.UTC(year, month + 1, 0));
+}
+
+function isDealingMonth(s: DealingSchedule, month: number) {
+  return s.frequency === 'monthly' || month % 3 === 2;
+}
+
+export function nextDealingDay(s: DealingSchedule, onOrAfter: string): string {
+  const from = utc(onOrAfter);
+  let y = from.getUTCFullYear();
+  let m = from.getUTCMonth();
+  for (let i = 0; i < 24; i++) {
+    const end = monthEnd(y, m);
+    if (isDealingMonth(s, m) && end >= from) return iso(end);
+    m += 1;
+    if (m > 11) { m = 0; y += 1; }
+  }
+  return iso(monthEnd(y, m));
+}
+
+export function cutoffFor(s: DealingSchedule, dealingDay: string): string {
+  const d = utc(dealingDay);
+  let left = s.cutoffDays;
+  while (left > 0) {
+    d.setUTCDate(d.getUTCDate() - 1);
+    const wd = d.getUTCDay();
+    if (wd !== 0 && wd !== 6) left -= 1;
+  }
+  return iso(d);
+}
+
+export function applicationDealingDay(s: DealingSchedule, moneyArrived: string): string {
+  let day = nextDealingDay(s, moneyArrived);
+  while (cutoffFor(s, day) < moneyArrived) {
+    const next = utc(day);
+    next.setUTCDate(next.getUTCDate() + 1);
+    day = nextDealingDay(s, iso(next));
+  }
+  return day;
+}
+
+export function redemptionDealingDay(s: DealingSchedule, noticeReceived: string): string {
+  const earliest = utc(noticeReceived);
+  earliest.setUTCDate(earliest.getUTCDate() + s.noticeDays);
+  return nextDealingDay(s, iso(earliest));
+}
+
+export function latestNoticeFor(s: DealingSchedule, dealingDay: string): string {
+  const d = utc(dealingDay);
+  d.setUTCDate(d.getUTCDate() - s.noticeDays);
+  return iso(d);
+}
+
+export async function saveDealingTerms(tenantId: string, fundId: string, terms: DealingTerms, sourceDocumentIds: string[], userId: string | null) {
+  const now = new Date().toISOString();
+  const { error } = await supabase.from('fund_dealing_terms').upsert({
+    tenant_id: tenantId,
+    fund_id: fundId,
+    terms,
+    source_document_ids: sourceDocumentIds,
+    approved_by: userId,
+    approved_at: now,
+    updated_at: now,
+  }, { onConflict: 'fund_id' });
+  if (error) throw new Error(`Could not save dealing rules: ${error.message}`);
 }
 
 export async function loadDealingTerms(fundId: string) {

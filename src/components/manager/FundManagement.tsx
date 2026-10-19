@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Eye, Building2, DollarSign, Calendar, TrendingUp, Sparkles } from 'lucide-react';
+import { Plus, Edit, Eye, Building2, DollarSign, Calendar, TrendingUp, Sparkles, Scale } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useTenantId } from '../../lib/useTenantId';
 import TenantNotice from './TenantNotice';
 import FundDocumentUpload from './documents/FundDocumentUpload';
 import DocumentExtractionReview from './documents/DocumentExtractionReview';
+import DealingRules from './DealingRules';
 
 interface Fund {
   id: string;
@@ -20,7 +21,7 @@ interface Fund {
   created_at: string;
 }
 
-type ActiveTab = 'funds' | 'documents';
+type ActiveTab = 'funds' | 'documents' | 'rules';
 type DocumentView = 'list' | 'review';
 
 export default function FundManagement() {
@@ -161,7 +162,28 @@ export default function FundManagement() {
           <Sparkles className="w-4 h-4" />
           <span>Document Intelligence</span>
         </button>
+        <button
+          onClick={() => setActiveTab('rules')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'rules'
+              ? 'bg-slate-700 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Scale className="w-4 h-4" />
+          <span>Dealing Rules</span>
+        </button>
       </div>
+
+      {activeTab === 'rules' && currentTenant && (
+        <div className="bg-slate-800/30 rounded-xl border border-slate-700 p-6">
+          <DealingRules
+            tenantId={currentTenant.id}
+            funds={funds}
+            onOpenDocuments={() => { setActiveTab('documents'); setDocumentView('list'); }}
+          />
+        </div>
+      )}
 
       {activeTab === 'funds' && (
         <>
