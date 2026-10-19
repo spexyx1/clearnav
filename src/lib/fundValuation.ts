@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { monthEnd, monthsBetween, type ChangeInNav } from './statementParser';
+import { monthEnd, monthsBetween, type CashEvent, type ChangeInNav } from './statementParser';
 import type { StatementMonthData } from './statementImport';
 
 export interface UploadRow {
@@ -75,6 +75,9 @@ export interface Movement {
   suggested: MovementLabel;
   label: MovementLabel;
   confirmed: boolean;
+  reason: string;
+  dealPrice?: number;
+  units?: number;
 }
 
 export interface Charges {
@@ -187,14 +190,23 @@ export function valueClass(
   inceptionMonth: string,
   fallbackMonths: string[],
   labels: Record<string, MovementLabel> = {},
+  classNames: Record<string, string> = {},
 ): ClassValuation {
   const notes: string[] = [];
   const own = uploads.filter((u) => u.share_class_id === cls.id);
   const capital = cls.units * cls.startPrice;
   const uploadClass = new Map(uploads.map((u) => [u.id, u.share_class_id]));
+  const nameOf = (id: string | undefined) => (id && classNames[id]) || 'another class';
+  const near = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) <= 3 * DAY;
   const peerTransfers = items.filter((i) => i.notes === 'transfer' && uploadClass.get(i.upload_id) && uploadClass.get(i.upload_id) !== cls.id);
-  const isMirrored = (t: ItemRow) => peerTransfers.some((o) => o.instrument === t.instrument && o.direction !== t.direction
-    && Math.abs(Number(o.quantity) - Number(t.quantity)) < 1e-6 && Math.abs(Date.parse(o.trade_date) - Date.parse(t.trade_date)) <= 3 * DAY);
+  const mirrorOf = (t: ItemRow) => peerTransfers.find((o) => o.instrument === t.instrument && o.direction !== t.direction
+    && Math.abs(Number(o.quantity) - Number(t.quantity)) < 1e-6 && near(o.trade_date, t.trade_date));
+  const peerCash = uploads.filter((u) => u.share_class_id !== cls.id).flatMap((u) => (u.statement_data.cash_events ?? [])
+    .filter((e) => e.type === 'deposit' || e.type === 'withdrawal').map((e) => ({ ...e, classId: u.share_class_id })));
+  const cashMirrorOf = (e: CashEvent) => peerCash.find((o) => (o.currency || 'USD') === (e.currency || 'USD') && Math.abs(o.amount + e.amount) < 0.005 && near(o.date, e.date));
+  const allFees = own.flatMap((u) => (u.statement_data.cash_events ?? []).filter((e) => e.type === 'fee'));
+  const reversedCharge = (credit: CashEvent) => allFees.find((o) => o.amount < 0 && Math.abs(o.amount + credit.amount) < 0.005 && o.date <= credit.date
+    && Date.parse(credit.date) - Date.parse(o.date) <= 120 * DAY);
 
   if (!own.length) {
     const months = fallbackMonths.filter((m) => m >= inceptionMonth);
@@ -347,9 +359,10 @@ export function valueClass(
     const charges: Charges = { ...NO_CHARGES };
     const movements: Movement[] = [];
     const tradeFx: Record<string, number> = {};
-    const classify = (key: string, suggested: MovementLabel, auto: boolean) => {
+    const classify = (key: string, suggested: MovementLabel, auto: boolean, why: string) => {
       const label = labels[key] ?? suggested;
-      return { label, confirmed: auto || key in labels };
+      const reason = key in labels ? `You marked this as "${MOVEMENT_LABELS[label].toLowerCase()}".` : auto ? why : `Needs your answer: ${why}`;
+      return { label, confirmed: auto || key in labels, reason };
     };
     monthItems.forEach((t) => {
       const assetCategory = t.asset_category || '';
@@ -364,10 +377,14 @@ export function valueClass(
       if (t.notes === 'transfer') {
         const value = signed * Number(t.price) * mult * fx;
         const key = `${cls.id}:shares:${t.trade_date}:${t.instrument}:${t.direction}:${Number(t.quantity)}`;
-        const mirrored = isMirrored(t);
-        const { label, confirmed } = classify(key, mirrored ? 'internal' : signed > 0 ? 'investor' : 'other_fund', mirrored);
+        const peer = mirrorOf(t);
+        const suggested: MovementLabel = peer ? 'internal' : signed > 0 ? 'investor' : 'other_fund';
+        const why = peer
+          ? `Class switch: the same ${Number(t.quantity).toLocaleString('en-US')} ${t.instrument} ${signed > 0 ? 'left' : 'arrived in'} ${nameOf(uploadClass.get(peer.upload_id))} on ${peer.trade_date}.`
+          : `no matching transfer in another class account, so it may be ${signed > 0 ? 'an investor bringing in shares' : 'shares sent to another fund'}.`;
+        const { label, confirmed, reason } = classify(key, suggested, !!peer, why);
         movements.push({
-          key, date: t.trade_date, kind: 'shares', amount: round(value), suggested: mirrored ? 'internal' : signed > 0 ? 'investor' : 'other_fund', label, confirmed,
+          key, date: t.trade_date, kind: 'shares', amount: round(value), suggested, label, confirmed, reason,
           description: `${signed > 0 ? 'Received' : 'Sent out'} ${Number(t.quantity).toLocaleString('en-US')} ${t.instrument} at ${Number(t.price)} ${t.currency || ccyOf(t.instrument)}`,
         });
         flows += value;
@@ -393,12 +410,37 @@ export function valueClass(
     events.forEach((e, i) => {
       const amount = e.amount * fxFor(e.currency || 'USD', date, stmtRates);
       cash += amount;
-      if (e.type === 'deposit' || e.type === 'withdrawal') {
-        const key = `${cls.id}:cash:${e.date}:${e.currency || 'USD'}:${e.amount.toFixed(2)}`;
-        const auto = !!e.internal || paired.has(i);
-        const suggested: MovementLabel = auto ? 'internal' : e.amount < 0 && /disburse/i.test(e.description) ? 'fee' : 'investor';
-        const { label, confirmed } = classify(key, suggested, auto);
-        movements.push({ key, date: e.date, kind: 'cash', amount: round(amount), suggested, label, confirmed, description: `${e.description || (e.amount < 0 ? 'Withdrawal' : 'Deposit')} (${e.amount.toLocaleString('en-US')} ${e.currency || 'USD'})` });
+      const reversed = e.type === 'fee' && e.amount > 0 ? reversedCharge(e) : undefined;
+      if (reversed) {
+        const cat = chargeCategory(reversed.description);
+        fees -= amount;
+        charges[reversed.date.slice(0, 7) === mk ? cat : 'adjustments'] -= amount;
+        movements.push({
+          key: `${cls.id}:fee:${e.date}:${e.amount.toFixed(2)}`, date: e.date, kind: 'cash', amount: round(amount), suggested: 'fee', label: 'fee', confirmed: true,
+          reason: `Fee credit: reverses the ${usdText(-reversed.amount)} "${reversed.description}" charge on ${reversed.date}, so only the net fee counts.`,
+          description: `${e.description} (${e.amount.toLocaleString('en-US')} ${e.currency || 'USD'})`,
+        });
+        return;
+      }
+      const feeCredit = e.type === 'fee' && e.amount > 0;
+      if (e.type === 'deposit' || e.type === 'withdrawal' || feeCredit) {
+        const key = feeCredit ? `${cls.id}:fee:${e.date}:${e.amount.toFixed(2)}` : `${cls.id}:cash:${e.date}:${e.currency || 'USD'}:${e.amount.toFixed(2)}`;
+        const peer = feeCredit ? undefined : cashMirrorOf(e);
+        const auto = !feeCredit && (!!peer || !!e.internal || paired.has(i));
+        const suggested: MovementLabel = feeCredit ? 'fee' : auto ? 'internal' : e.amount < 0 && /disburse/i.test(e.description) ? 'fee' : 'investor';
+        const why = feeCredit
+          ? `a fee credit of ${usdText(e.amount)} with no matching earlier charge on file. Is it a fee refund, or money paid in?`
+          : peer
+            ? `Class switch: matches the ${usdText(peer.amount)} ${peer.amount > 0 ? 'deposit into' : 'withdrawal from'} ${nameOf(peer.classId)} on ${peer.date}.`
+            : paired.has(i)
+              ? 'Cancelled out by an equal and opposite entry in the same account.'
+              : e.internal
+                ? 'IBKR marks this as an internal transfer between our own accounts.'
+                : e.amount < 0 && /disburse/i.test(e.description)
+                  ? 'a payment out of the account, which looks like an adviser fee payment.'
+                  : `no matching entry in another class account, so it looks like investor money ${e.amount > 0 ? 'in' : 'out'}.`;
+        const { label, confirmed, reason } = classify(key, suggested, auto, why);
+        movements.push({ key, date: e.date, kind: 'cash', amount: round(amount), suggested, label, confirmed, reason, description: `${e.description || (e.amount < 0 ? 'Withdrawal' : 'Deposit')} (${e.amount.toLocaleString('en-US')} ${e.currency || 'USD'})` });
         if (label === 'fee') {
           fees += -amount;
           charges[amount < 0 ? 'subadvisor' : 'adjustments'] += -amount;
@@ -455,10 +497,33 @@ export function valueClass(
     if (mk >= inceptionMonth) {
       // Units for money in or out are dealt at the price the month opened at, which keeps units x price equal to the account value.
       const unitsStart = units;
-      const issued = movements.filter((m) => m.label !== 'fee' && m.amount > 0).reduce((s, m) => s + m.amount, 0) / unitPrice;
-      const redeemed = -movements.filter((m) => m.label !== 'fee' && m.amount < 0).reduce((s, m) => s + m.amount, 0) / unitPrice;
+      const startPrice = unitPrice;
+      const dailyNav = data?.daily_nav ?? {};
+      const navDays = Object.keys(dailyNav).sort();
+      const dealt = movements.filter((x) => x.label !== 'fee');
+      const unpricedDays: string[] = [];
+      let price = unitPrice;
+      let valueAfter = prevValue;
+      let issued = 0;
+      let redeemed = 0;
+      // Units for each day's money in or out are dealt at that day's IBKR close, excluding the day's own flows.
+      [...new Set(dealt.map((x) => x.date))].sort().forEach((d) => {
+        const dayMoves = dealt.filter((x) => x.date === d);
+        const dayFlow = dayMoves.reduce((s, x) => s + x.amount, 0);
+        const prior = navDays.filter((x) => x < d).pop();
+        const navBefore = dailyNav[d] != null ? dailyNav[d] - dayFlow : prior ? dailyNav[prior] : null;
+        if (navBefore != null && valueAfter > 0.01) price *= navBefore / valueAfter;
+        else if (valueAfter > 0.01) unpricedDays.push(d);
+        dayMoves.forEach((x) => {
+          x.dealPrice = round(price, 6);
+          x.units = round(x.amount / price, 4);
+          if (x.amount > 0) issued += x.amount / price;
+          else redeemed -= x.amount / price;
+        });
+        valueAfter = (navBefore != null && valueAfter > 0.01 ? navBefore : valueAfter) + dayFlow;
+      });
       units = unitsStart + issued - redeemed;
-      unitPrice = unitPrice * (1 + monthReturn);
+      unitPrice = valueAfter > 0.01 ? price * accountValue / valueAfter : price;
       Object.keys(charges).forEach((k) => { charges[k as keyof Charges] = round(charges[k as keyof Charges]); });
       const unofficial = holdings.filter((h) => !isIbkrPrice(h.priceSource)).map((h) => h.symbol);
       const changeInNav = data?.change_in_nav ?? null;
@@ -473,13 +538,14 @@ export function valueClass(
       if (missingFx.size) finalReasons.push(`No IBKR exchange rate for ${[...missingFx].join(', ')}.`);
       const unexplainedMoves = movements.filter((x) => !x.confirmed).length;
       if (unexplainedMoves) finalReasons.push(`${unexplainedMoves} money or share movement${unexplainedMoves === 1 ? '' : 's'} not yet explained.`);
+      if (unpricedDays.length) finalReasons.push(`No IBKR daily value for ${unpricedDays.join(', ')}, so units moved that day could not be priced at the day's close. Make sure the IBKR report's NAV section is daily.`);
       results.push({
         month: mk, date, openingValue: round(prevValue), flows: round(flows), internalFlows: round(internalFlows), cash: round(cash), unitemisedCash: round(unitemisedCash), holdings, holdingsValue,
         movements, charges, dividends: round(dividends), interest: round(interest),
         investmentGain: round(accountValue - prevValue - flows - income + fees),
         unitsStart: round(unitsStart, 4), unitsIssued: round(issued, 4), unitsRedeemed: round(redeemed, 4),
         accountValue: round(accountValue), computedValue, brokerValue, income: round(income), fees: round(fees),
-        tradeCount: monthItems.length, monthReturn, unitPrice: round(unitPrice, 6), units: round(units, 4),
+        tradeCount: monthItems.length, monthReturn: startPrice > 0 ? unitPrice / startPrice - 1 : monthReturn, unitPrice: round(unitPrice, 6), units: round(units, 4),
         classNav: round(unitPrice * units), missingPrices: holdings.filter((h) => h.priceSource === 'missing').map((h) => h.symbol),
         unofficialPrices: unofficial,
         missingFx: [...missingFx], unexplained: round(unexplained), tradeFx,
@@ -545,7 +611,8 @@ export async function loadFundData(fundId: string): Promise<FundData> {
 export function valueFund(d: FundData): ClassValuation[] {
   const monthsWithData = [...new Set(d.uploads.map((u) => `${u.upload_year}-${String(u.upload_month).padStart(2, '0')}`))].sort();
   const fallback = monthsWithData.length ? monthsBetween(`${d.inceptionMonth}-01`, `${monthsWithData[monthsWithData.length - 1]}-01`) : [];
-  return d.classes.map((c) => valueClass(c, d.uploads, d.items, d.marks, d.inceptionMonth, fallback, d.labels));
+  const classNames = Object.fromEntries(d.classes.map((c) => [c.id, c.class_name]));
+  return d.classes.map((c) => valueClass(c, d.uploads, d.items, d.marks, d.inceptionMonth, fallback, d.labels, classNames));
 }
 
 export async function refreshMarketPrices(tenantId: string, fundId: string, valuations: ClassValuation[], d: FundData) {

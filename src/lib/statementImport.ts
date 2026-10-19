@@ -20,6 +20,7 @@ export interface StatementMonthData {
   fx_rates?: Record<string, number>;
   ibkr_prices?: { as_of: string; prices: Record<string, number> };
   change_in_nav?: ChangeInNav;
+  daily_nav?: Record<string, number>;
 }
 
 export interface MonthlyBatch {
@@ -101,6 +102,8 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
       const priceDay = priceDates.filter((d) => d.startsWith(mk)).pop();
       if (priceDay) data.ibkr_prices = { as_of: priceDay, prices: summary.pricesByDate![priceDay] };
       if (summary.changeInNav?.to.startsWith(mk)) data.change_in_nav = summary.changeInNav;
+      const monthNavs = navDates.filter((d) => d.startsWith(mk));
+      if (monthNavs.length) data.daily_nav = Object.fromEntries(monthNavs.map((d) => [d, summary.navByDate![d]]));
       batches.push({
         account,
         shareClassId,
@@ -207,6 +210,7 @@ async function carryOver(fundId: string, b: MonthlyBatch, first: boolean) {
   if (!b.data.closing && old.closing?.nav != null) b.data.closing = { ...old.closing, positions: [], has_positions: false };
   if (!b.data.ibkr_prices && old.ibkr_prices) b.data.ibkr_prices = old.ibkr_prices;
   if (!b.data.change_in_nav && old.change_in_nav) b.data.change_in_nav = old.change_in_nav;
+  if (old.daily_nav) b.data.daily_nav = { ...old.daily_nav, ...b.data.daily_nav };
   if (first && old.opening?.nav != null && b.data.opening && b.data.opening.nav == null) b.data.opening = { ...b.data.opening, nav: old.opening.nav, cash: b.data.opening.cash ?? old.opening.cash };
 }
 

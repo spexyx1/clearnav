@@ -25,7 +25,6 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
     ['Fee adjustments and credits', c.adjustments], ['Trading commissions', c.trading], ['Other charges', c.other],
   ];
   const externalFlows = m.flows;
-  const dealPrice = m.unitsStart > 0 ? m.openingValue / m.unitsStart : m.unitPrice;
   const accounted = Math.abs(m.unexplained) < 1;
   const brokerGap = m.brokerValue != null ? m.classNav - m.brokerValue : null;
 
@@ -59,7 +58,7 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
         <section className="bg-slate-900/70 border border-slate-800 rounded-lg p-4">
           <h4 className="text-xs uppercase tracking-wider text-slate-500 mb-2">Units</h4>
           <Line label="Units at start" value={units(m.unitsStart)} />
-          <Line label={`Issued at ${dealPrice.toFixed(4)}`} value={m.unitsIssued ? `+${units(m.unitsIssued)}` : '—'} tone={m.unitsIssued ? 'up' : 'muted'} />
+          <Line label="Issued" value={m.unitsIssued ? `+${units(m.unitsIssued)}` : '—'} tone={m.unitsIssued ? 'up' : 'muted'} />
           <Line label="Redeemed" value={m.unitsRedeemed ? `-${units(m.unitsRedeemed)}` : '—'} tone={m.unitsRedeemed ? 'down' : 'muted'} />
           <Line label="Units at end" value={units(m.units)} strong />
           <Line label="Unit price" value={`$${m.unitPrice.toFixed(4)}`} />
@@ -98,7 +97,13 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
             {m.movements.map((mv) => (
               <div key={mv.key} className="grid grid-cols-1 sm:grid-cols-[90px_1fr_auto_auto] gap-x-4 gap-y-1 px-4 py-2 items-center">
                 <span className="text-slate-500 tabular-nums">{mv.date}</span>
-                <span className="text-slate-300 truncate" title={mv.description}>{mv.description}</span>
+                <span className="min-w-0">
+                  <span className="block text-slate-300 truncate" title={mv.description}>{mv.description}</span>
+                  <span className={`block text-xs mt-0.5 ${mv.confirmed ? 'text-slate-500' : 'text-amber-300/90'}`}>
+                    {mv.reason}
+                    {mv.units != null && mv.dealPrice != null && ` ${mv.units >= 0 ? 'Issues' : 'Redeems'} ${units(Math.abs(mv.units))} units at ${mv.dealPrice.toFixed(4)}.`}
+                  </span>
+                </span>
                 <span className={`text-xs px-2 py-0.5 rounded-full border w-fit ${mv.confirmed ? 'border-slate-700 text-slate-300' : 'border-amber-500/40 text-amber-300'}`}>
                   {MOVEMENT_LABELS[mv.label]}{mv.confirmed ? '' : ' (needs your answer)'}
                 </span>

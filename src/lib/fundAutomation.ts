@@ -162,10 +162,10 @@ function detectClassGaps(v: ClassValuation, className: string): DetectedItem[] {
 }
 
 const LABEL_EFFECT: Record<MovementLabel, string> = {
-  investor: 'Units are issued or cancelled at the unit price, so the unit price is not affected.',
+  investor: "Units are issued or cancelled at that day's IBKR unit price, so the unit price is not affected.",
   fee: 'Treated as an expense: it lowers the unit price and no units change.',
-  internal: 'Units move from one of our classes to the other at the unit price.',
-  other_fund: 'Units are cancelled or issued at the unit price, so the unit price is not affected.',
+  internal: "Class switch: units come off one class and go onto the other at that day's IBKR unit price.",
+  other_fund: "Units are cancelled or issued at that day's IBKR unit price, so the unit price is not affected.",
 };
 
 function detectMovements(v: ClassValuation, className: string): DetectedItem[] {
@@ -176,7 +176,7 @@ function detectMovements(v: ClassValuation, className: string): DetectedItem[] {
       share_class_id: v.classId, month: m.month, kind: 'movement', blocking: true,
       dedupe_key: `movement:${x.key}`,
       title: `${className}: what was the ${usd(Math.abs(x.amount))} ${x.amount < 0 ? 'going out' : 'coming in'} on ${x.date}?`,
-      detail: `${x.description}. It is currently treated as "${MOVEMENT_LABELS[x.suggested].toLowerCase()}". This decides whether it changes the unit price or the number of units.`,
+      detail: `${x.description}. ${x.reason} The month cannot become final until this is answered, because it decides whether the unit price or the number of units changes.`,
       options: ordered.map((c) => ({ key: `label:${c}`, label: MOVEMENT_LABELS[c] + (c === x.suggested ? ' (suggested)' : ''), description: LABEL_EFFECT[c] })),
       context: { movement_key: x.key },
     };
