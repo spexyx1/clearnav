@@ -5,11 +5,12 @@ import type { MonthResult, PriceSource } from '../../lib/fundValuation';
 const usd = (v: number, d = 2) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
 
 const SOURCE_STYLE: Record<PriceSource, { label: string; cls: string }> = {
-  manual: { label: 'Manual', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
-  statement: { label: 'Broker', cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
-  market: { label: 'Market', cls: 'bg-sky-500/15 text-sky-300 border-sky-500/30' },
-  trade: { label: 'Last trade', cls: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
-  broker_last: { label: 'Broker last price', cls: 'bg-teal-500/15 text-teal-300 border-teal-500/30' },
+  manual: { label: 'Manual - not final', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+  statement: { label: 'IBKR close', cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
+  ibkr: { label: 'IBKR close', cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
+  market: { label: 'Public - info only', cls: 'bg-sky-500/15 text-sky-300 border-sky-500/30' },
+  trade: { label: 'Last trade - not final', cls: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
+  broker_last: { label: 'Older IBKR price - not final', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
   missing: { label: 'No price', cls: 'bg-red-500/15 text-red-300 border-red-500/30' },
   expired: { label: 'Expired', cls: 'bg-slate-500/10 text-slate-400 border-slate-600/40' },
 };

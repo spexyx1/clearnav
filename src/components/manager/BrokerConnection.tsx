@@ -1,28 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Link2, Loader2, PlugZap, RefreshCw, Settings2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { parseFlexXml } from '../../lib/flexStatement';
-import { buildMonthlyBatches, saveStatementBatches, storeSourceFile } from '../../lib/statementImport';
-import { describeResult, runFundAutomation } from '../../lib/fundAutomation';
+import { callFlex, pullFromIbkr } from '../../lib/ibkrSync';
 
 interface Connection { query_id: string; token_expires_on: string | null; last_sync_at: string | null; last_status: string | null; last_error: string | null }
 interface Props { tenantId: string; fundId: string; userId: string; onSynced: (message: string) => void }
 
 const DAY = 86_400_000;
 const fieldCls = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition';
-const SECTIONS = ['Account Information', 'Net Asset Value (NAV) in Base', 'Cash Report', 'Open Positions', 'Trades', 'Cash Transactions', 'Transfers', 'Corporate Actions', 'Conversion Rates'];
-
-async function callFlex(payload: Record<string, unknown>) {
-  const { data: s } = await supabase.auth.getSession();
-  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ibkr-flex-sync`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${s.session?.access_token ?? ''}`, 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
-    body: JSON.stringify(payload),
-  });
-  const body = await res.json().catch(() => null) as { error?: string; xml?: string; ok?: boolean } | null;
-  if (!res.ok || !body || body.error) throw new Error(body?.error ?? 'Interactive Brokers could not be reached. Please try again.');
-  return body;
-}
+const SECTIONS = ['Account Information', 'Net Asset Value (NAV) in Base', 'Change in NAV', 'Cash Report', 'Open Positions', 'Prior Period Positions', 'Trades', 'Cash Transactions', 'Transfers', 'Corporate Actions', 'Conversion Rates'];
 
 function relative(iso: string) {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -54,19 +40,7 @@ export default function BrokerConnection({ tenantId, fundId, userId, onSynced }:
     setSyncing(true);
     setSyncError('');
     try {
-      const { xml } = await callFlex({ action: 'fetch', fund_id: fundId });
-      if (!xml) throw new Error('Interactive Brokers returned an empty report.');
-      const statement = parseFlexXml(xml);
-      const { data: maps, error: mErr } = await supabase.from('fund_broker_accounts').select('account_id, share_class_id').eq('fund_id', fundId);
-      if (mErr) throw new Error('Could not load which accounts belong to which class.');
-      const accountToClass = Object.fromEntries((maps ?? []).filter((m) => statement.accounts.includes(m.account_id)).map((m) => [m.account_id, m.share_class_id]));
-      if (!Object.keys(accountToClass).length) throw new Error('None of the accounts in the Interactive Brokers report are matched to a share class yet. Upload one statement by hand first so the accounts are matched.');
-      const batches = buildMonthlyBatches(statement, accountToClass);
-      const filename = `IBKR automatic update ${new Date().toISOString().slice(0, 10)}.xml`;
-      const sourcePath = await storeSourceFile(tenantId, new Blob([xml], { type: 'application/xml' }), filename);
-      const saved = await saveStatementBatches({ tenantId, fundId, userId, filename, sourcePath, statement, batches, accountToClass });
-      const automation = describeResult(await runFundAutomation(tenantId, fundId, userId));
-      onSynced(`Pulled the latest figures from Interactive Brokers (${saved} month${saved === 1 ? '' : 's'} updated). ${automation}`.trim());
+      onSynced(await pullFromIbkr(tenantId, fundId, userId));
     } catch (e) {
       console.error('ibkr sync failed', e);
       setSyncError(e instanceof Error ? e.message : 'The update from Interactive Brokers failed.');

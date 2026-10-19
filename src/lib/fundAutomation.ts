@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { monthEnd } from './statementParser';
-import { MOVEMENT_LABELS, loadFundData, refreshMarketPrices, saveDrafts, setManualPrice, setMovementLabel, valueFund, type ClassValuation, type FundData, type HoldingValue, type MonthResult, type MovementLabel } from './fundValuation';
+import { MOVEMENT_LABELS, isIbkrPrice, loadFundData, refreshMarketPrices, saveDrafts, setManualPrice, setMovementLabel, valueFund, type ClassValuation, type FundData, type HoldingValue, type MonthResult, type MovementLabel } from './fundValuation';
 import { MONTH_NAMES, buildReportNumbers, emptyNarrative, type ReportContent } from './monthlyReport';
 
 export interface ReviewOption { key: string; label: string; description: string }
@@ -206,7 +206,7 @@ function diagnoseMove(m: MonthResult, prev: MonthResult | undefined): Diagnosis 
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 
   for (const { h, p } of movers.slice(0, 5)) {
-    if (!p?.price || !h.price || h.priceSource === 'statement' || h.priceSource === 'expired') continue;
+    if (!p?.price || !h.price || isIbkrPrice(h.priceSource)) continue;
     const ratio = h.price / p.price;
     const units = Math.abs(h.quantity) * h.multiplier;
     if (units > 1 && Math.abs(h.price / (p.price * units) - 1) < 0.35) {

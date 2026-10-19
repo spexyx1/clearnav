@@ -18,6 +18,7 @@ export interface StatementMonthData {
   closing?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[]; has_positions?: boolean; nav_breakdown?: Record<string, number> };
   period: { start: string; end: string };
   fx_rates?: Record<string, number>;
+  ibkr_prices?: { as_of: string; prices: Record<string, number> };
 }
 
 export interface MonthlyBatch {
@@ -66,6 +67,7 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
     const summary = st.summaries[account] ?? { account };
     const hasPositionsSection = st.format === 'ibkr_activity' || st.format === 'ibkr_flex';
     const navDates = Object.keys(summary.navByDate ?? {}).sort();
+    const priceDates = Object.keys(summary.pricesByDate ?? {}).sort();
 
     months.forEach((mk, i) => {
       const data: StatementMonthData = {
@@ -95,6 +97,8 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
         const last = navDates.filter((d) => d.startsWith(mk)).pop();
         if (last) data.closing = { as_of: last, nav: summary.navByDate![last], cash: summary.cashByDate?.[last] ?? null, positions: [], has_positions: false };
       }
+      const priceDay = priceDates.filter((d) => d.startsWith(mk)).pop();
+      if (priceDay) data.ibkr_prices = { as_of: priceDay, prices: summary.pricesByDate![priceDay] };
       batches.push({
         account,
         shareClassId,
@@ -199,6 +203,7 @@ async function carryOver(fundId: string, b: MonthlyBatch, first: boolean) {
   if (!old) return;
   // A new file may cover fewer checkpoints than what is on file; keep the broker values already known.
   if (!b.data.closing && old.closing?.nav != null) b.data.closing = { ...old.closing, positions: [], has_positions: false };
+  if (!b.data.ibkr_prices && old.ibkr_prices) b.data.ibkr_prices = old.ibkr_prices;
   if (first && old.opening?.nav != null && b.data.opening && b.data.opening.nav == null) b.data.opening = { ...b.data.opening, nav: old.opening.nav, cash: b.data.opening.cash ?? old.opening.cash };
 }
 

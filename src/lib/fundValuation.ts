@@ -41,7 +41,9 @@ export interface ClassInfo {
   startPrice: number;
 }
 
-export type PriceSource = 'manual' | 'statement' | 'market' | 'trade' | 'broker_last' | 'missing' | 'expired';
+export type PriceSource = 'manual' | 'statement' | 'ibkr' | 'market' | 'trade' | 'broker_last' | 'missing' | 'expired';
+
+export const isIbkrPrice = (s: PriceSource) => s === 'statement' || s === 'ibkr' || s === 'expired';
 
 export interface HoldingValue {
   symbol: string;
@@ -113,6 +115,7 @@ export interface MonthResult {
   units: number;
   classNav: number;
   missingPrices: string[];
+  unofficialPrices: string[];
   missingFx: string[];
   unexplained: number;
   tradeFx: Record<string, number>;
@@ -192,7 +195,7 @@ export function valueClass(
         month: m, date: monthEnd(+m.slice(0, 4), +m.slice(5, 7)), openingValue: capital, flows: 0, internalFlows: 0, cash: capital, unitemisedCash: 0,
         movements: [], charges: { ...NO_CHARGES }, dividends: 0, interest: 0, investmentGain: 0, unitsStart: cls.units, unitsIssued: 0, unitsRedeemed: 0,
         holdings: [], holdingsValue: 0, accountValue: capital, computedValue: capital, brokerValue: null, income: 0, fees: 0,
-        tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [], missingFx: [], unexplained: 0, tradeFx: {},
+        tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [], unofficialPrices: [], missingFx: [], unexplained: 0, tradeFx: {},
       })),
     };
   }
@@ -248,12 +251,20 @@ export function valueClass(
     return (before ?? [...list].sort((a, b) => a[0].localeCompare(b[0]))[0])[1];
   };
 
+  const ibkrDaily = new Map<string, Map<string, number>>();
+  own.forEach((u) => {
+    const p = u.statement_data.ibkr_prices;
+    if (p) ibkrDaily.set(p.as_of.slice(0, 7), new Map(Object.entries(p.prices)));
+  });
+
   const priceFor = (symbol: string, assetCategory: string, date: string, statementPrices: Map<string, number> | null): [number, PriceSource] => {
     const k = markKey(symbol, date);
-    if (manual.has(k)) return [manual.get(k)!, 'manual'];
     if (statementPrices?.has(symbol)) return [statementPrices.get(symbol)!, 'statement'];
+    const daily = ibkrDaily.get(date.slice(0, 7));
+    if (daily?.has(symbol)) return [daily.get(symbol)!, 'ibkr'];
     const expiry = isOption(assetCategory, symbol) ? optionExpiry(symbol) : null;
     if (expiry && expiry < date) return [0, 'expired'];
+    if (manual.has(k)) return [manual.get(k)!, 'manual'];
     if (market.has(k)) return [market.get(k)!, 'market'];
     if (lastTrade.has(symbol)) return [lastTrade.get(symbol)!, 'trade'];
     const bp = brokerPrice(symbol, date);
@@ -445,6 +456,7 @@ export function valueClass(
         accountValue: round(accountValue), computedValue, brokerValue, income: round(income), fees: round(fees),
         tradeCount: monthItems.length, monthReturn, unitPrice: round(unitPrice, 6), units: round(units, 4),
         classNav: round(unitPrice * units), missingPrices: holdings.filter((h) => h.priceSource === 'missing').map((h) => h.symbol),
+        unofficialPrices: holdings.filter((h) => !isIbkrPrice(h.priceSource)).map((h) => h.symbol),
         missingFx: [...missingFx], unexplained: round(unexplained), tradeFx,
       });
     }

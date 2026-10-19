@@ -61,6 +61,7 @@ export interface AccountSummary {
   navBreakdown?: Record<string, number>;
   navByDate?: Record<string, number>;
   cashByDate?: Record<string, number>;
+  pricesByDate?: Record<string, Record<string, number>>;
 }
 
 export interface SkippedRow {

@@ -68,12 +68,22 @@ export function parseFlexXml(xml: string): ParsedStatement {
       if (!Number.isNaN(b)) s.endingCash = b;
     });
 
+    const prices: Record<string, Record<string, number>> = {};
+    const addPrice = (d: string, symbol: string, price: number) => {
+      if (!d || !symbol || Number.isNaN(price)) return;
+      (prices[d] ??= {})[symbol] = price;
+    };
+    st.querySelectorAll('PriorPeriodPosition').forEach((p) => {
+      addPrice(day(p.getAttribute('date')), p.getAttribute('symbol') || '', num(p.getAttribute('price')));
+    });
+
     st.querySelectorAll('OpenPosition').forEach((p) => {
       const lvl = p.getAttribute('levelOfDetail');
       if (lvl && lvl !== 'SUMMARY') return;
       const qty = num(p.getAttribute('position'));
       const symbol = p.getAttribute('symbol') || '';
       if (!symbol || Number.isNaN(qty)) return;
+      addPrice(day(p.getAttribute('reportDate')) || to, symbol, num(p.getAttribute('markPrice')));
       const mult = num(p.getAttribute('multiplier'));
       out.positions.push({
         account: acct, symbol, assetCategory: p.getAttribute('assetCategory') || '', currency: p.getAttribute('currency') || 'USD',
@@ -81,6 +91,8 @@ export function parseFlexXml(xml: string): ParsedStatement {
         closePrice: num(p.getAttribute('markPrice')) || 0, value: num(p.getAttribute('positionValue')) || 0, costBasis: num(p.getAttribute('costBasisMoney')) || 0,
       });
     });
+
+    if (Object.keys(prices).length) s.pricesByDate = prices;
 
     const trades = [...st.querySelectorAll('Trade')];
     const level = ['ORDER', 'EXECUTION'].find((l) => trades.some((t) => t.getAttribute('levelOfDetail') === l));
@@ -175,6 +187,9 @@ export function parseFlexXml(xml: string): ParsedStatement {
   });
   if (!out.accounts.some((a) => out.summaries[a]?.navByDate)) {
     out.warnings.push('The Flex query has no daily account value section, so months are only checked against the broker at the end of the period. Add "Net Asset Value (NAV) in Base" to the query for a check every month.');
+  }
+  if (!out.accounts.some((a) => Object.keys(out.summaries[a]?.pricesByDate ?? {}).length > 1)) {
+    out.warnings.push('The Flex query has no daily price section, so only the closing prices of the period come from IBKR. Add "Prior Period Positions" to the query so every month-end is priced by IBKR.');
   }
   if (nonBase.size) out.warnings.push(`Some activity is in ${[...nonBase].join(', ')}. It is converted to US dollars using the broker's exchange rates.`);
   return out;

@@ -13,6 +13,7 @@ import {
 import FundValueHoldings from './FundValueHoldings';
 import FundValueBreakdown, { type PreviousFigures } from './FundValueBreakdown';
 import BrokerConnection from './BrokerConnection';
+import { hasIbkrConnection, pullFromIbkr } from '../../lib/ibkrSync';
 
 interface Fund { id: string; fund_name: string }
 interface SavedNav { share_class_id: string; nav_date: string; status: string; nav_per_share: number; net_asset_value: number; total_shares: number; previous: PreviousFigures | null }
@@ -129,7 +130,7 @@ export default function FundValue() {
     }
     return row.previous;
   };
-  const missingCount = valuations.reduce((s, v) => s + v.months.reduce((t, m) => t + m.holdings.filter((h) => h.priceSource === 'trade' || h.priceSource === 'missing' || h.priceSource === 'broker_last').length, 0), 0);
+  const missingCount = valuations.reduce((s, v) => s + v.months.reduce((t, m) => t + m.unofficialPrices.length, 0), 0);
 
   async function run(key: string, fn: () => Promise<string>) {
     setBusy(key);
@@ -147,12 +148,24 @@ export default function FundValue() {
   }
 
   const doRefresh = () => run('prices', async () => {
-    if (!data || !tenantId) return '';
-    const r = await refreshMarketPrices(tenantId, fundId, valuations, data);
-    const prices = r.failed.length
-      ? `Updated ${r.updated} prices. Still without a public price (the broker's last reported price is used where there is one): ${r.failed.map((s) => `${s} (${r.reasons[s] ?? 'not found'})`).join('; ')}. You can set any of these by hand.`
-      : `Updated ${r.updated} month-end prices.`;
-    return `${prices} ${await automate()}`.trim();
+    if (!data || !tenantId || !user?.id) return '';
+    let ibkr = '';
+    if (await hasIbkrConnection(fundId)) {
+      try {
+        ibkr = await pullFromIbkr(tenantId, fundId, user.id);
+      } catch (e) {
+        console.error('ibkr price pull failed', e);
+        ibkr = 'Interactive Brokers could not be reached, so no new official prices were added.';
+      }
+    } else {
+      ibkr = 'Interactive Brokers is not connected, so no official prices could be fetched.';
+    }
+    const fresh = await loadFundData(fundId);
+    const r = await refreshMarketPrices(tenantId, fundId, valueFund(fresh), fresh);
+    const info = r.updated || r.failed.length
+      ? ` Public prices were looked up for ${r.updated} holding${r.updated === 1 ? '' : 's'} for information only; months using them stay "Not final - waiting for IBKR price".`
+      : '';
+    return `${ibkr}${info}`.trim();
   });
   const doSave = () => run('save', async () => {
     if (!user?.id) return '';
@@ -205,7 +218,7 @@ export default function FundValue() {
           )}
           <button onClick={doRefresh} disabled={!!busy || !months.length} className={`${btn} bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700`}>
             {busy === 'prices' ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
-            Update market prices{missingCount ? ` (${missingCount})` : ''}
+            Fetch missing prices{missingCount ? ` (${missingCount})` : ''}
           </button>
           <button onClick={doSave} disabled={!!busy || !months.length} className={`${btn} bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-600/20`}>
             {busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -298,8 +311,12 @@ export default function FundValue() {
                             <span className={`text-xs px-2 py-0.5 rounded-full border ${st === 'approved' ? 'border-emerald-500/30 text-emerald-300' : st ? 'border-sky-500/30 text-sky-300' : 'border-slate-700 text-slate-500'}`}>
                               {st === 'approved' ? 'Approved' : st ? 'Draft' : 'Not saved'}
                             </span>
-                            {r!.missingPrices.length > 0 && <span className="ml-2 text-xs text-red-300">{r!.missingPrices.length} unpriced</span>}
-                            {st && st !== 'approved' && (
+                            {r!.unofficialPrices.length > 0 && (
+                              <span title={`No IBKR price yet for: ${r!.unofficialPrices.join(', ')}`} className="ml-2 text-xs px-2 py-0.5 rounded-full border border-amber-500/30 text-amber-300">
+                                Not final - waiting for IBKR price
+                              </span>
+                            )}
+                            {st && st !== 'approved' && r!.unofficialPrices.length === 0 && (
                               <button onClick={(e) => { e.stopPropagation(); doApprove(v.classId, m, r!.date); }} disabled={!!busy}
                                 className="ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-600/15 text-emerald-300 hover:bg-emerald-600/25 border border-emerald-500/30 transition disabled:opacity-50">
                                 {busy === `approve-${v.classId}-${m}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
