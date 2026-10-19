@@ -58,6 +58,9 @@ export interface AccountSummary {
   endingCash?: number;
   priorNav?: number;
   currentNav?: number;
+  navBreakdown?: Record<string, number>;
+  navByDate?: Record<string, number>;
+  cashByDate?: Record<string, number>;
 }
 
 export interface SkippedRow {
@@ -68,7 +71,7 @@ export interface SkippedRow {
 }
 
 export interface ParsedStatement {
-  format: 'ibkr_activity' | 'generic';
+  format: 'ibkr_activity' | 'ibkr_flex' | 'nav_only' | 'generic';
   periodStart?: string;
   periodEnd?: string;
   accounts: string[];
@@ -193,7 +196,7 @@ export function normalizeDate(raw: string | undefined): string | null {
   return null;
 }
 
-function parsePeriod(value: string): { start?: string; end?: string } {
+export function parsePeriod(value: string): { start?: string; end?: string } {
   const parts = value.split(/\s+-\s+|\s+to\s+/i);
   const start = normalizeDate(parts[0]) ?? undefined;
   const end = normalizeDate(parts[1] ?? parts[0]) ?? undefined;
@@ -216,7 +219,7 @@ export function isIbkrActivityStatement(rows: string[][]): boolean {
   return hits >= Math.min(5, sample.length * 0.6);
 }
 
-function emptyStatement(format: ParsedStatement['format']): ParsedStatement {
+export function emptyStatement(format: ParsedStatement['format']): ParsedStatement {
   return { format, accounts: [], trades: [], cashEvents: [], positions: [], summaries: {}, fxRates: {}, skipped: [], warnings: [] };
 }
 
@@ -247,6 +250,7 @@ export function parseIbkrStatement(rows: string[][]): ParsedStatement {
   let pendingName = '';
   const unsupportedForex = { count: 0 };
   const nonBase = new Set<string>();
+  const baseCash = new Set<string>();
 
   const summary = (acct: string) => (out.summaries[acct] ??= { account: acct });
 
@@ -298,7 +302,12 @@ export function parseIbkrStatement(rows: string[][]): ParsedStatement {
         break;
       }
       case 'Net Asset Value': {
-        if ((f['Asset Class'] || '').toLowerCase() === 'total') {
+        const assetClass = (f['Asset Class'] || '').trim();
+        if (assetClass && assetClass.toLowerCase() !== 'total') {
+          const v = parseNumber(f['Current Total']);
+          if (!Number.isNaN(v)) { const s = summary(acct); s.navBreakdown = { ...(s.navBreakdown ?? {}), [assetClass]: v }; }
+        }
+        if (assetClass.toLowerCase() === 'total') {
           const s = summary(acct);
           const prior = parseNumber(f['Prior Total']);
           const cur = parseNumber(f['Current Total']);
@@ -311,9 +320,13 @@ export function parseIbkrStatement(rows: string[][]): ParsedStatement {
       case 'Cash Report': {
         const label = (f['Currency Summary'] || '').toLowerCase();
         const ccy = f['Currency'] || '';
-        if (ccy && ccy !== 'Base Currency Summary' && ccy !== 'USD') break;
+        // The base-currency summary row covers cash in every currency; the USD row is only a fallback.
+        const isBase = ccy === 'Base Currency Summary';
+        if (ccy && !isBase && ccy !== 'USD') break;
+        if (!isBase && baseCash.has(acct)) break;
         const total = parseNumber(f['Total']);
         if (Number.isNaN(total)) break;
+        if (isBase) baseCash.add(acct);
         const s = summary(acct);
         if (label === 'starting cash') s.startingCash = total;
         if (label === 'ending cash') s.endingCash = total;

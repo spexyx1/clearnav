@@ -15,7 +15,7 @@ export interface StatementMonthData {
   month: string;
   cash_events: CashEvent[];
   opening?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[] };
-  closing?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[] };
+  closing?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[]; has_positions?: boolean; nav_breakdown?: Record<string, number> };
   period: { start: string; end: string };
   fx_rates?: Record<string, number>;
 }
@@ -64,7 +64,8 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
     const cash = st.cashEvents.filter((c) => c.account === account);
     const positions = st.positions.filter((p) => p.account === account);
     const summary = st.summaries[account] ?? { account };
-    const hasPositionsSection = st.format === 'ibkr_activity';
+    const hasPositionsSection = st.format === 'ibkr_activity' || st.format === 'ibkr_flex';
+    const navDates = Object.keys(summary.navByDate ?? {}).sort();
 
     months.forEach((mk, i) => {
       const data: StatementMonthData = {
@@ -87,8 +88,12 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
           cash: summary.endingCash ?? null,
           nav: summary.currentNav ?? null,
           positions: snapshot(positions),
+          ...(summary.navBreakdown ? { nav_breakdown: summary.navBreakdown } : {}),
         };
         if (Object.keys(st.fxRates).length) data.fx_rates = st.fxRates;
+      } else {
+        const last = navDates.filter((d) => d.startsWith(mk)).pop();
+        if (last) data.closing = { as_of: last, nav: summary.navByDate![last], cash: summary.cashByDate?.[last] ?? null, positions: [], has_positions: false };
       }
       batches.push({
         account,
@@ -103,25 +108,107 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
   return batches;
 }
 
+export function buildNavAnchors(st: ParsedStatement, accountToClass: Record<string, string>): MonthlyBatch[] {
+  if (!st.periodEnd) return [];
+  const out: MonthlyBatch[] = [];
+  const isMonthEnd = (d: string) => monthEndOf(d) === d;
+  st.accounts.forEach((account) => {
+    const shareClassId = accountToClass[account];
+    const s = st.summaries[account];
+    if (!shareClassId || !s) return;
+    const add = (date: string, nav: number) => {
+      const mk = date.slice(0, 7);
+      out.push({
+        account, shareClassId, year: +mk.slice(0, 4), month: +mk.slice(5, 7), trades: [],
+        data: { account, month: mk, cash_events: [], period: { start: st.periodStart ?? date, end: date }, closing: { as_of: date, nav, cash: null, positions: [], has_positions: false } },
+      });
+    };
+    if (s.currentNav != null) add(st.periodEnd!, s.currentNav);
+    if (s.priorNav != null && st.periodStart) {
+      const before = dayBefore(st.periodStart);
+      if (isMonthEnd(before)) add(before, s.priorNav);
+    }
+  });
+  return out;
+}
+
+function monthEndOf(date: string) {
+  const d = new Date(`${date.slice(0, 7)}-01T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  d.setUTCDate(0);
+  return d.toISOString().slice(0, 10);
+}
+
+const saveFail = (step: string, cause: unknown): never => {
+  console.error(`statement save failed: ${step}`, cause);
+  throw new Error('The statement could not be saved. Nothing was changed. Please try again.');
+};
+
+/** Adds broker month-end values to the months already on file without touching their trades. */
+export async function saveNavAnchors(tenantId: string, fundId: string, userId: string, filename: string, anchors: MonthlyBatch[], sourcePath: string | null) {
+  let saved = 0;
+  for (const a of anchors) {
+    const { data: cur, error } = await supabase.from('trade_uploads').select('id, statement_data')
+      .eq('fund_id', fundId).eq('share_class_id', a.shareClassId).eq('upload_year', a.year).eq('upload_month', a.month).eq('status', 'confirmed')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (error) saveFail('load month', error);
+    const anchor = a.data.closing!;
+    if (cur) {
+      const sd = cur.statement_data as StatementMonthData;
+      const keepPositions = sd.closing && sd.closing.has_positions !== false && sd.closing.as_of === anchor.as_of;
+      const closing = keepPositions ? { ...sd.closing!, nav: anchor.nav } : anchor;
+      const { error: uErr } = await supabase.from('trade_uploads').update({ statement_data: { ...sd, closing } }).eq('id', cur.id);
+      if (uErr) saveFail('add month-end value', uErr);
+    } else {
+      const { error: iErr } = await supabase.from('trade_uploads').insert({
+        tenant_id: tenantId, fund_id: fundId, share_class_id: a.shareClassId, broker_account: a.account, source_format: 'nav_only',
+        period_start: a.data.period.start, period_end: a.data.period.end, upload_month: a.month, upload_year: a.year,
+        status: 'confirmed', confirmed_at: new Date().toISOString(), filename, uploaded_by: userId, statement_data: a.data, source_file_path: sourcePath,
+      });
+      if (iErr) saveFail('save month-end value', iErr);
+    }
+    saved++;
+  }
+  return saved;
+}
+
+export async function storeSourceFile(tenantId: string, file: Blob, filename: string): Promise<string | null> {
+  const safe = filename.replace(/[^\w.-]+/g, '_').slice(-120);
+  const path = `${tenantId}/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${safe}`;
+  const { error } = await supabase.storage.from('broker-statements').upload(path, file, { upsert: false });
+  if (error) { console.error('could not keep the original statement file', error); return null; }
+  return path;
+}
+
 interface SaveArgs {
   tenantId: string;
   fundId: string;
   userId: string;
   filename: string;
+  sourcePath?: string | null;
   statement: ParsedStatement;
   batches: MonthlyBatch[];
   accountToClass: Record<string, string>;
 }
 
-export async function saveStatementBatches({ tenantId, fundId, userId, filename, statement, batches, accountToClass }: SaveArgs) {
-  const broker = statement.format === 'ibkr_activity' ? 'ibkr' : 'generic';
+async function carryOver(fundId: string, b: MonthlyBatch, first: boolean) {
+  const { data: prev } = await supabase.from('trade_uploads').select('statement_data')
+    .eq('fund_id', fundId).eq('share_class_id', b.shareClassId).eq('upload_year', b.year).eq('upload_month', b.month).eq('status', 'confirmed')
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const old = prev?.statement_data as StatementMonthData | undefined;
+  if (!old) return;
+  // A new file may cover fewer checkpoints than what is on file; keep the broker values already known.
+  if (!b.data.closing && old.closing?.nav != null) b.data.closing = { ...old.closing, positions: [], has_positions: false };
+  if (first && old.opening?.nav != null && b.data.opening && b.data.opening.nav == null) b.data.opening = { ...b.data.opening, nav: old.opening.nav, cash: b.data.opening.cash ?? old.opening.cash };
+}
+
+export async function saveStatementBatches({ tenantId, fundId, userId, filename, sourcePath = null, statement, batches, accountToClass }: SaveArgs) {
+  const broker = statement.format === 'generic' ? 'generic' : 'ibkr';
   const mappings = Object.entries(accountToClass)
     .filter(([, cls]) => cls)
     .map(([account_id, share_class_id]) => ({ tenant_id: tenantId, fund_id: fundId, broker, account_id, share_class_id }));
-  const fail = (step: string, cause: unknown): never => {
-    console.error(`statement save failed: ${step}`, cause);
-    throw new Error('The statement could not be saved. Nothing was changed. Please try again.');
-  };
+  const fail = saveFail;
+  for (const b of batches) await carryOver(fundId, b, !!b.data.opening);
 
   const created: { id: string; batch: MonthlyBatch }[] = [];
   const undo = async () => {
@@ -145,6 +232,7 @@ export async function saveStatementBatches({ tenantId, fundId, userId, filename,
         filename,
         uploaded_by: userId,
         statement_data: b.data,
+        source_file_path: sourcePath,
       })
       .select('id')
       .maybeSingle();

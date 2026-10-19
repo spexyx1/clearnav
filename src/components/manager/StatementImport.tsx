@@ -3,10 +3,18 @@ import { AlertCircle, ArrowLeft, Check, ChevronDown, FileSpreadsheet, Loader2, R
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import {
-  GENERIC_FIELD_LABELS, TRADE_ACTION_LABELS, isMappingUsable, parseGenericRows, parseStatementText,
+  GENERIC_FIELD_LABELS, TRADE_ACTION_LABELS, isMappingUsable, parseGenericRows,
   type ColumnMapping, type GenericField, type ParsedStatement, type TradeAction,
 } from '../../lib/statementParser';
-import { buildMonthlyBatches, saveStatementBatches } from '../../lib/statementImport';
+import { buildMonthlyBatches, buildNavAnchors, saveNavAnchors, saveStatementBatches, storeSourceFile } from '../../lib/statementImport';
+import { ACCEPTED_FILES, readStatementFile } from '../../lib/statementFiles';
+
+const FORMAT_LABEL: Record<ParsedStatement['format'], string> = {
+  ibkr_activity: 'Interactive Brokers activity statement',
+  ibkr_flex: 'Interactive Brokers automatic feed',
+  nav_only: 'Statement summary (account values only)',
+  generic: 'Trade list',
+};
 
 interface Fund { id: string; fund_name: string; fund_code: string }
 interface ShareClass { id: string; fund_id: string; class_code: string; class_name: string }
@@ -100,7 +108,7 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
   }
 
   async function finishParse(st: ParsedStatement) {
-    if (!st.trades.length && !st.cashEvents.length && !st.positions.length) {
+    if (st.format !== 'nav_only' && !st.trades.length && !st.cashEvents.length && !st.positions.length) {
       setError('The file was read, but no trades, cash activity or positions were found in it.');
       return;
     }
@@ -120,13 +128,12 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
     setMappingState(null);
     setReading(true);
     try {
-      const text = await f.text();
-      const result = parseStatementText(text);
+      const result = await readStatementFile(f);
       if (result.kind === 'needs_mapping') setMappingState(result);
       else await finishParse(result.statement);
     } catch (e) {
       console.error('statement read failed', e);
-      setError('This file could not be read. Please check it is the CSV export from your broker and try again.');
+      setError(e instanceof Error && /PDF|web page|IBKR/.test(e.message) ? e.message : 'This file could not be read. Please check it is a statement exported from your broker (CSV, HTML or PDF) and try again.');
     } finally {
       setReading(false);
     }
@@ -141,7 +148,11 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
     readFile(f);
   }
 
-  const batches = useMemo(() => (statement ? buildMonthlyBatches(statement, accountToClass) : []), [statement, accountToClass]);
+  const navOnly = statement?.format === 'nav_only';
+  const batches = useMemo(() => {
+    if (!statement) return [];
+    return statement.format === 'nav_only' ? buildNavAnchors(statement, accountToClass) : buildMonthlyBatches(statement, accountToClass);
+  }, [statement, accountToClass]);
   const unmatched = statement?.accounts.filter((a) => !accountToClass[a]) ?? [];
   const duplicateClass = useMemo(() => {
     const vals = Object.values(accountToClass).filter(Boolean);
@@ -153,7 +164,10 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
     setSaving(true);
     setError('');
     try {
-      const saved = await saveStatementBatches({ tenantId, fundId, userId: user.id, filename: file.name, statement, batches, accountToClass });
+      const sourcePath = await storeSourceFile(tenantId, file, file.name);
+      const saved = navOnly
+        ? await saveNavAnchors(tenantId, fundId, user.id, file.name, batches, sourcePath)
+        : await saveStatementBatches({ tenantId, fundId, userId: user.id, filename: file.name, sourcePath, statement, batches, accountToClass });
       onDone(saved);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'The statement could not be saved. Please try again.');
@@ -171,7 +185,7 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
       </button>
       <div>
         <h2 className="text-xl font-semibold text-white">Upload broker statement</h2>
-        <p className="text-sm text-slate-400 mt-1">Drop in any broker export. Interactive Brokers activity statements are recognised automatically, including combined statements with several accounts.</p>
+        <p className="text-sm text-slate-400 mt-1">Drop in any broker export. Interactive Brokers activity statements are recognised automatically as CSV, HTML or PDF, including combined statements with several accounts. The original file is kept on record.</p>
       </div>
 
       {error && (
@@ -218,10 +232,10 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
           onClick={() => fileRef.current?.click()}
           className={`lg:col-span-2 cursor-pointer rounded-xl border-2 border-dashed p-8 flex flex-col items-center justify-center text-center transition-all ${dragging ? 'border-blue-400 bg-blue-500/10 scale-[1.01]' : 'border-slate-700 bg-slate-900/40 hover:border-slate-500 hover:bg-slate-900/70'}`}
         >
-          <input ref={fileRef} type="file" accept=".csv,.txt,.tsv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f); e.target.value = ''; }} />
+          <input ref={fileRef} type="file" accept={ACCEPTED_FILES} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f); e.target.value = ''; }} />
           {reading ? <Loader2 className="w-9 h-9 text-blue-400 animate-spin" /> : <UploadCloud className="w-9 h-9 text-slate-400" />}
           <p className="mt-3 text-sm text-white font-medium">{file ? file.name : 'Drop a statement here or click to choose'}</p>
-          <p className="text-xs text-slate-500 mt-1">CSV files from Interactive Brokers or any other broker</p>
+          <p className="text-xs text-slate-500 mt-1">CSV, HTML or PDF from Interactive Brokers, or CSV from any other broker. A PDF only gives the month's start and end value.</p>
           <span className="mt-4 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
             <UploadCloud className="w-4 h-4" /> Choose file
           </span>
@@ -241,7 +255,7 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5">
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <span className="inline-flex items-center gap-1.5 bg-emerald-500/15 text-emerald-300 text-xs font-medium px-2.5 py-1 rounded-full">
-                <Wand2 className="w-3.5 h-3.5" /> {statement.format === 'ibkr_activity' ? 'Interactive Brokers activity statement' : 'Trade list'}
+                <Wand2 className="w-3.5 h-3.5" /> {FORMAT_LABEL[statement.format]}
               </span>
               <span className="text-sm text-slate-300">{statement.periodStart} to {statement.periodEnd}</span>
               <span className="text-sm text-slate-500">{statement.trades.length} trades · {statement.cashEvents.length} cash items · {statement.positions.length} closing positions</span>
@@ -288,7 +302,7 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">Month by month</h3>
-              <span className="text-xs text-slate-500">{batches.length} month record{batches.length === 1 ? '' : 's'} will be saved</span>
+              <span className="text-xs text-slate-500">{navOnly ? `${batches.length} broker month-end value${batches.length === 1 ? '' : 's'} will be added; trades already on file are kept` : `${batches.length} month record${batches.length === 1 ? '' : 's'} will be saved`}</span>
             </div>
             {batches.length === 0 ? (
               <p className="p-6 text-sm text-slate-400">Match at least one account to a share class to continue.</p>
@@ -300,6 +314,7 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
                       <th className="px-5 py-3">Month</th><th className="px-5 py-3">Share class</th>
                       <th className="px-5 py-3 text-right">Trades</th><th className="px-5 py-3 text-right">Income</th>
                       <th className="px-5 py-3 text-right">Fees</th><th className="px-5 py-3 text-right">Deposits / withdrawals</th>
+                      <th className="px-5 py-3 text-right">Broker value</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
@@ -315,6 +330,7 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
                           <td className="px-5 py-3 text-right text-slate-300">{usd(sum(['dividend', 'withholding', 'interest']))}</td>
                           <td className="px-5 py-3 text-right text-slate-300">{usd(sum(['fee']) - commissions)}</td>
                           <td className="px-5 py-3 text-right text-slate-300">{usd(sum(['deposit', 'withdrawal']))}</td>
+                          <td className="px-5 py-3 text-right text-slate-300">{b.data.closing?.nav != null ? usd(b.data.closing.nav) : <span className="text-slate-600">not in file</span>}</td>
                         </tr>
                       );
                     })}

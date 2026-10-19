@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { monthEnd } from './statementParser';
-import { loadFundData, refreshMarketPrices, saveDrafts, setManualPrice, valueFund, type ClassValuation, type FundData, type HoldingValue, type MonthResult } from './fundValuation';
+import { MOVEMENT_LABELS, loadFundData, refreshMarketPrices, saveDrafts, setManualPrice, setMovementLabel, valueFund, type ClassValuation, type FundData, type HoldingValue, type MonthResult, type MovementLabel } from './fundValuation';
 import { MONTH_NAMES, buildReportNumbers, emptyNarrative, type ReportContent } from './monthlyReport';
 
 export interface ReviewOption { key: string; label: string; description: string }
@@ -42,7 +42,7 @@ interface DetectedItem {
   blocking: boolean;
 }
 
-interface NavRow { id: string; share_class_id: string; nav_date: string; status: string; nav_per_share: number }
+interface NavRow { id: string; share_class_id: string; nav_date: string; status: string; nav_per_share: number; total_shares: number; flows: number }
 
 const UNUSUAL_RETURN = 0.25;
 const usd = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
@@ -159,6 +159,28 @@ function detectClassGaps(v: ClassValuation, className: string): DetectedItem[] {
     });
   }
   return out;
+}
+
+const LABEL_EFFECT: Record<MovementLabel, string> = {
+  investor: 'Units are issued or cancelled at the unit price, so the unit price is not affected.',
+  fee: 'Treated as an expense: it lowers the unit price and no units change.',
+  internal: 'Units move from one of our classes to the other at the unit price.',
+  other_fund: 'Units are cancelled or issued at the unit price, so the unit price is not affected.',
+};
+
+function detectMovements(v: ClassValuation, className: string): DetectedItem[] {
+  return v.months.flatMap((m) => m.movements.filter((x) => !x.confirmed).map((x) => {
+    const choices: MovementLabel[] = x.kind === 'shares' ? ['investor', 'other_fund', 'internal'] : ['fee', 'investor', 'other_fund', 'internal'];
+    const ordered = [x.suggested, ...choices.filter((c) => c !== x.suggested)];
+    return {
+      share_class_id: v.classId, month: m.month, kind: 'movement', blocking: true,
+      dedupe_key: `movement:${x.key}`,
+      title: `${className}: what was the ${usd(Math.abs(x.amount))} ${x.amount < 0 ? 'going out' : 'coming in'} on ${x.date}?`,
+      detail: `${x.description}. It is currently treated as "${MOVEMENT_LABELS[x.suggested].toLowerCase()}". This decides whether it changes the unit price or the number of units.`,
+      options: ordered.map((c) => ({ key: `label:${c}`, label: MOVEMENT_LABELS[c] + (c === x.suggested ? ' (suggested)' : ''), description: LABEL_EFFECT[c] })),
+      context: { movement_key: x.key },
+    };
+  }));
 }
 
 interface Diagnosis { cause: string; detail: string; options: ReviewOption[]; fixes: Record<string, { symbol: string; date: string; price: number }> }
@@ -283,11 +305,18 @@ async function syncReviewItems(tenantId: string, fundId: string, detected: Detec
 
 async function loadNavs(fundId: string): Promise<NavRow[]> {
   const { data, error } = await supabase.from('nav_calculations')
-    .select('id, share_class_id, nav_date, status, nav_per_share, version')
+    .select('id, share_class_id, nav_date, status, nav_per_share, total_shares, version, calculation_data')
     .eq('fund_id', fundId).eq('calculation_method', 'broker_statement').order('version', { ascending: false });
   if (error) fail('load fund values', error);
   const latest = new Map<string, NavRow>();
-  (data ?? []).forEach((n) => { const k = `${n.share_class_id}|${n.nav_date}`; if (!latest.has(k)) latest.set(k, { ...n, nav_per_share: Number(n.nav_per_share) }); });
+  (data ?? []).forEach((n) => {
+    const k = `${n.share_class_id}|${n.nav_date}`;
+    if (latest.has(k)) return;
+    latest.set(k, {
+      id: n.id, share_class_id: n.share_class_id, nav_date: n.nav_date, status: n.status, nav_per_share: Number(n.nav_per_share),
+      total_shares: Number(n.total_shares), flows: Number((n.calculation_data as { flows?: number } | null)?.flows ?? 0),
+    });
+  });
   return [...latest.values()];
 }
 
@@ -310,17 +339,30 @@ async function updateCapitalAccounts(fundId: string, navs: NavRow[], className: 
   const { data: accts, error } = await supabase.from('capital_accounts')
     .select('id, share_class_id, shares_owned, cost_basis, metadata').eq('fund_id', fundId);
   if (error) fail('load investor accounts', error);
+  const r2 = (v: number) => Math.round(v * 100) / 100;
   for (const a of accts ?? []) {
     const approved = navs.filter((n) => n.share_class_id === a.share_class_id && n.status === 'approved').sort((x, y) => y.nav_date.localeCompare(x.nav_date));
     const latest = approved[0];
     if (!latest) continue;
-    const units = Number(a.shares_owned);
-    const value = Math.round(units * latest.nav_per_share * 100) / 100;
-    const prevPrice = approved[1]?.nav_per_share ?? 1;
-    const monthGain = Math.round(units * (latest.nav_per_share - prevPrice) * 100) / 100;
+    const meta = (a.metadata ?? {}) as Record<string, unknown>;
+    const openingUnits = Number(meta.opening_units ?? a.shares_owned);
+    const openingCost = Number(meta.opening_cost ?? a.cost_basis ?? 0);
+    const classOpening = (accts ?? []).filter((x) => x.share_class_id === a.share_class_id)
+      .reduce((s, x) => s + Number(((x.metadata ?? {}) as Record<string, unknown>).opening_units ?? x.shares_owned), 0);
+    // Without an investor-level dealing record, new class units are shared in proportion to each account's starting units.
+    const share = classOpening > 0 ? openingUnits / classOpening : 1;
+    const units = Math.round(latest.total_shares * share * 10000) / 10000;
+    const netFlows = approved.reduce((s, n) => s + n.flows, 0) * share;
+    const costBasis = r2(openingCost + netFlows);
+    const value = r2(units * latest.nav_per_share);
+    const prev = approved[1];
+    const prevPrice = prev?.nav_per_share ?? 1;
+    const monthGain = r2(units * (latest.nav_per_share - prevPrice));
     const { error: uErr } = await supabase.from('capital_accounts').update({
-      unrealized_gain_loss: Math.round((value - Number(a.cost_basis || 0)) * 100) / 100,
-      metadata: { ...(a.metadata ?? {}), class_name: className(a.share_class_id), current_value: value, unit_price: latest.nav_per_share, valued_at: latest.nav_date, month_gain: monthGain, prev_unit_price: prevPrice },
+      shares_owned: units,
+      cost_basis: costBasis,
+      unrealized_gain_loss: r2(value - costBasis),
+      metadata: { ...meta, opening_units: openingUnits, opening_cost: openingCost, class_name: className(a.share_class_id), current_value: value, unit_price: latest.nav_per_share, valued_at: latest.nav_date, month_gain: monthGain, prev_unit_price: prevPrice },
       updated_at: new Date().toISOString(),
     }).eq('id', a.id);
     if (uErr) fail('update investor account', uErr);
@@ -383,6 +425,7 @@ export async function runFundAutomation(tenantId: string, fundId: string, userId
     ...(await detectDuplicateUploads(fundId, className)),
     ...detectDuplicateTrades(data, className),
     ...fullVals.flatMap((v) => detectClassGaps(v, className(v.classId))),
+    ...fullVals.flatMap((v) => detectMovements(v, className(v.classId))),
     ...fullVals.flatMap((v) => v.months.flatMap((m, i) => detectMonthIssues(v, m, v.months[i - 1], className(v.classId)))),
   ];
   const items = await syncReviewItems(tenantId, fundId, detected);
@@ -462,6 +505,10 @@ export async function resolveReviewItem(item: ReviewItem, optionKey: string, use
   }
   const fix = (item.context.fixes as Record<string, { symbol: string; date: string; price: number }> | undefined)?.[optionKey];
   if (fix) await setManualPrice(item.tenant_id, item.fund_id, fix.symbol, fix.date, fix.price).catch((e) => fail('save corrected price', e));
+  if (item.kind === 'movement' && optionKey.startsWith('label:')) {
+    await setMovementLabel(item.tenant_id, item.fund_id, item.share_class_id, String(item.context.movement_key), optionKey.slice(6) as MovementLabel, userId)
+      .catch((e) => fail('save movement label', e));
+  }
   if (item.kind === 'duplicate_trades' && optionKey === 'remove_extra') {
     const ids = (item.context.extra_ids as string[]) ?? [];
     if (ids.length) {

@@ -55,12 +55,49 @@ export interface HoldingValue {
   marketValue: number;
 }
 
+export type MovementLabel = 'investor' | 'fee' | 'internal' | 'other_fund';
+
+export const MOVEMENT_LABELS: Record<MovementLabel, string> = {
+  investor: 'Investor money in or out',
+  fee: 'Fee or expense',
+  internal: 'Move between our own classes',
+  other_fund: 'Transfer to or from another fund',
+};
+
+export interface Movement {
+  key: string;
+  date: string;
+  kind: 'shares' | 'cash';
+  description: string;
+  amount: number;
+  suggested: MovementLabel;
+  label: MovementLabel;
+  confirmed: boolean;
+}
+
+export interface Charges {
+  management: number;
+  performance: number;
+  subadvisor: number;
+  adjustments: number;
+  trading: number;
+  other: number;
+}
+
 export interface MonthResult {
   month: string;
   date: string;
   openingValue: number;
   flows: number;
   internalFlows: number;
+  movements: Movement[];
+  charges: Charges;
+  dividends: number;
+  interest: number;
+  investmentGain: number;
+  unitsStart: number;
+  unitsIssued: number;
+  unitsRedeemed: number;
   cash: number;
   unitemisedCash: number;
   holdings: HoldingValue[];
@@ -116,6 +153,18 @@ function fixMultiplier(mult: number, assetCategory: string, symbol: string) {
   return m <= 1 && isOption(assetCategory, symbol) ? 100 : m;
 }
 
+const NO_CHARGES: Charges = { management: 0, performance: 0, subadvisor: 0, adjustments: 0, trading: 0, other: 0 };
+
+function chargeCategory(description: string): keyof Charges {
+  const d = description.toLowerCase();
+  if (/high water|performance|incentive/.test(d)) return 'performance';
+  if (/fa fee: manual|adjust|reversal|rebate/.test(d)) return 'adjustments';
+  if (/fa fee|percent of equity|management|advisor fee/.test(d)) return 'management';
+  return 'other';
+}
+
+const DAY = 86_400_000;
+
 export function valueClass(
   cls: ClassInfo,
   uploads: UploadRow[],
@@ -123,10 +172,15 @@ export function valueClass(
   marks: PriceMark[],
   inceptionMonth: string,
   fallbackMonths: string[],
+  labels: Record<string, MovementLabel> = {},
 ): ClassValuation {
   const notes: string[] = [];
   const own = uploads.filter((u) => u.share_class_id === cls.id);
   const capital = cls.units * cls.startPrice;
+  const uploadClass = new Map(uploads.map((u) => [u.id, u.share_class_id]));
+  const peerTransfers = items.filter((i) => i.notes === 'transfer' && uploadClass.get(i.upload_id) && uploadClass.get(i.upload_id) !== cls.id);
+  const isMirrored = (t: ItemRow) => peerTransfers.some((o) => o.instrument === t.instrument && o.direction !== t.direction
+    && Math.abs(Number(o.quantity) - Number(t.quantity)) < 1e-6 && Math.abs(Date.parse(o.trade_date) - Date.parse(t.trade_date)) <= 3 * DAY);
 
   if (!own.length) {
     const months = fallbackMonths.filter((m) => m >= inceptionMonth);
@@ -136,6 +190,7 @@ export function valueClass(
       notes,
       months: months.map((m) => ({
         month: m, date: monthEnd(+m.slice(0, 4), +m.slice(5, 7)), openingValue: capital, flows: 0, internalFlows: 0, cash: capital, unitemisedCash: 0,
+        movements: [], charges: { ...NO_CHARGES }, dividends: 0, interest: 0, investmentGain: 0, unitsStart: cls.units, unitsIssued: 0, unitsRedeemed: 0,
         holdings: [], holdingsValue: 0, accountValue: capital, computedValue: capital, brokerValue: null, income: 0, fees: 0,
         tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [], missingFx: [], unexplained: 0, tradeFx: {},
       })),
@@ -245,6 +300,11 @@ export function valueClass(
   }
 
   let unitPrice = cls.startPrice;
+  let units = cls.units;
+  if (opening?.nav != null && Math.abs(units * unitPrice - opening.nav) > 1) {
+    notes.push(`The class started with ${units.toLocaleString('en-US')} units at ${unitPrice}, but the broker's opening value is ${round(opening.nav).toLocaleString('en-US')} USD. Units were set to match the broker so every unit starts at ${unitPrice}.`);
+    units = opening.nav / unitPrice;
+  }
   const results: MonthResult[] = [];
 
   allMonths.forEach((mk) => {
@@ -253,13 +313,21 @@ export function valueClass(
     const monthItems = up ? items.filter((i) => i.upload_id === up.id).sort((a, b) => a.trade_date.localeCompare(b.trade_date)) : [];
     const closing = data?.closing;
     const fullMonthEnd = monthEnd(+mk.slice(0, 4), +mk.slice(5, 7));
-    const date = closing && closing.as_of < fullMonthEnd ? closing.as_of : fullMonthEnd;
+    const isPeriodEnd = !!closing && !!data && closing.as_of >= data.period.end;
+    const date = closing && isPeriodEnd && closing.as_of < fullMonthEnd ? closing.as_of : fullMonthEnd;
+    const brokerHoldings = !!closing && closing.has_positions !== false;
     const stmtRates = data?.fx_rates;
     missingFx.clear();
     let fees = 0;
     let flows = 0;
     let internalFlows = 0;
+    const charges: Charges = { ...NO_CHARGES };
+    const movements: Movement[] = [];
     const tradeFx: Record<string, number> = {};
+    const classify = (key: string, suggested: MovementLabel, auto: boolean) => {
+      const label = labels[key] ?? suggested;
+      return { label, confirmed: auto || key in labels };
+    };
     monthItems.forEach((t) => {
       const assetCategory = t.asset_category || '';
       const mult = fixMultiplier(Number(t.multiplier), assetCategory, t.instrument);
@@ -272,17 +340,27 @@ export function valueClass(
       positions.set(t.instrument, cur);
       if (t.notes === 'transfer') {
         const value = signed * Number(t.price) * mult * fx;
+        const key = `${cls.id}:shares:${t.trade_date}:${t.instrument}:${t.direction}:${Number(t.quantity)}`;
+        const mirrored = isMirrored(t);
+        const { label, confirmed } = classify(key, mirrored ? 'internal' : signed > 0 ? 'investor' : 'other_fund', mirrored);
+        movements.push({
+          key, date: t.trade_date, kind: 'shares', amount: round(value), suggested: mirrored ? 'internal' : signed > 0 ? 'investor' : 'other_fund', label, confirmed,
+          description: `${signed > 0 ? 'Received' : 'Sent out'} ${Number(t.quantity).toLocaleString('en-US')} ${t.instrument} at ${Number(t.price)} ${t.currency || ccyOf(t.instrument)}`,
+        });
         flows += value;
-        internalFlows += value;
+        if (label === 'internal') internalFlows += value;
         return;
       }
       const proceeds = t.proceeds != null ? Number(t.proceeds) : -signed * Number(t.price) * mult;
       cash += (proceeds - Number(t.fees)) * fx;
       fees += Number(t.fees) * fx;
+      charges.trading += Number(t.fees) * fx;
       if (Number(t.price) > 0 && t.notes !== 'corporate_action') lastTrade.set(t.instrument, Number(t.price));
     });
     const events = data?.cash_events ?? [];
     let income = 0;
+    let dividends = 0;
+    let interest = 0;
     const paired = new Set<number>();
     events.forEach((e, i) => {
       if (paired.has(i) || (e.type !== 'deposit' && e.type !== 'withdrawal')) return;
@@ -293,15 +371,31 @@ export function valueClass(
       const amount = e.amount * fxFor(e.currency || 'USD', date, stmtRates);
       cash += amount;
       if (e.type === 'deposit' || e.type === 'withdrawal') {
+        const key = `${cls.id}:cash:${e.date}:${e.currency || 'USD'}:${e.amount.toFixed(2)}`;
+        const auto = !!e.internal || paired.has(i);
+        const suggested: MovementLabel = auto ? 'internal' : e.amount < 0 && /disburse/i.test(e.description) ? 'fee' : 'investor';
+        const { label, confirmed } = classify(key, suggested, auto);
+        movements.push({ key, date: e.date, kind: 'cash', amount: round(amount), suggested, label, confirmed, description: `${e.description || (e.amount < 0 ? 'Withdrawal' : 'Deposit')} (${e.amount.toLocaleString('en-US')} ${e.currency || 'USD'})` });
+        if (label === 'fee') {
+          fees += -amount;
+          charges[amount < 0 ? 'subadvisor' : 'adjustments'] += -amount;
+          return;
+        }
         flows += amount;
-        if (e.internal || paired.has(i)) internalFlows += amount;
-      } else if (e.type === 'fee') fees += -amount;
-      else income += amount;
+        if (label === 'internal') internalFlows += amount;
+      } else if (e.type === 'fee') {
+        fees += -amount;
+        charges[chargeCategory(e.description)] += -amount;
+      } else {
+        income += amount;
+        if (e.type === 'interest') interest += amount;
+        else dividends += amount;
+      }
     });
 
     let unexplained = 0;
     let statementPrices: Map<string, number> | null = null;
-    if (closing) {
+    if (closing && brokerHoldings) {
       statementPrices = new Map(closing.positions.filter((p) => p.price).map((p) => [p.symbol, p.price!]));
       positions.forEach((p, s) => {
         if (closing.positions.some((c) => c.symbol === s) || Math.abs(p.quantity) < 1e-6) return;
@@ -336,12 +430,21 @@ export function valueClass(
     const monthReturn = denom > 0.01 ? (accountValue - prevValue - flows) / denom : 0;
 
     if (mk >= inceptionMonth) {
+      // Units for money in or out are dealt at the price the month opened at, which keeps units x price equal to the account value.
+      const unitsStart = units;
+      const issued = movements.filter((m) => m.label !== 'fee' && m.amount > 0).reduce((s, m) => s + m.amount, 0) / unitPrice;
+      const redeemed = -movements.filter((m) => m.label !== 'fee' && m.amount < 0).reduce((s, m) => s + m.amount, 0) / unitPrice;
+      units = unitsStart + issued - redeemed;
       unitPrice = unitPrice * (1 + monthReturn);
+      Object.keys(charges).forEach((k) => { charges[k as keyof Charges] = round(charges[k as keyof Charges]); });
       results.push({
         month: mk, date, openingValue: round(prevValue), flows: round(flows), internalFlows: round(internalFlows), cash: round(cash), unitemisedCash: round(unitemisedCash), holdings, holdingsValue,
+        movements, charges, dividends: round(dividends), interest: round(interest),
+        investmentGain: round(accountValue - prevValue - flows - income + fees),
+        unitsStart: round(unitsStart, 4), unitsIssued: round(issued, 4), unitsRedeemed: round(redeemed, 4),
         accountValue: round(accountValue), computedValue, brokerValue, income: round(income), fees: round(fees),
-        tradeCount: monthItems.length, monthReturn, unitPrice: round(unitPrice, 6), units: cls.units,
-        classNav: round(unitPrice * cls.units), missingPrices: holdings.filter((h) => h.priceSource === 'missing').map((h) => h.symbol),
+        tradeCount: monthItems.length, monthReturn, unitPrice: round(unitPrice, 6), units: round(units, 4),
+        classNav: round(unitPrice * units), missingPrices: holdings.filter((h) => h.priceSource === 'missing').map((h) => h.symbol),
         missingFx: [...missingFx], unexplained: round(unexplained), tradeFx,
       });
     }
@@ -356,6 +459,7 @@ export interface FundData {
   uploads: UploadRow[];
   items: ItemRow[];
   marks: PriceMark[];
+  labels: Record<string, MovementLabel>;
   inceptionMonth: string;
 }
 
@@ -366,7 +470,9 @@ export async function loadFundData(fundId: string): Promise<FundData> {
   if (scErr) throw new Error(scErr.message);
   const { data: accts, error: aErr } = await supabase.from('capital_accounts').select('share_class_id, shares_owned').eq('fund_id', fundId);
   if (aErr) throw new Error(aErr.message);
-  const { data: openings } = await supabase.from('nav_calculations').select('share_class_id, nav_per_share, nav_date').eq('fund_id', fundId).eq('calculation_method', 'opening');
+  const { data: openings } = await supabase.from('nav_calculations').select('share_class_id, nav_per_share, total_shares, nav_date').eq('fund_id', fundId).eq('calculation_method', 'opening');
+  const { data: labelRows, error: lErr } = await supabase.from('fund_movement_labels').select('movement_key, label').eq('fund_id', fundId);
+  if (lErr) throw new Error(lErr.message);
   const { data: uploads, error: uErr } = await supabase.from('trade_uploads')
     .select('id, share_class_id, upload_year, upload_month, statement_data')
     .eq('fund_id', fundId).eq('status', 'confirmed').not('share_class_id', 'is', null);
@@ -383,21 +489,25 @@ export async function loadFundData(fundId: string): Promise<FundData> {
   const { data: marks, error: mErr } = await supabase.from('fund_price_marks').select('symbol, price_date, price, source').eq('fund_id', fundId);
   if (mErr) throw new Error(mErr.message);
 
-  const classes: ClassInfo[] = (sc ?? []).map((c) => ({
-    id: c.id,
-    class_code: c.class_code,
-    class_name: c.class_name,
-    units: (accts ?? []).filter((a) => a.share_class_id === c.id).reduce((s, a) => s + Number(a.shares_owned || 0), 0),
-    startPrice: Number(openings?.find((o) => o.share_class_id === c.id)?.nav_per_share ?? 1),
-  }));
+  const classes: ClassInfo[] = (sc ?? []).map((c) => {
+    const open = openings?.find((o) => o.share_class_id === c.id);
+    return {
+      id: c.id,
+      class_code: c.class_code,
+      class_name: c.class_name,
+      units: open?.total_shares != null ? Number(open.total_shares) : (accts ?? []).filter((a) => a.share_class_id === c.id).reduce((s, a) => s + Number(a.shares_owned || 0), 0),
+      startPrice: Number(open?.nav_per_share ?? 1),
+    };
+  });
   const inception = fund.inception_date ?? `${new Date().getFullYear()}-01-01`;
-  return { classes, uploads: (uploads ?? []) as UploadRow[], items, marks: (marks ?? []) as PriceMark[], inceptionMonth: inception.slice(0, 7) };
+  const labels = Object.fromEntries((labelRows ?? []).map((l) => [l.movement_key, l.label as MovementLabel]));
+  return { classes, uploads: (uploads ?? []) as UploadRow[], items, marks: (marks ?? []) as PriceMark[], labels, inceptionMonth: inception.slice(0, 7) };
 }
 
 export function valueFund(d: FundData): ClassValuation[] {
   const monthsWithData = [...new Set(d.uploads.map((u) => `${u.upload_year}-${String(u.upload_month).padStart(2, '0')}`))].sort();
   const fallback = monthsWithData.length ? monthsBetween(`${d.inceptionMonth}-01`, `${monthsWithData[monthsWithData.length - 1]}-01`) : [];
-  return d.classes.map((c) => valueClass(c, d.uploads, d.items, d.marks, d.inceptionMonth, fallback));
+  return d.classes.map((c) => valueClass(c, d.uploads, d.items, d.marks, d.inceptionMonth, fallback, d.labels));
 }
 
 export async function refreshMarketPrices(tenantId: string, fundId: string, valuations: ClassValuation[], d: FundData) {
@@ -492,6 +602,14 @@ export async function setManualPrice(tenantId: string, fundId: string, symbol: s
   if (error) throw new Error(error.message);
 }
 
+export async function setMovementLabel(tenantId: string, fundId: string, classId: string | null, key: string, label: MovementLabel, userId: string) {
+  const { error } = await supabase.from('fund_movement_labels').upsert(
+    { tenant_id: tenantId, fund_id: fundId, share_class_id: classId, movement_key: key, label, set_by: userId, updated_at: new Date().toISOString() },
+    { onConflict: 'fund_id,movement_key' },
+  );
+  if (error) throw new Error(error.message);
+}
+
 export interface SaveDraftResult { saved: number; skippedApproved: number }
 
 export async function saveDrafts(fundId: string, userId: string, valuations: ClassValuation[]): Promise<SaveDraftResult> {
@@ -500,12 +618,16 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
   for (const v of valuations) {
     for (const m of v.months) {
       const { data: existing, error: exErr } = await supabase.from('nav_calculations')
-        .select('id, status, calculation_data').eq('fund_id', fundId).eq('share_class_id', v.classId).eq('nav_date', m.date)
+        .select('id, status, calculation_data, nav_per_share, net_asset_value, total_shares').eq('fund_id', fundId).eq('share_class_id', v.classId).eq('nav_date', m.date)
         .order('version', { ascending: false }).limit(1).maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (existing?.status === 'approved') { skippedApproved++; continue; }
-      const signature = JSON.stringify([m.unitPrice, m.cash, m.accountValue, m.unexplained, v.notes.length, m.holdings.map((h) => [h.symbol, h.quantity, h.price, h.priceSource, h.marketValue])]);
-      if (existing && (existing.calculation_data as { signature?: string } | null)?.signature === signature) continue;
+      const signature = JSON.stringify([m.unitPrice, m.units, m.cash, m.accountValue, m.unexplained, v.notes.length, m.movements.map((x) => [x.key, x.label]), m.holdings.map((h) => [h.symbol, h.quantity, h.price, h.priceSource, h.marketValue])]);
+      const prior = existing?.calculation_data as { signature?: string; previous?: unknown } | null;
+      if (existing && prior?.signature === signature) continue;
+      const previous = existing && Math.abs(Number(existing.nav_per_share) - m.unitPrice) > 1e-6
+        ? { unit_price: Number(existing.nav_per_share), class_value: Number(existing.net_asset_value), units: Number(existing.total_shares), replaced_at: new Date().toISOString() }
+        : prior?.previous ?? null;
       const record = {
         fund_id: fundId,
         share_class_id: v.classId,
@@ -516,7 +638,7 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
         net_asset_value: m.classNav,
         total_shares: m.units,
         nav_per_share: m.unitPrice,
-        total_fees: 0,
+        total_fees: m.fees,
         calculated_by: userId,
         calculation_method: 'broker_statement',
         notes: v.notes.join('\n') || null,
@@ -524,7 +646,10 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
           month: m.month, month_return: m.monthReturn, opening_value: m.openingValue, flows: m.flows, cash: m.cash,
           holdings_value: m.holdingsValue, account_value: m.accountValue, computed_value: m.computedValue,
           broker_value: m.brokerValue, income: m.income, fees: m.fees, trade_count: m.tradeCount, missing_prices: m.missingPrices,
-          internal_flows: m.internalFlows, missing_fx: m.missingFx, signature,
+          internal_flows: m.internalFlows, missing_fx: m.missingFx, signature, previous,
+          units_start: m.unitsStart, units_issued: m.unitsIssued, units_redeemed: m.unitsRedeemed,
+          charges: m.charges, dividends: m.dividends, interest: m.interest, investment_gain: m.investmentGain,
+          unexplained: m.unexplained, movements: m.movements,
         },
       };
       let navId = existing?.id as string | undefined;

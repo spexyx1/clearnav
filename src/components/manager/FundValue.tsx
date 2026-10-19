@@ -11,9 +11,11 @@ import {
   type ClassValuation, type FundData,
 } from '../../lib/fundValuation';
 import FundValueHoldings from './FundValueHoldings';
+import FundValueBreakdown, { type PreviousFigures } from './FundValueBreakdown';
+import BrokerConnection from './BrokerConnection';
 
 interface Fund { id: string; fund_name: string }
-interface SavedNav { share_class_id: string; nav_date: string; status: string; nav_per_share: number }
+interface SavedNav { share_class_id: string; nav_date: string; status: string; nav_per_share: number; net_asset_value: number; total_shares: number; previous: PreviousFigures | null }
 
 const LINE_COLORS = ['#38bdf8', '#34d399', '#fbbf24', '#f87171'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -97,7 +99,7 @@ export default function FundValue() {
     try {
       const d = await loadFundData(fundId);
       const { data: navs, error: nErr } = await supabase.from('nav_calculations')
-        .select('share_class_id, nav_date, status, nav_per_share').eq('fund_id', fundId).neq('calculation_method', 'opening');
+        .select('share_class_id, nav_date, status, nav_per_share, net_asset_value, total_shares, previous:calculation_data->previous').eq('fund_id', fundId).neq('calculation_method', 'opening').neq('status', 'superseded');
       if (nErr) throw nErr;
       setData(d);
       setSaved((navs ?? []) as SavedNav[]);
@@ -114,9 +116,18 @@ export default function FundValue() {
   const valuations = useMemo(() => (data ? valueFund(data) : []), [data]);
   const names = useMemo(() => Object.fromEntries((data?.classes ?? []).map((c) => [c.id, c.class_name])), [data]);
   const months = useMemo(() => [...new Set(valuations.flatMap((v) => v.months.map((m) => m.month)))].sort(), [valuations]);
-  const statusOf = (classId: string, date: string) => {
+  const statusOf = (classId: string, date: string) => savedRow(classId, date)?.status ?? null;
+  const savedRow = (classId: string, date: string) => {
     const rows = saved.filter((s) => s.share_class_id === classId && s.nav_date === date);
-    return rows.find((r) => r.status === 'approved')?.status ?? rows[0]?.status ?? null;
+    return rows.find((r) => r.status === 'approved') ?? rows[0] ?? null;
+  };
+  const previousOf = (classId: string, r: { date: string; unitPrice: number }): PreviousFigures | null => {
+    const row = savedRow(classId, r.date);
+    if (!row) return null;
+    if (Math.abs(Number(row.nav_per_share) - r.unitPrice) > 1e-6) {
+      return { unit_price: Number(row.nav_per_share), class_value: Number(row.net_asset_value), units: Number(row.total_shares), replaced_at: '' };
+    }
+    return row.previous;
   };
   const missingCount = valuations.reduce((s, v) => s + v.months.reduce((t, m) => t + m.holdings.filter((h) => h.priceSource === 'trade' || h.priceSource === 'missing' || h.priceSource === 'broker_last').length, 0), 0);
 
@@ -207,6 +218,9 @@ export default function FundValue() {
       </div>
 
       <TenantNotice state={tenantState} retry={retry} />
+      {tenantId && user?.id && fundId && (
+        <BrokerConnection tenantId={tenantId} fundId={fundId} userId={user.id} onSynced={(m) => { setMessage(m); setReviewKey((k) => k + 1); reload(); }} />
+      )}
       {tenantId && user?.id && (
         <FundReviewQueue tenantId={tenantId} userId={user.id} refreshKey={reviewKey} onApplied={(m) => { setMessage(m); reload(); }} />
       )}
@@ -276,7 +290,7 @@ export default function FundValue() {
                           <span className={`tabular-nums ${r!.monthReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             {pct(r!.monthReturn)}
                             <span className="block text-xs opacity-80">
-                              {(() => { const g = r!.accountValue - r!.openingValue - r!.flows; return `${g >= 0 ? '+' : '-'}${usd(Math.abs(g))}`; })()}
+                              {(() => { const g = r!.investmentGain; return `${g >= 0 ? '+' : '-'}${usd(Math.abs(g))}`; })()}
                             </span>
                           </span>
                           <span className="tabular-nums text-slate-300">{usd(r!.classNav)}</span>
@@ -294,7 +308,12 @@ export default function FundValue() {
                             )}
                           </span>
                         </div>
-                        {open === key && <FundValueHoldings month={r!} locked={st === 'approved'} onSetPrice={onSetPrice} />}
+                        {open === key && (
+                          <>
+                            <FundValueBreakdown month={r!} previous={previousOf(v.classId, r!)} />
+                            <FundValueHoldings month={r!} locked={st === 'approved'} onSetPrice={onSetPrice} />
+                          </>
+                        )}
                       </Fragment>
                     );
                   })}
