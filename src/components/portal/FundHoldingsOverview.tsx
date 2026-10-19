@@ -1,10 +1,11 @@
-import { DollarSign, PieChart, TrendingDown, TrendingUp, Calendar } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { DollarSign, TrendingDown, TrendingUp, Calendar, type LucideIcon } from 'lucide-react';
 
 export interface FundAccount {
   id: string;
   shares_owned: number | string;
   cost_basis: number | string | null;
-  metadata: { class_name?: string; current_value?: number; unit_price?: number; valued_at?: string } | null;
+  metadata: { class_name?: string; current_value?: number; unit_price?: number; valued_at?: string; month_gain?: number } | null;
 }
 
 const usd = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(v);
@@ -16,7 +17,7 @@ export default function FundHoldingsOverview({ accounts }: { accounts: FundAccou
     const cost = Number(a.cost_basis) || 0;
     const price = a.metadata?.unit_price;
     const value = a.metadata?.current_value ?? cost;
-    return { id: a.id, name: a.metadata?.class_name ?? 'Share class', units, cost, price, value, gain: value - cost, valuedAt: a.metadata?.valued_at };
+    return { id: a.id, name: a.metadata?.class_name ?? 'Share class', units, cost, price, value, gain: value - cost, monthGain: a.metadata?.month_gain, valuedAt: a.metadata?.valued_at };
   });
   const total = rows.reduce((s, r) => s + r.value, 0);
   const cost = rows.reduce((s, r) => s + r.cost, 0);
@@ -24,13 +25,16 @@ export default function FundHoldingsOverview({ accounts }: { accounts: FundAccou
   const ret = cost > 0 ? (gain / cost) * 100 : 0;
   const latest = rows.map((r) => r.valuedAt).filter(Boolean).sort().pop();
   const up = gain >= 0;
+  const monthGain = rows.some((r) => r.monthGain != null) ? rows.reduce((s, r) => s + (r.monthGain ?? 0), 0) : null;
+  const monthUp = (monthGain ?? 0) >= 0;
+  const monthLabel = latest ? new Date(`${latest}T00:00:00`).toLocaleDateString('en-US', { month: 'long' }) : 'this month';
 
   const cards = [
     { label: 'Current Value', value: usd(total), icon: DollarSign, sub: <span className={`flex items-center ${up ? 'text-green-400' : 'text-red-400'}`}>{up ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}{up ? '+' : ''}{ret.toFixed(2)}%</span> },
+    { label: 'Gain / Loss This Month', value: monthGain == null ? '-' : `${monthUp ? '+' : '-'}${usd(Math.abs(monthGain))}`, icon: monthUp ? TrendingUp : TrendingDown, tone: monthGain == null ? undefined : monthUp ? 'text-green-400' : 'text-red-400', sub: <span className="text-slate-500">For {monthLabel}, after all trades and costs</span> },
     { label: 'Amount Invested', value: usd(cost), icon: Calendar, sub: <span className="text-slate-500">Across {rows.length} share class{rows.length === 1 ? '' : 'es'}</span> },
-    { label: 'Total Gain / Loss', value: `${up ? '+' : ''}${usd(gain)}`, icon: up ? TrendingUp : TrendingDown, sub: <span className="text-slate-500">Since you invested</span> },
-    { label: 'Units Held', value: rows.reduce((s, r) => s + r.units, 0).toLocaleString(undefined, { maximumFractionDigits: 2 }), icon: PieChart, sub: <span className="text-slate-500">Total units</span> },
-  ];
+    { label: 'Total Gain / Loss', value: `${up ? '+' : '-'}${usd(Math.abs(gain))}`, icon: up ? TrendingUp : TrendingDown, tone: up ? 'text-green-400' : 'text-red-400', sub: <span className="text-slate-500">Since you invested · {rows.reduce((s, r) => s + r.units, 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} units</span> },
+  ] as { label: string; value: string; icon: LucideIcon; tone?: string; sub: ReactNode }[];
 
   return (
     <div className="space-y-8">
@@ -46,7 +50,7 @@ export default function FundHoldingsOverview({ accounts }: { accounts: FundAccou
               <div className="text-sm text-slate-400">{c.label}</div>
               <c.icon className="w-5 h-5 text-cyan-400" />
             </div>
-            <div className="text-3xl font-bold text-white mb-1">{c.value}</div>
+            <div className={`text-3xl font-bold mb-1 ${c.tone ?? 'text-white'}`}>{c.value}</div>
             <div className="text-sm">{c.sub}</div>
           </div>
         ))}
@@ -65,8 +69,13 @@ export default function FundHoldingsOverview({ accounts }: { accounts: FundAccou
               </div>
               <div className="sm:text-right">
                 <div className="font-semibold text-white">{usd(r.value)}</div>
-                <div className={`text-sm ${r.gain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {r.gain >= 0 ? '+' : ''}{usd(r.gain)}
+                {r.monthGain != null && (
+                  <div className={`text-sm ${r.monthGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {r.monthGain >= 0 ? '+' : '-'}{usd(Math.abs(r.monthGain))} this month
+                  </div>
+                )}
+                <div className={`text-xs ${r.gain >= 0 ? 'text-green-400/80' : 'text-red-400/80'}`}>
+                  {r.gain >= 0 ? '+' : '-'}{usd(Math.abs(r.gain))} since you invested
                 </div>
               </div>
             </div>

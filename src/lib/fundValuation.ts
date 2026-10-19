@@ -77,6 +77,7 @@ export interface MonthResult {
   missingPrices: string[];
   missingFx: string[];
   unexplained: number;
+  tradeFx: Record<string, number>;
 }
 
 export interface ClassValuation {
@@ -135,7 +136,7 @@ export function valueClass(
       months: months.map((m) => ({
         month: m, date: monthEnd(+m.slice(0, 4), +m.slice(5, 7)), openingValue: capital, flows: 0, internalFlows: 0, cash: capital,
         holdings: [], holdingsValue: 0, accountValue: capital, computedValue: capital, brokerValue: null, income: 0, fees: 0,
-        tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [], missingFx: [], unexplained: 0,
+        tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [], missingFx: [], unexplained: 0, tradeFx: {},
       })),
     };
   }
@@ -238,10 +239,12 @@ export function valueClass(
     let fees = 0;
     let flows = 0;
     let internalFlows = 0;
+    const tradeFx: Record<string, number> = {};
     monthItems.forEach((t) => {
       const assetCategory = t.asset_category || '';
       const mult = fixMultiplier(Number(t.multiplier), assetCategory, t.instrument);
       const fx = fxFor(t.currency || ccyOf(t.instrument), date, stmtRates);
+      if (t.id) tradeFx[t.id] = fx;
       const signed = t.direction === 'buy' ? Number(t.quantity) : -Number(t.quantity);
       const cur = positions.get(t.instrument) ?? { quantity: 0, multiplier: mult, assetCategory };
       cur.quantity += signed;
@@ -313,7 +316,7 @@ export function valueClass(
         accountValue: round(accountValue), computedValue, brokerValue, income: round(income), fees: round(fees),
         tradeCount: monthItems.length, monthReturn, unitPrice: round(unitPrice, 6), units: cls.units,
         classNav: round(unitPrice * cls.units), missingPrices: holdings.filter((h) => h.priceSource === 'missing').map((h) => h.symbol),
-        missingFx: [...missingFx], unexplained: round(unexplained),
+        missingFx: [...missingFx], unexplained: round(unexplained), tradeFx,
       });
     }
     prevValue = accountValue;

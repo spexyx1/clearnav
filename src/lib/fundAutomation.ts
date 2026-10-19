@@ -311,31 +311,36 @@ async function updateCapitalAccounts(fundId: string, navs: NavRow[], className: 
     .select('id, share_class_id, shares_owned, cost_basis, metadata').eq('fund_id', fundId);
   if (error) fail('load investor accounts', error);
   for (const a of accts ?? []) {
-    const latest = navs.filter((n) => n.share_class_id === a.share_class_id && n.status === 'approved').sort((x, y) => y.nav_date.localeCompare(x.nav_date))[0];
+    const approved = navs.filter((n) => n.share_class_id === a.share_class_id && n.status === 'approved').sort((x, y) => y.nav_date.localeCompare(x.nav_date));
+    const latest = approved[0];
     if (!latest) continue;
-    const value = Math.round(Number(a.shares_owned) * latest.nav_per_share * 100) / 100;
+    const units = Number(a.shares_owned);
+    const value = Math.round(units * latest.nav_per_share * 100) / 100;
+    const prevPrice = approved[1]?.nav_per_share ?? 1;
+    const monthGain = Math.round(units * (latest.nav_per_share - prevPrice) * 100) / 100;
     const { error: uErr } = await supabase.from('capital_accounts').update({
       unrealized_gain_loss: Math.round((value - Number(a.cost_basis || 0)) * 100) / 100,
-      metadata: { ...(a.metadata ?? {}), class_name: className(a.share_class_id), current_value: value, unit_price: latest.nav_per_share, valued_at: latest.nav_date },
+      metadata: { ...(a.metadata ?? {}), class_name: className(a.share_class_id), current_value: value, unit_price: latest.nav_per_share, valued_at: latest.nav_date, month_gain: monthGain, prev_unit_price: prevPrice },
       updated_at: new Date().toISOString(),
     }).eq('id', a.id);
     if (uErr) fail('update investor account', uErr);
   }
 }
 
-async function draftReports(tenantId: string, fundId: string, userId: string, months: string[]) {
-  if (!months.length) return 0;
+async function draftReports(tenantId: string, fundId: string, userId: string, months: string[], refreshOnly: string[]) {
+  if (!months.length && !refreshOnly.length) return 0;
   const { data: fund } = await supabase.from('funds').select('fund_name').eq('id', fundId).maybeSingle();
   const fundName = fund?.fund_name ?? 'Fund';
   const { data: existing, error } = await supabase.from('reports')
     .select('id, period_start, status, report_content').eq('fund_id', fundId).eq('report_type', 'monthly_update');
   if (error) fail('load reports', error);
   let drafted = 0;
-  for (const mk of months) {
+  for (const mk of [...new Set([...months, ...refreshOnly])].sort()) {
     const year = +mk.slice(0, 4);
     const month = +mk.slice(5, 7);
     const report = (existing ?? []).find((r) => r.period_start === `${mk}-01`);
     if (report && report.status !== 'draft') continue;
+    if (!report && !months.includes(mk)) continue;
     const nums = await buildReportNumbers(fundId, fundName, year, month);
     const prior = (report?.report_content ?? {}) as Partial<ReportContent>;
     const content: ReportContent = { version: 2, ...emptyNarrative(), ...prior, ...nums };
@@ -410,7 +415,11 @@ export async function runFundAutomation(tenantId: string, fundId: string, userId
   }
 
   await updateCapitalAccounts(fundId, navs, className);
-  const reportsDrafted = await draftReports(tenantId, fundId, userId, [...approvedMonths].sort());
+  const approvedFullMonths = fullVals.flatMap((v) => v.months
+    .filter((m) => navs.some((n) => n.share_class_id === v.classId && n.nav_date === m.date && n.status === 'approved'))
+    .map((m) => m.month));
+  const allFullMonths = [...new Set(fullVals.flatMap((v) => v.months.map((m) => m.month)))];
+  const reportsDrafted = await draftReports(tenantId, fundId, userId, [...new Set(approvedFullMonths)], allFullMonths);
 
   return {
     approvedMonths: [...approvedMonths].sort(),

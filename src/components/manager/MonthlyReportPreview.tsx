@@ -4,6 +4,15 @@ import type { ReportContent } from '../../lib/monthlyReport';
 const usd = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
 const pct = (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(2)}%`;
 const tone = (v: number) => (v >= 0 ? 'text-emerald-700' : 'text-red-700');
+const signedUsd = (v: number) => `${v >= 0 ? '+' : '-'}${usd(Math.abs(v))}`;
+const localPrice = (v: number, ccy?: string) => {
+  const code = (ccy || 'USD').toUpperCase();
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: code, currencyDisplay: code === 'USD' ? 'symbol' : 'code' }).format(v);
+  } catch {
+    return `${v.toLocaleString()} ${code}`;
+  }
+};
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -42,7 +51,11 @@ export default function MonthlyReportPreview({ content }: { content: ReportConte
                   <span className={tone(c.month_return)}>{pct(c.month_return)} month</span>
                   <span className={tone(c.ytd_return)}>{pct(c.ytd_return)} YTD</span>
                 </div>
+                {c.month_gain != null && (
+                  <p className={`mt-2 text-sm font-medium tabular-nums ${tone(c.month_gain)}`}>{signedUsd(c.month_gain)} gain this month</p>
+                )}
                 <p className="mt-1 text-xs text-gray-500 tabular-nums">Class value {usd(c.nav)}</p>
+                {!!c.flows && <p className="text-xs text-gray-500 tabular-nums">Net money in/out {signedUsd(c.flows)}</p>}
               </div>
             ))}
           </div>
@@ -74,7 +87,7 @@ export default function MonthlyReportPreview({ content }: { content: ReportConte
                         <tr key={h.symbol}>
                           <td className="px-3 py-2 font-medium text-gray-900">{h.symbol}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-gray-700">{h.quantity.toLocaleString()}</td>
-                          <td className="px-3 py-2 text-right tabular-nums text-gray-700">{usd(h.price)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-gray-700">{localPrice(h.price, h.currency)}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-gray-900">{usd(h.value)}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-gray-500">{(h.weight * 100).toFixed(1)}%</td>
                         </tr>
@@ -107,7 +120,12 @@ export default function MonthlyReportPreview({ content }: { content: ReportConte
                           <td className="py-1.5 pr-3 text-gray-900">{t.symbol}</td>
                           <td className={`py-1.5 pr-3 ${t.direction === 'buy' ? 'text-emerald-700' : 'text-red-700'}`}>{t.direction === 'buy' ? 'Buy' : 'Sell'}</td>
                           <td className="py-1.5 pr-3 text-right tabular-nums text-gray-700">{t.quantity.toLocaleString()}</td>
-                          <td className="py-1.5 text-right tabular-nums text-gray-900">{usd(t.amount)}</td>
+                          <td className="py-1.5 text-right tabular-nums text-gray-900">
+                            {usd(t.amount)}
+                            {t.currency && t.currency !== 'USD' && t.local_amount != null && (
+                              <span className="block text-[11px] text-gray-500">{localPrice(t.local_amount, t.currency)}</span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

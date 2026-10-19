@@ -4,8 +4,8 @@ import { monthEnd } from './statementParser';
 
 export const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-export interface ReportHolding { symbol: string; quantity: number; price: number; value: number; weight: number }
-export interface ReportTrade { date: string; symbol: string; direction: 'buy' | 'sell'; quantity: number; price: number; amount: number }
+export interface ReportHolding { symbol: string; quantity: number; price: number; value: number; weight: number; currency?: string }
+export interface ReportTrade { date: string; symbol: string; direction: 'buy' | 'sell'; quantity: number; price: number; amount: number; currency?: string; local_amount?: number }
 
 export interface ReportClass {
   class_id: string;
@@ -19,6 +19,11 @@ export interface ReportClass {
   nav: number;
   units: number;
   cash: number;
+  opening_value?: number;
+  flows?: number;
+  income?: number;
+  fees?: number;
+  month_gain?: number;
   status: 'approved' | 'draft' | 'unsaved';
   holdings: ReportHolding[];
   trades: ReportTrade[];
@@ -37,7 +42,14 @@ export interface ReportContent {
   position_notes: Record<string, Record<string, string>>;
 }
 
-export interface InvestorLine { name: string; email: string; lines: { code: string; name: string; units: number; value: number }[]; total: number }
+export interface InvestorLine {
+  name: string;
+  email: string;
+  lines: { code: string; name: string; units: number; value: number; month_gain: number; invested: number; total_gain: number }[];
+  total: number;
+  month_gain: number;
+  total_gain: number;
+}
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -64,10 +76,15 @@ export async function buildReportNumbers(fundId: string, fundName: string, year:
     const trades: ReportTrade[] = data.items
       .filter((i) => uploadIds.includes(i.upload_id))
       .sort((a, b) => a.trade_date.localeCompare(b.trade_date))
-      .map((i) => ({
-        date: i.trade_date, symbol: i.instrument, direction: i.direction, quantity: Number(i.quantity), price: Number(i.price),
-        amount: r2(Math.abs(i.proceeds != null ? Number(i.proceeds) : Number(i.quantity) * Number(i.price) * (Number(i.multiplier) || 1))),
-      }));
+      .map((i) => {
+        const local = Math.abs(i.proceeds != null ? Number(i.proceeds) : Number(i.quantity) * Number(i.price) * (Number(i.multiplier) || 1));
+        const currency = (i.currency || cur.holdings.find((h) => h.symbol === i.instrument)?.currency || 'USD').toUpperCase();
+        const fx = (i.id ? cur.tradeFx[i.id] : undefined) ?? (currency === 'USD' ? 1 : 0);
+        return {
+          date: i.trade_date, symbol: i.instrument, direction: i.direction, quantity: Number(i.quantity), price: Number(i.price),
+          amount: r2(local * fx), currency, local_amount: r2(local),
+        };
+      });
     const total = cur.accountValue || 1;
     classes.push({
       class_id: cls.id,
@@ -81,8 +98,13 @@ export async function buildReportNumbers(fundId: string, fundName: string, year:
       nav: cur.classNav,
       units: cur.units,
       cash: cur.cash,
+      opening_value: cur.openingValue,
+      flows: cur.flows,
+      income: cur.income,
+      fees: cur.fees,
+      month_gain: r2(cur.accountValue - cur.openingValue - cur.flows),
       status,
-      holdings: cur.holdings.map((h) => ({ symbol: h.symbol, quantity: h.quantity, price: h.price, value: h.marketValue, weight: h.marketValue / total })),
+      holdings: cur.holdings.map((h) => ({ symbol: h.symbol, quantity: h.quantity, price: h.price, value: h.marketValue, weight: h.marketValue / total, currency: h.currency })),
       trades,
       history: hist.map((m) => ({ month: m.month, unit_price: m.unitPrice })),
     });
@@ -100,7 +122,7 @@ export function emptyNarrative(): Pick<ReportContent, 'commentary' | 'market_ins
 }
 
 export async function loadInvestors(fundId: string, content: ReportContent): Promise<InvestorLine[]> {
-  const { data: accts, error } = await supabase.from('capital_accounts').select('investor_id, share_class_id, shares_owned').eq('fund_id', fundId);
+  const { data: accts, error } = await supabase.from('capital_accounts').select('investor_id, share_class_id, shares_owned, cost_basis').eq('fund_id', fundId);
   if (error) throw new Error(error.message);
   const ids = [...new Set((accts ?? []).map((a) => a.investor_id).filter(Boolean))];
   if (!ids.length) return [];
@@ -111,15 +133,19 @@ export async function loadInvestors(fundId: string, content: ReportContent): Pro
       const c = content.classes.find((x) => x.class_id === a.share_class_id);
       if (!c) return [];
       const units = Number(a.shares_owned || 0);
-      return [{ code: c.code, name: c.name, units, value: r2(units * c.unit_price) }];
+      const value = r2(units * c.unit_price);
+      const invested = Number(a.cost_basis || 0);
+      return [{ code: c.code, name: c.name, units, value, month_gain: r2(units * (c.unit_price - c.prev_unit_price)), invested, total_gain: r2(value - invested) }];
     });
-    return { name: p.full_name || 'Investor', email: p.email, lines, total: r2(lines.reduce((s, l) => s + l.value, 0)) };
+    const sum = (k: 'value' | 'month_gain' | 'total_gain') => r2(lines.reduce((s, l) => s + l[k], 0));
+    return { name: p.full_name || 'Investor', email: p.email, lines, total: sum('value'), month_gain: sum('month_gain'), total_gain: sum('total_gain') };
   });
 }
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const usd = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
 const pct = (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(2)}%`;
+const signedUsd = (v: number) => `${v >= 0 ? '+' : '-'}${usd(Math.abs(v))}`;
 
 export function reportEmailHtml(content: ReportContent, investor: InvestorLine | null) {
   const rows = content.classes.map((c) => `
@@ -129,11 +155,13 @@ export function reportEmailHtml(content: ReportContent, investor: InvestorLine |
       <td style="padding:10px 12px;border-bottom:1px solid #e7e2d6;text-align:right;color:${c.month_return >= 0 ? '#1d6b3f' : '#b42318'}">${pct(c.month_return)}</td>
       <td style="padding:10px 12px;border-bottom:1px solid #e7e2d6;text-align:right;color:${c.ytd_return >= 0 ? '#1d6b3f' : '#b42318'}">${pct(c.ytd_return)}</td>
     </tr>`).join('');
+  const gainCell = (v: number) => `<span style="color:${v >= 0 ? '#1d6b3f' : '#b42318'}">${signedUsd(v)}</span>`;
   const holding = investor && investor.lines.length ? `
     <p style="margin:24px 0 8px;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#8a7433">Your holding</p>
     <table style="width:100%;border-collapse:collapse;font-size:14px">
-      ${investor.lines.map((l) => `<tr><td style="padding:6px 0;color:#1f2a24">${esc(l.name)}</td><td style="padding:6px 0;text-align:right;color:#55615a">${l.units.toLocaleString('en-US', { maximumFractionDigits: 4 })} units</td><td style="padding:6px 0;text-align:right;color:#1f2a24">${usd(l.value)}</td></tr>`).join('')}
-      <tr><td style="padding:8px 0;border-top:1px solid #e7e2d6;font-weight:bold;color:#1f2a24">Total</td><td></td><td style="padding:8px 0;border-top:1px solid #e7e2d6;text-align:right;font-weight:bold;color:#1f2a24">${usd(investor.total)}</td></tr>
+      <tr><td style="padding:4px 0;color:#7b847f;font-size:12px"></td><td style="padding:4px 0;text-align:right;color:#7b847f;font-size:12px">Value</td><td style="padding:4px 0;text-align:right;color:#7b847f;font-size:12px">This month</td><td style="padding:4px 0;text-align:right;color:#7b847f;font-size:12px">Since you invested</td></tr>
+      ${investor.lines.map((l) => `<tr><td style="padding:6px 0;color:#1f2a24">${esc(l.name)}<br/><span style="font-size:12px;color:#7b847f">${l.units.toLocaleString('en-US', { maximumFractionDigits: 4 })} units</span></td><td style="padding:6px 0;text-align:right;color:#1f2a24">${usd(l.value)}</td><td style="padding:6px 0;text-align:right">${gainCell(l.month_gain)}</td><td style="padding:6px 0;text-align:right">${gainCell(l.total_gain)}</td></tr>`).join('')}
+      <tr><td style="padding:8px 0;border-top:1px solid #e7e2d6;font-weight:bold;color:#1f2a24">Total</td><td style="padding:8px 0;border-top:1px solid #e7e2d6;text-align:right;font-weight:bold;color:#1f2a24">${usd(investor.total)}</td><td style="padding:8px 0;border-top:1px solid #e7e2d6;text-align:right;font-weight:bold">${gainCell(investor.month_gain)}</td><td style="padding:8px 0;border-top:1px solid #e7e2d6;text-align:right;font-weight:bold">${gainCell(investor.total_gain)}</td></tr>
     </table>` : '';
   const intro = content.commentary.trim().split(/\n\s*\n/)[0] ?? '';
   return `<!doctype html><html><body style="margin:0;background:#f4f1ea;font-family:Georgia,'Times New Roman',serif">

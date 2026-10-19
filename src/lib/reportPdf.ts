@@ -19,6 +19,12 @@ const clean = (s: string) => s
   .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
 const usd = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
 const pct = (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(2)}%`;
+const signedUsd = (v: number) => `${v >= 0 ? '+' : '-'}${usd(Math.abs(v))}`;
+const localPrice = (v: number, ccy?: string) => {
+  const code = (ccy || 'USD').toUpperCase();
+  const n = v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return code === 'USD' ? `${n}` : `${code} ${n}`;
+};
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export async function renderReportPdf(c: ReportContent): Promise<Uint8Array> {
@@ -106,10 +112,10 @@ export async function renderReportPdf(c: ReportContent): Promise<Uint8Array> {
 
   heading('Performance summary');
   table(
-    [{ label: 'Share class', w: 150 }, { label: 'Unit price', w: 75, align: 'right' }, { label: 'Month', w: 65, align: 'right' }, { label: 'Year to date', w: 75, align: 'right' }, { label: 'Since start', w: 65, align: 'right' }, { label: 'Class value', w: 69, align: 'right' }],
+    [{ label: 'Share class', w: 110 }, { label: 'Unit price', w: 62, align: 'right' }, { label: 'Month', w: 55, align: 'right' }, { label: 'Gain (month)', w: 76, align: 'right' }, { label: 'YTD', w: 55, align: 'right' }, { label: 'Since start', w: 60, align: 'right' }, { label: 'Class value', w: 81, align: 'right' }],
     c.classes.map((k) => ({
-      cells: [k.name + (k.status === 'approved' ? '' : ' *'), `$${k.unit_price.toFixed(4)}`, pct(k.month_return), pct(k.ytd_return), pct(k.since_inception), usd(k.nav)],
-      colors: [undefined, undefined, k.month_return >= 0 ? POS : NEG, k.ytd_return >= 0 ? POS : NEG, k.since_inception >= 0 ? POS : NEG, undefined],
+      cells: [k.name + (k.status === 'approved' ? '' : ' *'), `${k.unit_price.toFixed(4)}`, pct(k.month_return), k.month_gain != null ? signedUsd(k.month_gain) : '', pct(k.ytd_return), pct(k.since_inception), usd(k.nav)],
+      colors: [undefined, undefined, k.month_return >= 0 ? POS : NEG, (k.month_gain ?? 0) >= 0 ? POS : NEG, k.ytd_return >= 0 ? POS : NEG, k.since_inception >= 0 ? POS : NEG, undefined],
     })),
   );
   if (c.classes.some((k) => k.status !== 'approved')) { paragraph('* Provisional figure, pending approval.', 8, sans, MUTED); }
@@ -146,7 +152,7 @@ export async function renderReportPdf(c: ReportContent): Promise<Uint8Array> {
     if (k.holdings.length) {
       table(
         [{ label: 'Holding', w: 150 }, { label: 'Quantity', w: 90, align: 'right' }, { label: 'Price', w: 90, align: 'right' }, { label: 'Value', w: 95, align: 'right' }, { label: 'Weight', w: 74, align: 'right' }],
-        [...k.holdings.map((h) => ({ cells: [h.symbol, h.quantity.toLocaleString('en-US'), usd(h.price), usd(h.value), `${(h.weight * 100).toFixed(1)}%`] })),
+        [...k.holdings.map((h) => ({ cells: [h.symbol, h.quantity.toLocaleString('en-US'), localPrice(h.price, h.currency), usd(h.value), `${(h.weight * 100).toFixed(1)}%`] })),
           { cells: ['Cash', '', '', usd(k.cash), `${((k.cash / (k.nav || 1)) * 100).toFixed(1)}%`], colors: [MUTED] }],
       );
     } else {
@@ -169,7 +175,7 @@ export async function renderReportPdf(c: ReportContent): Promise<Uint8Array> {
       table(
         [{ label: 'Date', w: 80 }, { label: 'Holding', w: 110 }, { label: 'Side', w: 60 }, { label: 'Quantity', w: 80, align: 'right' }, { label: 'Price', w: 85, align: 'right' }, { label: 'Amount', w: 84, align: 'right' }],
         shown.map((t) => ({
-          cells: [t.date, t.symbol, t.direction === 'buy' ? 'Buy' : 'Sell', t.quantity.toLocaleString('en-US'), usd(t.price), usd(t.amount)],
+          cells: [t.date, t.symbol, t.direction === 'buy' ? 'Buy' : 'Sell', t.quantity.toLocaleString('en-US'), localPrice(t.price, t.currency), usd(t.amount)],
           colors: [undefined, undefined, t.direction === 'buy' ? POS : NEG],
         })),
       );

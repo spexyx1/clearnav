@@ -282,7 +282,12 @@ export default function FundValue() {
                             {names[v.classId]}
                           </span>
                           <span className="tabular-nums text-white">${r!.unitPrice.toFixed(4)}</span>
-                          <span className={`tabular-nums ${r!.monthReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{pct(r!.monthReturn)}</span>
+                          <span className={`tabular-nums ${r!.monthReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {pct(r!.monthReturn)}
+                            <span className="block text-xs opacity-80">
+                              {(() => { const g = r!.accountValue - r!.openingValue - r!.flows; return `${g >= 0 ? '+' : '-'}${usd(Math.abs(g))}`; })()}
+                            </span>
+                          </span>
                           <span className="tabular-nums text-slate-300">{usd(r!.classNav)}</span>
                           <span className="text-right">
                             <span className={`text-xs px-2 py-0.5 rounded-full border ${st === 'approved' ? 'border-emerald-500/30 text-emerald-300' : st ? 'border-sky-500/30 text-sky-300' : 'border-slate-700 text-slate-500'}`}>
