@@ -8,6 +8,36 @@ export interface FundAccount {
   metadata: { class_name?: string; current_value?: number; unit_price?: number; valued_at?: string; month_gain?: number } | null;
 }
 
+export interface RegisterHolding {
+  account_id: string;
+  class_name: string;
+  units: number | string;
+  units_before: number | string;
+  invested: number | string;
+  unit_price: number | string | null;
+  valued_at: string | null;
+  prev_unit_price: number | string | null;
+}
+
+export function fromRegister(account: FundAccount, h: RegisterHolding): FundAccount {
+  const units = Number(h.units) || 0;
+  const price = h.unit_price == null ? undefined : Number(h.unit_price);
+  const before = Number(h.units_before) || 0;
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  return {
+    id: account.id,
+    shares_owned: units,
+    cost_basis: Number(h.invested) || 0,
+    metadata: {
+      class_name: h.class_name,
+      unit_price: price,
+      valued_at: h.valued_at ?? undefined,
+      current_value: price == null ? undefined : r2(units * price),
+      month_gain: price == null ? undefined : before && h.prev_unit_price != null ? r2(before * (price - Number(h.prev_unit_price))) : 0,
+    },
+  };
+}
+
 const usd = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(v);
 const dateLabel = (d?: string) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null);
 

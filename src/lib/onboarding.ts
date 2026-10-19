@@ -259,7 +259,7 @@ export function dealingStatus(sub: SubscriptionRow, valuations: ClassValuation[]
 }
 
 async function officialAccountFor(tenantId: string, fundId: string, classId: string, classCode: string, clientId: string, since: string) {
-  const { data, error } = await supabase.from('capital_accounts').select('id, shares_owned, capital_contributed, capital_returned')
+  const { data, error } = await supabase.from('capital_accounts').select('id')
     .eq('fund_id', fundId).eq('share_class_id', classId).eq('investor_id', clientId).eq('metadata->>official', 'true').limit(1).maybeSingle();
   fail('Could not load the investor account', error);
   if (data) return data;
@@ -267,10 +267,16 @@ async function officialAccountFor(tenantId: string, fundId: string, classId: str
     tenant_id: tenantId, fund_id: fundId, share_class_id: classId, investor_id: clientId,
     account_number: `ARK-${classCode}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
     shares_owned: 0, capital_contributed: 0, capital_returned: 0, inception_date: since, status: 'active', metadata: { official: true },
-  }).select('id, shares_owned, capital_contributed, capital_returned').maybeSingle();
+  }).select('id').maybeSingle();
   fail('Could not open the investor account', cErr);
   if (!created) throw new Error('Could not open the investor account.');
   return created;
+}
+
+async function existingDeal(fundId: string, reference: string) {
+  const { data, error } = await supabase.from('capital_transactions').select('id').eq('fund_id', fundId).eq('reference_number', reference).limit(1).maybeSingle();
+  fail('Could not check the unit register', error);
+  return data?.id as string | undefined;
 }
 
 export async function issueUnits(tenantId: string, fundId: string, sub: SubscriptionRow, cls: ClassRef, userId: string) {
@@ -280,25 +286,23 @@ export async function issueUnits(tenantId: string, fundId: string, sub: Subscrip
   const month = await finalMonth(fundId, sub.share_class_id, sub.dealing_date);
   const deal = month.dealt.find((d) => d.ref === `sub:${sub.id}`);
   if (!deal) throw new Error('The approved month does not include this subscription. Save the month again after confirming the deposit, then re-approve.');
-  const account = await officialAccountFor(tenantId, fundId, sub.share_class_id, cls.class_code, clientId, month.navDate);
-  const { data: tx, error } = await supabase.from('capital_transactions').insert({
-    tenant_id: tenantId, fund_id: fundId, capital_account_id: account.id,
-    transaction_type: sub.kind === 'in_kind' ? 'transfer_in' : 'contribution',
-    transaction_date: month.navDate, settlement_date: month.navDate, amount: deal.amount, shares: deal.units, price_per_share: month.price,
-    currency: 'USD', status: 'settled', reference_number: `SUB-${sub.id.slice(0, 8).toUpperCase()}`,
-    description: `${sub.kind === 'in_kind' ? 'Shares transferred in' : 'Application'}: ${deal.units.toLocaleString('en-US')} ${cls.class_name} units at ${month.price}`,
-    created_by: userId, approved_by: userId,
-  }).select('id').maybeSingle();
-  fail('Could not issue the units', error);
-  if (!tx) throw new Error('Could not issue the units.');
-  const { error: aErr } = await supabase.from('capital_accounts').update({
-    shares_owned: Number(account.shares_owned || 0) + deal.units,
-    capital_contributed: Number(account.capital_contributed || 0) + deal.amount,
-    updated_at: new Date().toISOString(),
-  }).eq('id', account.id);
-  fail('Units were issued but the investor balance could not be updated', aErr);
+  const reference = `SUB-${sub.id.slice(0, 8).toUpperCase()}`;
+  const txId = await existingDeal(fundId, reference) ?? await (async () => {
+    const account = await officialAccountFor(tenantId, fundId, sub.share_class_id, cls.class_code, clientId, month.navDate);
+    const { data: tx, error } = await supabase.from('capital_transactions').insert({
+      tenant_id: tenantId, fund_id: fundId, capital_account_id: account.id,
+      transaction_type: sub.kind === 'in_kind' ? 'transfer_in' : 'contribution',
+      transaction_date: month.navDate, settlement_date: month.navDate, amount: deal.amount, shares: deal.units, price_per_share: month.price,
+      currency: 'USD', status: 'settled', reference_number: reference,
+      description: `${sub.kind === 'in_kind' ? 'Shares transferred in' : 'Application'}: ${deal.units.toLocaleString('en-US')} ${cls.class_name} units at ${month.price}`,
+      created_by: userId, approved_by: userId,
+    }).select('id').maybeSingle();
+    fail('Could not issue the units', error);
+    if (!tx) throw new Error('Could not issue the units.');
+    return tx.id as string;
+  })();
   const { error: sErr } = await supabase.from('unit_subscriptions').update({
-    status: 'units_issued', capital_transaction_id: tx.id, client_id: clientId, updated_at: new Date().toISOString(),
+    status: 'units_issued', capital_transaction_id: txId, client_id: clientId, updated_at: new Date().toISOString(),
   }).eq('id', sub.id);
   fail('Units were issued but the subscription could not be updated', sErr);
   return deal;
@@ -327,24 +331,22 @@ export async function redeemUnits(tenantId: string, fundId: string, r: Redemptio
   const month = await finalMonth(fundId, holding.share_class_id, r.redemption_date);
   const deal = month.dealt.find((d) => d.ref === `red:${r.id}`);
   if (!deal) throw new Error('The approved month does not include this withdrawal. Save the month again, then re-approve.');
-  if (deal.units > holding.shares_owned + 1e-6) throw new Error('The investor does not hold enough units for this withdrawal.');
-  const { data: tx, error } = await supabase.from('capital_transactions').insert({
-    tenant_id: tenantId, fund_id: fundId, capital_account_id: holding.id, transaction_type: 'redemption',
-    transaction_date: month.navDate, amount: deal.amount, shares: deal.units, price_per_share: month.price, currency: 'USD', status: 'settled',
-    reference_number: `RED-${r.id.slice(0, 8).toUpperCase()}`,
-    description: `Withdrawal: ${deal.units.toLocaleString('en-US')} ${cls.class_name} units at ${month.price}`, created_by: userId, approved_by: userId,
-  }).select('id').maybeSingle();
-  fail('Could not redeem the units', error);
-  if (!tx) throw new Error('Could not redeem the units.');
-  const { data: acct, error: gErr } = await supabase.from('capital_accounts').select('shares_owned, capital_returned').eq('id', holding.id).maybeSingle();
-  fail('Units were redeemed but the investor balance could not be loaded', gErr);
-  const { error: aErr } = await supabase.from('capital_accounts').update({
-    shares_owned: Number(acct?.shares_owned || 0) - deal.units, capital_returned: Number(acct?.capital_returned || 0) + deal.amount, updated_at: new Date().toISOString(),
-  }).eq('id', holding.id);
-  fail('Units were redeemed but the investor balance could not be updated', aErr);
+  const reference = `RED-${r.id.slice(0, 8).toUpperCase()}`;
+  const txId = await existingDeal(fundId, reference) ?? await (async () => {
+    if (deal.units > holding.shares_owned + 1e-6) throw new Error('The investor does not hold enough units for this withdrawal.');
+    const { data: tx, error } = await supabase.from('capital_transactions').insert({
+      tenant_id: tenantId, fund_id: fundId, capital_account_id: holding.id, transaction_type: 'redemption',
+      transaction_date: month.navDate, amount: deal.amount, shares: deal.units, price_per_share: month.price, currency: 'USD', status: 'settled',
+      reference_number: reference,
+      description: `Withdrawal: ${deal.units.toLocaleString('en-US')} ${cls.class_name} units at ${month.price}`, created_by: userId, approved_by: userId,
+    }).select('id').maybeSingle();
+    fail('Could not redeem the units', error);
+    if (!tx) throw new Error('Could not redeem the units.');
+    return tx.id as string;
+  })();
   const { error: rErr } = await supabase.from('redemption_requests').update({
     status: 'completed', processed_date: new Date().toISOString(), shares_approved: deal.units, amount_approved: deal.amount,
-    redemption_price: month.price, settlement_amount: deal.amount, capital_transaction_id: tx.id, reviewed_by: userId, updated_at: new Date().toISOString(),
+    redemption_price: month.price, settlement_amount: deal.amount, capital_transaction_id: txId, reviewed_by: userId, updated_at: new Date().toISOString(),
   }).eq('id', r.id);
   fail('Units were redeemed but the withdrawal could not be updated', rErr);
   return deal;

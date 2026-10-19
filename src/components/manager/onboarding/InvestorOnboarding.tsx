@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowDownToLine, CheckCircle, ClipboardList, Landmark, Loader2, LogOut, Scale } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, BookOpen, CheckCircle, ClipboardList, Landmark, Loader2, LogOut, Scale } from 'lucide-react';
 import { useAuth } from '../../../lib/auth';
 import { loadDealingTerms, scheduleFrom, type DealingTerms } from '../../../lib/dealingTerms';
 import { loadFundData, valueFund, type ClassValuation } from '../../../lib/fundValuation';
@@ -9,9 +9,11 @@ import MoneyInPanel from './MoneyInPanel';
 import DealingPanel from './DealingPanel';
 import WithdrawalsPanel from './WithdrawalsPanel';
 import AccountsPanel from './AccountsPanel';
+import RegisterPanel from './RegisterPanel';
+import { loadUnitRegister, type UnitRegister } from '../../../lib/unitRegister';
 import type { OnboardingCtx, OnboardingData } from './ui';
 
-type View = 'applications' | 'money' | 'dealing' | 'withdrawals' | 'accounts';
+type View = 'applications' | 'money' | 'dealing' | 'withdrawals' | 'register' | 'accounts';
 
 interface Props { tenantId: string; funds: { id: string; fund_name: string }[] }
 
@@ -23,6 +25,7 @@ export default function InvestorOnboarding({ tenantId, funds }: Props) {
   const [classes, setClasses] = useState<ClassRef[]>([]);
   const [valuations, setValuations] = useState<ClassValuation[]>([]);
   const [terms, setTerms] = useState<DealingTerms>({});
+  const [register, setRegister] = useState<UnitRegister | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -30,8 +33,9 @@ export default function InvestorOnboarding({ tenantId, funds }: Props) {
 
   const load = useCallback(async () => {
     if (!fundId) return;
-    const [onb, fund, t] = await Promise.all([loadOnboarding(tenantId, fundId), loadFundData(fundId), loadDealingTerms(fundId)]);
+    const [onb, fund, t, reg] = await Promise.all([loadOnboarding(tenantId, fundId), loadFundData(fundId), loadDealingTerms(fundId), loadUnitRegister(fundId)]);
     setData(onb);
+    setRegister(reg);
     setClasses(fund.classes.map((c) => ({ id: c.id, class_code: c.class_code, class_name: c.class_name })));
     setValuations(valueFund(fund));
     setTerms(t?.terms ?? {});
@@ -70,8 +74,9 @@ export default function InvestorOnboarding({ tenantId, funds }: Props) {
       money: unmatchedMoneyIn(valuations, data.subscriptions, official).length,
       dealing: data.subscriptions.filter((s) => s.status === 'money_received').length
         + data.redemptions.filter((r) => r.status === 'approved' || r.status === 'processing').length,
+      register: (register?.checks.filter((c) => c.status === 'mismatch').length ?? 0) + (register?.accounts.filter((a) => !a.balanceMatches).length ?? 0),
     };
-  }, [data, valuations]);
+  }, [data, valuations, register]);
 
   if (!funds.length) return <p className="text-sm text-slate-400">Create the fund first, then manage investors here.</p>;
 
@@ -82,6 +87,7 @@ export default function InvestorOnboarding({ tenantId, funds }: Props) {
     { id: 'money', label: 'Money in', icon: ArrowDownToLine },
     { id: 'dealing', label: 'Dealing', icon: Scale },
     { id: 'withdrawals', label: 'Withdrawals', icon: LogOut },
+    { id: 'register', label: 'Unit register', icon: BookOpen },
     { id: 'accounts', label: 'IBKR accounts', icon: Landmark },
   ];
 
@@ -132,6 +138,7 @@ export default function InvestorOnboarding({ tenantId, funds }: Props) {
           {view === 'money' && <MoneyInPanel ctx={ctx} onOpenAccounts={() => setView('accounts')} />}
           {view === 'dealing' && <DealingPanel ctx={ctx} />}
           {view === 'withdrawals' && <WithdrawalsPanel ctx={ctx} />}
+          {view === 'register' && register && <RegisterPanel ctx={ctx} register={register} />}
           {view === 'accounts' && <AccountsPanel ctx={ctx} />}
         </>
       )}

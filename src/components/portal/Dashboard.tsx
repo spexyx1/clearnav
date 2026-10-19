@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Calendar, PieChart, RefreshCw, Percent } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import FundHoldingsOverview, { type FundAccount } from './FundHoldingsOverview';
+import FundHoldingsOverview, { fromRegister, type FundAccount, type RegisterHolding } from './FundHoldingsOverview';
 
 interface DashboardProps {
   profile: any;
@@ -26,7 +26,7 @@ export default function Dashboard({ profile }: DashboardProps) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [unitsRes, trustRes, positionsRes, fundRes] = await Promise.all([
+      const [unitsRes, trustRes, positionsRes, fundRes, registerRes] = await Promise.all([
         supabase
           .from('client_units')
           .select('*')
@@ -44,11 +44,17 @@ export default function Dashboard({ profile }: DashboardProps) {
           .from('capital_accounts')
           .select('id, shares_owned, cost_basis, metadata')
           .eq('investor_id', user?.id)
-          .eq('status', 'active')
+          .eq('status', 'active'),
+        supabase.rpc('get_my_unit_holdings'),
       ]);
 
       if (fundRes.error) console.warn('Fund accounts load error:', fundRes.error);
-      setFundAccounts((fundRes.data ?? []) as FundAccount[]);
+      if (registerRes.error) console.warn('Unit register load error:', registerRes.error);
+      const official = new Map(((registerRes.data ?? []) as RegisterHolding[]).map((h) => [h.account_id, h]));
+      setFundAccounts(((fundRes.data ?? []) as FundAccount[]).map((a) => {
+        const h = official.get(a.id);
+        return h ? fromRegister(a, h) : a;
+      }));
 
       if (unitsRes.error) throw unitsRes.error;
       if (trustRes.error) throw trustRes.error;

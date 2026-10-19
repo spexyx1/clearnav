@@ -340,14 +340,16 @@ async function updateCapitalAccounts(fundId: string, navs: NavRow[], className: 
     .select('id, share_class_id, shares_owned, cost_basis, metadata').eq('fund_id', fundId);
   if (error) fail('load investor accounts', error);
   const r2 = (v: number) => Math.round(v * 100) / 100;
-  for (const a of accts ?? []) {
+  // Official investor units come only from the unit register; the investor portal values them from final months itself.
+  const legacy = (accts ?? []).filter((a) => ((a.metadata ?? {}) as Record<string, unknown>).official !== true);
+  for (const a of legacy) {
     const approved = navs.filter((n) => n.share_class_id === a.share_class_id && n.status === 'approved').sort((x, y) => y.nav_date.localeCompare(x.nav_date));
     const latest = approved[0];
     if (!latest) continue;
     const meta = (a.metadata ?? {}) as Record<string, unknown>;
     const openingUnits = Number(meta.opening_units ?? a.shares_owned);
     const openingCost = Number(meta.opening_cost ?? a.cost_basis ?? 0);
-    const classOpening = (accts ?? []).filter((x) => x.share_class_id === a.share_class_id)
+    const classOpening = legacy.filter((x) => x.share_class_id === a.share_class_id)
       .reduce((s, x) => s + Number(((x.metadata ?? {}) as Record<string, unknown>).opening_units ?? x.shares_owned), 0);
     // Without an investor-level dealing record, new class units are shared in proportion to each account's starting units.
     const share = classOpening > 0 ? openingUnits / classOpening : 1;

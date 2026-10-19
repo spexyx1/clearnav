@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FileText, Calendar, Send, Eye, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { createStatements } from '../../lib/unitRegister';
 
 interface Fund {
   id: string;
@@ -101,111 +102,20 @@ export default function InvestorStatements() {
       return;
     }
 
+    if (!currentTenant || !user) return;
     setGenerating(true);
-
-    const periodDate = new Date(selectedPeriod);
-    const periodEnd = new Date(periodDate.getFullYear(), periodDate.getMonth() + 1, 0);
-    const periodStart = new Date(periodDate.getFullYear(), periodDate.getMonth(), 1);
-    const prevPeriodEnd = new Date(periodStart);
-    prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1);
-
-    const { data: accounts } = await supabase
-      .from('capital_accounts')
-      .select('id, account_number, shares_owned')
-      .eq('fund_id', selectedFund)
-      .eq('status', 'active');
-
-    if (!accounts || accounts.length === 0) {
-      alert('No active capital accounts found');
+    try {
+      const r = await createStatements(currentTenant.id, selectedFund, selectedPeriod.slice(0, 7), user.id);
+      const parts = [`Created ${r.created} statement${r.created === 1 ? '' : 's'} from the final IBKR month.`];
+      if (r.skipped) parts.push(`${r.skipped} already existed.`);
+      if (r.notFinalClasses) parts.push(`${r.notFinalClasses} class${r.notFinalClasses === 1 ? ' is' : 'es are'} not final and approved for this month, so no statements were made for them.`);
+      alert(parts.join(' '));
+      loadStatements();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not create the statements.');
+    } finally {
       setGenerating(false);
-      return;
     }
-
-    const { data: latestNAV } = await supabase
-      .from('nav_calculations')
-      .select('nav_per_share')
-      .eq('fund_id', selectedFund)
-      .lte('calculation_date', periodEnd.toISOString().split('T')[0])
-      .order('calculation_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const { data: prevNAV } = await supabase
-      .from('nav_calculations')
-      .select('nav_per_share')
-      .eq('fund_id', selectedFund)
-      .lte('calculation_date', prevPeriodEnd.toISOString().split('T')[0])
-      .order('calculation_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const navPerShare = latestNAV?.nav_per_share || 100;
-    const prevNavPerShare = prevNAV?.nav_per_share || 100;
-
-    for (const account of accounts) {
-      const { data: transactions } = await supabase
-        .from('capital_transactions')
-        .select('transaction_type, amount, shares')
-        .eq('capital_account_id', account.id)
-        .gte('transaction_date', periodStart.toISOString().split('T')[0])
-        .lte('transaction_date', periodEnd.toISOString().split('T')[0]);
-
-      const contributions = transactions
-        ?.filter(t => t.transaction_type === 'contribution')
-        .reduce((sum, t) => sum + t.amount, 0) || 0;
-
-      const distributions = transactions
-        ?.filter(t => t.transaction_type === 'distribution')
-        .reduce((sum, t) => sum + t.amount, 0) || 0;
-
-      const { data: fees } = await supabase
-        .from('fee_transactions')
-        .select('fee_amount')
-        .eq('capital_account_id', account.id)
-        .gte('period_start', periodStart.toISOString().split('T')[0])
-        .lte('period_end', periodEnd.toISOString().split('T')[0]);
-
-      const totalFees = fees?.reduce((sum, f) => sum + f.fee_amount, 0) || 0;
-
-      const sharesBeginning = account.shares_owned -
-        (transactions?.reduce((sum, t) => sum + (t.shares || 0), 0) || 0);
-
-      const sharesEnding = account.shares_owned;
-
-      const beginningBalance = sharesBeginning * prevNavPerShare;
-      const endingBalance = sharesEnding * navPerShare;
-
-      const returnAmount = endingBalance - beginningBalance - contributions + distributions + totalFees;
-      const returnPercent = beginningBalance > 0 ? (returnAmount / beginningBalance) * 100 : 0;
-
-      await supabase
-        .from('investor_statements')
-        .insert({
-          tenant_id: currentTenant?.id,
-          capital_account_id: account.id,
-          fund_id: selectedFund,
-          statement_date: periodEnd.toISOString().split('T')[0],
-          period_start: periodStart.toISOString().split('T')[0],
-          period_end: periodEnd.toISOString().split('T')[0],
-          statement_type: 'monthly',
-          beginning_balance: beginningBalance,
-          ending_balance: endingBalance,
-          contributions: contributions,
-          distributions: distributions,
-          fees: totalFees,
-          return_amount: returnAmount,
-          return_percent: returnPercent,
-          shares_beginning: sharesBeginning,
-          shares_ending: sharesEnding,
-          nav_per_share: navPerShare,
-          status: 'draft',
-          created_by: user?.id,
-        });
-    }
-
-    setGenerating(false);
-    loadStatements();
-    alert(`Generated ${accounts.length} statements`);
   };
 
   const finalizeStatement = async (statementId: string) => {
