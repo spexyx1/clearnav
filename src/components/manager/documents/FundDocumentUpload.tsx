@@ -14,7 +14,7 @@ interface FundDocument {
   file_name: string;
   file_url: string;
   file_size_bytes: number;
-  extraction_status: 'pending' | 'processing' | 'extracted' | 'approved' | 'failed';
+  extraction_status: 'pending' | 'processing' | 'awaiting_review' | 'extracted' | 'approved' | 'failed';
   extraction_error: string | null;
   uploaded_by: string | null;
   created_at: string;
@@ -41,6 +41,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 const STATUS_CONFIG = {
   pending: { label: 'Pending', color: 'text-slate-400', bg: 'bg-slate-500/20', icon: Clock },
   processing: { label: 'Analyzing...', color: 'text-amber-400', bg: 'bg-amber-500/20', icon: Loader2 },
+  awaiting_review: { label: 'Awaiting review', color: 'text-sky-300', bg: 'bg-sky-500/20', icon: Clock },
   extracted: { label: 'Ready for Review', color: 'text-cyan-400', bg: 'bg-cyan-500/20', icon: CheckCircle },
   approved: { label: 'Approved', color: 'text-green-400', bg: 'bg-green-500/20', icon: CheckCircle },
   failed: { label: 'Failed', color: 'text-red-400', bg: 'bg-red-500/20', icon: XCircle },
@@ -177,7 +178,6 @@ export default function FundDocumentUpload({ onReviewDocument }: FundDocumentUpl
     setError(null);
 
     try {
-      const ext = selectedFile.name.split('.').pop();
       const storagePath = `${currentTenant.id}/${Date.now()}-${selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
       setUploadProgress(30);
@@ -451,7 +451,7 @@ export default function FundDocumentUpload({ onReviewDocument }: FundDocumentUpl
             const status = STATUS_CONFIG[doc.extraction_status];
             const StatusIcon = status.icon;
             const isProcessing = doc.extraction_status === 'processing';
-            const canReview = doc.extraction_status === 'extracted';
+            const canReview = doc.extraction_status === 'extracted' || doc.extraction_status === 'awaiting_review';
 
             return (
               <div
@@ -480,7 +480,9 @@ export default function FundDocumentUpload({ onReviewDocument }: FundDocumentUpl
                       </span>
                     </div>
                     {doc.extraction_error && (
-                      <p className="text-xs text-red-400 mt-1 truncate">{doc.extraction_error}</p>
+                      <p className={`text-xs mt-1 truncate ${doc.extraction_status === 'awaiting_review' ? 'text-sky-300/80' : 'text-red-400'}`}>
+                        {doc.extraction_error}
+                      </p>
                     )}
                   </div>
 

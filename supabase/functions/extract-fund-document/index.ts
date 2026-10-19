@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,40 +8,66 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const EXTRACTION_PROMPT = `You are a financial document analyst specializing in fund documents (Trust Deeds, Information Memoranda, Private Placement Memoranda, Subscription Agreements).
+const TERM_KEYS = [
+  "dealing_frequency",
+  "valuation_point",
+  "application_cutoff_business_days",
+  "redemption_notice_days",
+  "redemption_gate_pct",
+  "launch_unit_price",
+  "minimum_initial_investment",
+  "minimum_additional_investment",
+  "management_fee_pct",
+  "performance_fee_pct",
+  "fee_frequency",
+  "hurdle_rate_pct",
+  "high_water_mark",
+  "application_money_handling",
+  "units_issued_when",
+];
 
-Analyze the provided document text and extract the following information in a structured JSON format.
+const EXTRACTION_PROMPT = `You are reading a unit trust's Trust Deed or Information Memorandum.
+Extract ONLY what the document states. Never guess. If a term is not stated, set it to null.
+For every term return { "value": ..., "clause": "clause/section number or heading", "page": number or null, "quote": "short verbatim quote (max 200 chars)" }.
 
-Return ONLY valid JSON with this exact structure (use null for any field you cannot find):
+Return ONLY JSON:
 {
-  "fund_name": "string or null",
-  "fund_type": "one of: PE, VC, Real Estate, Credit, Family Office, Alternative, Other - or null",
-  "base_currency": "3-letter ISO currency code or null",
-  "inception_date": "YYYY-MM-DD or null",
-  "total_commitments": number or null,
-  "share_classes": [
-    {
-      "name": "string",
-      "total_shares": number or null,
-      "price_per_share": number or null,
-      "currency": "3-letter ISO currency code or null",
-      "management_fee_pct": number or null,
-      "performance_fee_pct": number or null
-    }
-  ],
-  "investor": {
-    "name": "string or null",
-    "email": "string or null",
-    "investment_amount": number or null,
-    "allocated_shares": number or null,
-    "share_class": "string matching one of the share class names above, or null"
+  "fund_name": term,
+  "base_currency": term,
+  "terms": {
+    "dealing_frequency": term (value one of "daily","weekly","monthly","quarterly"),
+    "valuation_point": term (text, e.g. "close of business on the last business day of each month"),
+    "application_cutoff_business_days": term (number of business days before the dealing day),
+    "redemption_notice_days": term (number of days notice for withdrawals),
+    "redemption_gate_pct": term (number or null),
+    "launch_unit_price": term (number),
+    "minimum_initial_investment": term (number),
+    "minimum_additional_investment": term (number),
+    "management_fee_pct": term (annual %, number),
+    "performance_fee_pct": term (%, number),
+    "fee_frequency": term (value one of "monthly","quarterly","semi_annual","annual"),
+    "hurdle_rate_pct": term (number or null),
+    "high_water_mark": term (boolean),
+    "application_money_handling": term (text),
+    "units_issued_when": term (text)
   },
-  "confidence": "high, medium, or low",
-  "notes": "any important caveats or ambiguities found"
+  "share_classes": [ { "name": string, "management_fee_pct": term, "performance_fee_pct": term, "hurdle_rate_pct": term, "minimum_investment": term } ],
+  "notes": "ambiguities, conflicts between documents, anything needing a human decision"
+}`;
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
-Document text:
-`;
+function termValue(t: unknown): unknown {
+  if (t && typeof t === "object" && "value" in (t as Record<string, unknown>)) {
+    return (t as Record<string, unknown>).value;
+  }
+  return null;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -49,266 +76,139 @@ Deno.serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!authHeader) return json({ error: "Missing authorization" }, 401);
 
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
-
     const { data: { user }, error: userError } = await userClient.auth.getUser();
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (userError || !user) return json({ error: "Unauthorized" }, 401);
 
     const { fund_document_id } = await req.json();
-    if (!fund_document_id) {
-      return new Response(JSON.stringify({ error: "fund_document_id is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!fund_document_id) return json({ error: "fund_document_id is required" }, 400);
 
-    const { data: doc, error: docError } = await supabase
+    const { data: doc } = await supabase
       .from("fund_documents")
       .select("*")
       .eq("id", fund_document_id)
       .maybeSingle();
+    if (!doc) return json({ error: "Document not found" }, 404);
 
-    if (docError || !doc) {
-      return new Response(JSON.stringify({ error: "Document not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("tenant_id, role_category")
+      .eq("user_id", user.id)
+      .in("role_category", ["tenant_admin", "staff_user", "superadmin"]);
+    const allowed = (roles ?? []).some(
+      (r) => r.role_category === "superadmin" || r.tenant_id === doc.tenant_id,
+    );
+    if (!allowed) return json({ error: "Forbidden" }, 403);
 
-    // Verify caller belongs to the same tenant as the document
-    if (doc.tenant_id) {
-      const { data: callerRole } = await userClient
-        .from("user_roles")
-        .select("tenant_id")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .maybeSingle();
-      if (!callerRole || callerRole.tenant_id !== doc.tenant_id) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
-
-    await supabase
-      .from("fund_documents")
-      .update({ extraction_status: "processing", updated_at: new Date().toISOString() })
-      .eq("id", fund_document_id);
-
-    let extractedData: Record<string, unknown> = {};
-    let rawJson: Record<string, unknown> = {};
+    const setStatus = (extraction_status: string, extraction_error: string | null) =>
+      supabase
+        .from("fund_documents")
+        .update({ extraction_status, extraction_error, updated_at: new Date().toISOString() })
+        .eq("id", fund_document_id);
 
     if (!openaiApiKey) {
-      extractedData = generateMockExtraction(doc.file_name, doc.document_type);
-      rawJson = { source: "mock", reason: "OPENAI_API_KEY not configured", data: extractedData };
-    } else {
-      const { data: fileData, error: fileError } = await supabase.storage
-        .from("fund-documents")
-        .download(doc.file_url);
-
-      if (fileError || !fileData) {
-        await supabase
-          .from("fund_documents")
-          .update({
-            extraction_status: "failed",
-            extraction_error: "Failed to download document from storage",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", fund_document_id);
-
-        return new Response(JSON.stringify({ error: "Failed to download document" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const arrayBuffer = await fileData.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-
-      const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: EXTRACTION_PROMPT,
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:application/pdf;base64,${base64}`,
-                    detail: "high",
-                  },
-                },
-              ],
-            },
-          ],
-          max_tokens: 2000,
-          temperature: 0.1,
-        }),
-      });
-
-      if (!openaiResponse.ok) {
-        const errText = await openaiResponse.text();
-        await supabase
-          .from("fund_documents")
-          .update({
-            extraction_status: "failed",
-            extraction_error: `OpenAI API error: ${openaiResponse.status} - ${errText.slice(0, 200)}`,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", fund_document_id);
-
-        return new Response(JSON.stringify({ error: "AI extraction failed" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const openaiData = await openaiResponse.json();
-      const content = openaiData.choices?.[0]?.message?.content ?? "";
-
-      rawJson = { openai_response: openaiData };
-
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          extractedData = JSON.parse(jsonMatch[0]);
-        } catch {
-          extractedData = generateMockExtraction(doc.file_name, doc.document_type);
-          rawJson = { ...rawJson, parse_error: "Could not parse JSON from AI response", raw_content: content };
-        }
-      } else {
-        extractedData = generateMockExtraction(doc.file_name, doc.document_type);
-        rawJson = { ...rawJson, parse_error: "No JSON found in AI response", raw_content: content };
-      }
+      await setStatus("awaiting_review", "Stored safely. Terms will be filled in by a reviewer for your approval.");
+      return json({ success: true, status: "awaiting_review" });
     }
 
-    const shareClasses = Array.isArray(extractedData.share_classes) ? extractedData.share_classes : [];
-    const investor = (extractedData.investor as Record<string, unknown>) ?? {};
+    await setStatus("processing", null);
 
-    const { data: existingResult } = await supabase
-      .from("document_extraction_results")
-      .select("id")
-      .eq("fund_document_id", fund_document_id)
-      .maybeSingle();
+    const { data: fileData, error: fileError } = await supabase.storage
+      .from("fund-documents")
+      .download(doc.file_url);
+    if (fileError || !fileData) {
+      await setStatus("failed", "The document could not be opened from storage.");
+      return json({ error: "Failed to download document" }, 500);
+    }
 
-    const resultPayload = {
+    const bytes = new Uint8Array(await fileData.arrayBuffer());
+    const lowerName = String(doc.file_name).toLowerCase();
+    let documentPart: Record<string, unknown>;
+    if (lowerName.endsWith(".pdf")) {
+      documentPart = {
+        type: "file",
+        file: { filename: doc.file_name, file_data: `data:application/pdf;base64,${encodeBase64(bytes)}` },
+      };
+    } else if (lowerName.endsWith(".txt")) {
+      documentPart = { type: "text", text: new TextDecoder().decode(bytes).slice(0, 400_000) };
+    } else {
+      await setStatus("awaiting_review", "Word files can't be read automatically. Upload a PDF, or a reviewer will fill in the terms.");
+      return json({ success: true, status: "awaiting_review" });
+    }
+
+    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${openaiApiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        response_format: { type: "json_object" },
+        temperature: 0,
+        max_tokens: 6000,
+        messages: [{ role: "user", content: [{ type: "text", text: EXTRACTION_PROMPT }, documentPart] }],
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      const errText = await aiResponse.text();
+      await setStatus("failed", `The document reader returned an error (${aiResponse.status}). ${errText.slice(0, 160)}`);
+      return json({ error: "AI extraction failed" }, 502);
+    }
+
+    const aiData = await aiResponse.json();
+    const content: string = aiData.choices?.[0]?.message?.content ?? "";
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      await setStatus("failed", "The document reader's answer could not be understood. Try again.");
+      return json({ error: "Unparseable AI response" }, 502);
+    }
+
+    const rawTerms = (parsed.terms ?? {}) as Record<string, unknown>;
+    const terms: Record<string, unknown> = {};
+    for (const key of TERM_KEYS) terms[key] = rawTerms[key] ?? null;
+    const shareClasses = Array.isArray(parsed.share_classes) ? parsed.share_classes : [];
+
+    const payload = {
       fund_document_id,
       tenant_id: doc.tenant_id,
-      raw_json: rawJson,
-      extracted_fund_name: (extractedData.fund_name as string) ?? null,
-      extracted_fund_type: (extractedData.fund_type as string) ?? null,
-      extracted_base_currency: (extractedData.base_currency as string) ?? "USD",
-      extracted_inception_date: (extractedData.inception_date as string) ?? null,
-      extracted_total_commitments: (extractedData.total_commitments as number) ?? null,
+      raw_json: { source: "ai", notes: parsed.notes ?? null },
+      extraction_source: "ai",
+      extracted_fund_name: (termValue(parsed.fund_name) as string) ?? null,
+      extracted_base_currency: (termValue(parsed.base_currency) as string) ?? null,
       extracted_share_classes: shareClasses,
-      extracted_investor_name: (investor.name as string) ?? null,
-      extracted_investor_email: (investor.email as string) ?? null,
-      extracted_investment_amount: (investor.investment_amount as number) ?? null,
-      extracted_allocated_shares: (investor.allocated_shares as number) ?? null,
-      extracted_share_class: (investor.share_class as string) ?? null,
-      approved_fund_name: (extractedData.fund_name as string) ?? null,
-      approved_fund_type: (extractedData.fund_type as string) ?? null,
-      approved_base_currency: (extractedData.base_currency as string) ?? "USD",
-      approved_inception_date: (extractedData.inception_date as string) ?? null,
-      approved_total_commitments: (extractedData.total_commitments as number) ?? null,
+      extracted_terms: terms,
+      approved_terms: terms,
       approved_share_classes: shareClasses,
-      approved_investor_name: (investor.name as string) ?? null,
-      approved_investor_email: (investor.email as string) ?? null,
-      approved_investment_amount: (investor.investment_amount as number) ?? null,
-      approved_allocated_shares: (investor.allocated_shares as number) ?? null,
-      approved_share_class: (investor.share_class as string) ?? null,
       approval_status: "pending",
       updated_at: new Date().toISOString(),
     };
 
-    if (existingResult) {
-      await supabase
-        .from("document_extraction_results")
-        .update(resultPayload)
-        .eq("id", existingResult.id);
-    } else {
-      await supabase.from("document_extraction_results").insert(resultPayload);
+    const { data: existing } = await supabase
+      .from("document_extraction_results")
+      .select("id")
+      .eq("fund_document_id", fund_document_id)
+      .maybeSingle();
+    const write = existing
+      ? await supabase.from("document_extraction_results").update(payload).eq("id", existing.id)
+      : await supabase.from("document_extraction_results").insert(payload);
+    if (write.error) {
+      await setStatus("failed", "The results could not be saved.");
+      return json({ error: write.error.message }, 500);
     }
 
-    await supabase
-      .from("fund_documents")
-      .update({ extraction_status: "extracted", updated_at: new Date().toISOString() })
-      .eq("id", fund_document_id);
-
-    return new Response(
-      JSON.stringify({ success: true, message: "Extraction complete", extracted: extractedData }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    await setStatus("extracted", null);
+    return json({ success: true, status: "extracted" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: message }, 500);
   }
 });
-
-function generateMockExtraction(fileName: string, documentType: string): Record<string, unknown> {
-  const fundName = fileName
-    .replace(/\.(pdf|doc|docx|txt)$/i, "")
-    .replace(/[-_]/g, " ")
-    .replace(/\b\w/g, (l) => l.toUpperCase());
-
-  return {
-    fund_name: fundName || "Sample Investment Fund",
-    fund_type: documentType === "trust_deed" ? "Family Office" : "Alternative",
-    base_currency: "USD",
-    inception_date: new Date().toISOString().split("T")[0],
-    total_commitments: 5000000,
-    share_classes: [
-      {
-        name: "Class A",
-        total_shares: 5000,
-        price_per_share: 1000,
-        currency: "USD",
-        management_fee_pct: 1.5,
-        performance_fee_pct: 20,
-      },
-    ],
-    investor: {
-      name: null,
-      email: null,
-      investment_amount: null,
-      allocated_shares: null,
-      share_class: null,
-    },
-    confidence: "low",
-    notes: "Mock extraction - OpenAI API key not configured. Please review and correct all fields.",
-  };
-}

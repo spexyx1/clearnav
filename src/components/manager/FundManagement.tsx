@@ -32,8 +32,8 @@ export default function FundManagement() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [approvalSummary, setApprovalSummary] = useState<{
-    fundId: string | null;
-    invitationId: string | null;
+    fundId: string;
+    classesUpdated: number;
   } | null>(null);
   const [formData, setFormData] = useState({
     fund_code: '',
@@ -96,12 +96,8 @@ export default function FundManagement() {
     setApprovalSummary(null);
   };
 
-  const handleExtractionApproved = (
-    _resultId: string,
-    createdFundId: string | null,
-    createdInvitationId: string | null
-  ) => {
-    setApprovalSummary({ fundId: createdFundId, invitationId: createdInvitationId });
+  const handleExtractionApproved = (fundId: string, classesUpdated: number) => {
+    setApprovalSummary({ fundId, classesUpdated });
     loadFunds();
   };
 
@@ -269,10 +265,12 @@ export default function FundManagement() {
                 <div className="mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl flex items-start space-x-3">
                   <Sparkles className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-green-300 font-medium">Document approved successfully!</p>
+                    <p className="text-green-300 font-medium">Terms approved</p>
                     <p className="text-green-400/70 text-sm mt-0.5">
-                      Fund and share classes have been created. A draft NAV calculation is ready for review.
-                      {approvalSummary.invitationId && ' An investor invitation has been sent.'}
+                      The fund's dealing rules were saved
+                      {approvalSummary.classesUpdated > 0
+                        ? ` and ${approvalSummary.classesUpdated} share class${approvalSummary.classesUpdated === 1 ? ' was' : 'es were'} updated.`
+                        : '. No share class settings changed.'}
                     </p>
                   </div>
                   <div className="flex items-center space-x-2 flex-shrink-0">

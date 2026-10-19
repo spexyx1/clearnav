@@ -1,739 +1,310 @@
-import { useState, useEffect } from 'react';
-import {
-  ArrowLeft, CheckCircle, XCircle, Edit3, Plus, Trash2,
-  Loader2, AlertTriangle, Sparkles, User, Building2,
-  DollarSign, LayersIcon, Send, TrendingUp, ChevronRight
-} from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { ArrowLeft, CheckCircle, XCircle, Loader2, AlertTriangle, FileText, Sparkles, UserCheck } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
-
-interface ShareClass {
-  name: string;
-  total_shares: number | null;
-  price_per_share: number | null;
-  currency: string | null;
-  management_fee_pct: number | null;
-  performance_fee_pct: number | null;
-}
-
-interface ExtractionResult {
-  id: string;
-  fund_document_id: string;
-  tenant_id: string;
-  raw_json: Record<string, unknown>;
-  extracted_fund_name: string | null;
-  extracted_fund_type: string | null;
-  extracted_base_currency: string | null;
-  extracted_inception_date: string | null;
-  extracted_total_commitments: number | null;
-  extracted_share_classes: ShareClass[];
-  extracted_investor_name: string | null;
-  extracted_investor_email: string | null;
-  extracted_investment_amount: number | null;
-  extracted_allocated_shares: number | null;
-  extracted_share_class: string | null;
-  approved_fund_name: string | null;
-  approved_fund_type: string | null;
-  approved_base_currency: string | null;
-  approved_inception_date: string | null;
-  approved_total_commitments: number | null;
-  approved_share_classes: ShareClass[];
-  approved_investor_name: string | null;
-  approved_investor_email: string | null;
-  approved_investment_amount: number | null;
-  approved_allocated_shares: number | null;
-  approved_share_class: string | null;
-  approval_status: 'pending' | 'approved' | 'rejected';
-  created_fund_id: string | null;
-  created_invitation_id: string | null;
-}
+import {
+  sanitizeTerms, hasValue, numberOf, loadDealingTerms,
+  type DealingTerms, type DocumentClass, type TermEntry,
+} from '../../../lib/dealingTerms';
+import { TermsTable, ClassMappingTable, type ExistingClass } from './ReviewFields';
 
 interface FundDocument {
   id: string;
+  tenant_id: string;
+  fund_id: string | null;
   file_name: string;
   document_type: string;
   extraction_status: string;
 }
 
-interface DocumentExtractionReviewProps {
-  documentId: string;
-  onBack: () => void;
-  onApproved: (resultId: string, createdFundId: string | null, createdInvitationId: string | null) => void;
+interface ResultRow {
+  id: string;
+  approval_status: 'pending' | 'approved' | 'rejected';
+  extraction_source: string;
+  extracted_terms: unknown;
+  approved_terms: unknown;
+  approved_share_classes: unknown;
+  extracted_share_classes: unknown;
+  class_mapping: Record<string, string> | null;
+  raw_json: { notes?: string } | null;
 }
 
-const FUND_TYPES = ['PE', 'VC', 'Real Estate', 'Credit', 'Family Office', 'Alternative', 'Other'];
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'AUD', 'CAD', 'SGD', 'HKD'];
+interface Props {
+  documentId: string;
+  onBack: () => void;
+  onApproved: (fundId: string, classesUpdated: number) => void;
+}
 
-export default function DocumentExtractionReview({
-  documentId,
-  onBack,
-  onApproved,
-}: DocumentExtractionReviewProps) {
-  const { currentTenant, user } = useAuth();
-  const [document, setDocument] = useState<FundDocument | null>(null);
-  const [result, setResult] = useState<ExtractionResult | null>(null);
+const DOC_LABELS: Record<string, string> = {
+  trust_deed: 'Trust deed', im: 'Information memorandum', ppm: 'Offering memorandum',
+  subscription_agreement: 'Subscription agreement', other: 'Document',
+};
+
+function toClasses(raw: unknown): DocumentClass[] {
+  return Array.isArray(raw) ? raw.filter(c => c && typeof c.name === 'string') : [];
+}
+
+export default function DocumentExtractionReview({ documentId, onBack, onApproved }: Props) {
+  const { user } = useAuth();
+  const [doc, setDoc] = useState<FundDocument | null>(null);
+  const [result, setResult] = useState<ResultRow | null>(null);
+  const [funds, setFunds] = useState<{ id: string; fund_name: string }[]>([]);
+  const [fundId, setFundId] = useState('');
+  const [classes, setClasses] = useState<ExistingClass[]>([]);
+  const [current, setCurrent] = useState<{ terms: DealingTerms; sourceDocumentIds: string[] } | null>(null);
+  const [terms, setTerms] = useState<DealingTerms>({});
+  const [docClasses, setDocClasses] = useState<DocumentClass[]>([]);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rejectionNotes, setRejectionNotes] = useState('');
-  const [showRejectForm, setShowRejectForm] = useState(false);
-
-  const [editedFundName, setEditedFundName] = useState('');
-  const [editedFundType, setEditedFundType] = useState('');
-  const [editedCurrency, setEditedCurrency] = useState('USD');
-  const [editedInceptionDate, setEditedInceptionDate] = useState('');
-  const [editedTotalCommitments, setEditedTotalCommitments] = useState('');
-  const [editedShareClasses, setEditedShareClasses] = useState<ShareClass[]>([]);
-  const [editedInvestorName, setEditedInvestorName] = useState('');
-  const [editedInvestorEmail, setEditedInvestorEmail] = useState('');
-  const [editedInvestmentAmount, setEditedInvestmentAmount] = useState('');
-  const [editedAllocatedShares, setEditedAllocatedShares] = useState('');
-  const [editedShareClass, setEditedShareClass] = useState('');
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectNotes, setRejectNotes] = useState('');
 
   useEffect(() => {
-    if (documentId) loadData();
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data: d, error: dErr } = await supabase
+          .from('fund_documents')
+          .select('id, tenant_id, fund_id, file_name, document_type, extraction_status')
+          .eq('id', documentId)
+          .maybeSingle();
+        if (dErr || !d) throw new Error('This document could not be found.');
+        setDoc(d);
+
+        const cols = 'id, approval_status, extraction_source, extracted_terms, approved_terms, approved_share_classes, extracted_share_classes, class_mapping, raw_json';
+        let { data: r, error: rErr } = await supabase
+          .from('document_extraction_results').select(cols).eq('fund_document_id', documentId).maybeSingle();
+        if (rErr) throw new Error(rErr.message);
+        if (!r) {
+          const ins = await supabase
+            .from('document_extraction_results')
+            .insert({ fund_document_id: documentId, tenant_id: d.tenant_id, extraction_source: 'reviewer', raw_json: {} })
+            .select(cols).single();
+          if (ins.error) throw new Error(ins.error.message);
+          r = ins.data;
+        }
+        const row = r as ResultRow;
+        setResult(row);
+        const approved = sanitizeTerms(row.approved_terms);
+        setTerms(Object.keys(approved).length ? approved : sanitizeTerms(row.extracted_terms));
+        const ac = toClasses(row.approved_share_classes);
+        setDocClasses(ac.length ? ac : toClasses(row.extracted_share_classes));
+        setMapping(row.class_mapping ?? {});
+
+        const { data: f, error: fErr } = await supabase
+          .from('funds').select('id, fund_name').eq('tenant_id', d.tenant_id).order('created_at');
+        if (fErr) throw new Error(fErr.message);
+        setFunds(f ?? []);
+        setFundId(d.fund_id ?? f?.[0]?.id ?? '');
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not load this document.');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [documentId]);
 
-  const loadData = async () => {
-    setLoading(true);
-    const [docRes, resultRes] = await Promise.all([
-      supabase.from('fund_documents').select('*').eq('id', documentId).maybeSingle(),
-      supabase.from('document_extraction_results').select('*').eq('fund_document_id', documentId).maybeSingle(),
+  const loadFundContext = useCallback(async (id: string) => {
+    if (!id) { setClasses([]); setCurrent(null); return; }
+    const [{ data, error: cErr }, dealing] = await Promise.all([
+      supabase.from('share_classes')
+        .select('id, class_code, class_name, management_fee_pct, performance_fee_pct, hurdle_rate_pct, minimum_investment')
+        .eq('fund_id', id).order('class_code'),
+      loadDealingTerms(id).catch(() => null),
     ]);
+    if (cErr) setError(cErr.message);
+    setClasses(data ?? []);
+    setCurrent(dealing ? { terms: dealing.terms, sourceDocumentIds: dealing.sourceDocumentIds } : { terms: {}, sourceDocumentIds: [] });
+  }, []);
 
-    if (docRes.data) setDocument(docRes.data as FundDocument);
+  useEffect(() => { loadFundContext(fundId); }, [fundId, loadFundContext]);
 
-    if (resultRes.data) {
-      const r = resultRes.data as ExtractionResult;
-      setResult(r);
-      setEditedFundName(r.approved_fund_name ?? r.extracted_fund_name ?? '');
-      setEditedFundType(r.approved_fund_type ?? r.extracted_fund_type ?? 'Other');
-      setEditedCurrency(r.approved_base_currency ?? r.extracted_base_currency ?? 'USD');
-      setEditedInceptionDate(r.approved_inception_date ?? r.extracted_inception_date ?? '');
-      setEditedTotalCommitments(String(r.approved_total_commitments ?? r.extracted_total_commitments ?? ''));
-      setEditedShareClasses(
-        (r.approved_share_classes?.length ? r.approved_share_classes : r.extracted_share_classes) ?? []
-      );
-      setEditedInvestorName(r.approved_investor_name ?? r.extracted_investor_name ?? '');
-      setEditedInvestorEmail(r.approved_investor_email ?? r.extracted_investor_email ?? '');
-      setEditedInvestmentAmount(String(r.approved_investment_amount ?? r.extracted_investment_amount ?? ''));
-      setEditedAllocatedShares(String(r.approved_allocated_shares ?? r.extracted_allocated_shares ?? ''));
-      setEditedShareClass(r.approved_share_class ?? r.extracted_share_class ?? '');
-    }
-    setLoading(false);
-  };
-
-  const buildApprovedPayload = () => ({
-    approved_fund_name: editedFundName,
-    approved_fund_type: editedFundType,
-    approved_base_currency: editedCurrency,
-    approved_inception_date: editedInceptionDate || null,
-    approved_total_commitments: parseFloat(editedTotalCommitments) || null,
-    approved_share_classes: editedShareClasses,
-    approved_investor_name: editedInvestorName || null,
-    approved_investor_email: editedInvestorEmail || null,
-    approved_investment_amount: parseFloat(editedInvestmentAmount) || null,
-    approved_allocated_shares: parseFloat(editedAllocatedShares) || null,
-    approved_share_class: editedShareClass || null,
-  });
-
-  const handleSaveDraft = async () => {
-    if (!result) return;
-    setSaving(true);
-    await supabase
-      .from('document_extraction_results')
-      .update({ ...buildApprovedPayload(), updated_at: new Date().toISOString() })
-      .eq('id', result.id);
-    setSaving(false);
-  };
+  const filledCount = Object.values(terms).filter(hasValue).length;
 
   const handleApprove = async () => {
-    if (!result || !currentTenant?.id) return;
-    setApproving(true);
+    if (!doc || !result || !fundId || !current) return;
+    setSaving(true);
     setError(null);
-
     try {
-      await supabase
-        .from('document_extraction_results')
-        .update({ ...buildApprovedPayload(), updated_at: new Date().toISOString() })
-        .eq('id', result.id);
+      const filled = Object.fromEntries(Object.entries(terms).filter(([, t]) => hasValue(t))) as DealingTerms;
+      const merged: DealingTerms = { ...current.terms, ...filled };
+      const now = new Date().toISOString();
 
-      let createdFundId: string | null = null;
+      const { error: tErr } = await supabase.from('fund_dealing_terms').upsert({
+        tenant_id: doc.tenant_id,
+        fund_id: fundId,
+        terms: merged,
+        source_document_ids: Array.from(new Set([...current.sourceDocumentIds, doc.id])),
+        approved_by: user?.id ?? null,
+        approved_at: now,
+        updated_at: now,
+      }, { onConflict: 'fund_id' });
+      if (tErr) throw new Error(`Could not save dealing rules: ${tErr.message}`);
 
-      const fundCode = (editedFundName || 'FUND')
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, '')
-        .slice(0, 8) + '-' + Date.now().toString().slice(-4);
-
-      const { data: newFund, error: fundError } = await supabase
-        .from('funds')
-        .insert({
-          tenant_id: currentTenant.id,
-          fund_code: fundCode,
-          fund_name: editedFundName,
-          fund_type: (editedFundType || 'other').toLowerCase().replace(/\s+/g, '_'),
-          base_currency: editedCurrency || 'USD',
-          inception_date: editedInceptionDate || new Date().toISOString().split('T')[0],
-          accounting_standard: 'GAAP',
-          nav_frequency: 'monthly',
-          total_commitments: parseFloat(editedTotalCommitments) || 0,
-          status: 'active',
-        })
-        .select()
-        .single();
-
-      if (fundError) throw new Error(`Failed to create fund: ${fundError.message}`);
-      createdFundId = newFund.id;
-
-      for (const sc of editedShareClasses) {
-        if (!sc.name) continue;
-        const classCode = sc.name.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'A';
-        await supabase.from('share_classes').insert({
-          fund_id: createdFundId,
-          class_code: classCode,
-          class_name: sc.name,
-          currency: sc.currency || editedCurrency || 'USD',
-          management_fee_pct: sc.management_fee_pct ?? 1.5,
-          performance_fee_pct: sc.performance_fee_pct ?? 20,
-          hurdle_rate_pct: 8,
-          high_water_mark: true,
-          share_price_precision: 4,
-          minimum_investment: sc.price_per_share ?? 1000,
-          status: 'active',
-        });
-
-        if (sc.total_shares && sc.price_per_share) {
-          const totalNAV = sc.total_shares * sc.price_per_share;
-          await supabase.from('nav_calculations').insert({
-            tenant_id: currentTenant.id,
-            fund_id: createdFundId,
-            calculation_date: editedInceptionDate || new Date().toISOString().split('T')[0],
-            nav_per_share: sc.price_per_share,
-            total_nav: totalNAV,
-            total_shares_outstanding: sc.total_shares,
-            status: 'draft',
-            notes: `Initial NAV from document extraction: ${document?.file_name}`,
-            version: 1,
-          });
-        }
+      const hwm = merged.high_water_mark;
+      let updatedCount = 0;
+      for (const dc of docClasses) {
+        const target = classes.find(c => c.id === mapping[dc.name]);
+        if (!target) continue;
+        const pick = (own?: TermEntry | null, fundWide?: TermEntry) => numberOf(own) ?? numberOf(fundWide);
+        const patch: Record<string, number | boolean> = {};
+        const mgmt = pick(dc.management_fee_pct, filled.management_fee_pct);
+        const perf = pick(dc.performance_fee_pct, filled.performance_fee_pct);
+        const hurdle = pick(dc.hurdle_rate_pct, filled.hurdle_rate_pct);
+        const min = pick(dc.minimum_investment, filled.minimum_initial_investment);
+        if (mgmt !== null && mgmt !== target.management_fee_pct) patch.management_fee_pct = mgmt;
+        if (perf !== null && perf !== target.performance_fee_pct) patch.performance_fee_pct = perf;
+        if (hurdle !== null && hurdle !== target.hurdle_rate_pct) patch.hurdle_rate_pct = hurdle;
+        if (min !== null && min !== target.minimum_investment) patch.minimum_investment = min;
+        if (hasValue(hwm)) patch.high_water_mark = hwm.value === true || hwm.value === 'true';
+        if (!Object.keys(patch).length) continue;
+        const { error: sErr } = await supabase.from('share_classes').update(patch).eq('id', target.id);
+        if (sErr) throw new Error(`Could not update ${target.class_name}: ${sErr.message}`);
+        updatedCount++;
       }
 
-      let createdInvitationId: string | null = null;
+      const { error: rErr } = await supabase.from('document_extraction_results').update({
+        approved_terms: terms,
+        approved_share_classes: docClasses,
+        class_mapping: mapping,
+        approval_status: 'approved',
+        approved_by: user?.id ?? null,
+        approved_at: now,
+        updated_at: now,
+      }).eq('id', result.id);
+      if (rErr) throw new Error(rErr.message);
 
-      if (editedInvestorEmail) {
-        const token = crypto.randomUUID();
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
+      const { error: dErr } = await supabase.from('fund_documents')
+        .update({ extraction_status: 'approved', fund_id: fundId, updated_at: now }).eq('id', doc.id);
+      if (dErr) throw new Error(dErr.message);
 
-        const { data: invitation } = await supabase
-          .from('client_invitations')
-          .insert({
-            tenant_id: currentTenant.id,
-            email: editedInvestorEmail,
-            first_name: editedInvestorName?.split(' ')[0] ?? '',
-            last_name: editedInvestorName?.split(' ').slice(1).join(' ') ?? '',
-            invitation_token: token,
-            status: 'pending',
-            expires_at: expiresAt.toISOString(),
-            reminder_count: 0,
-            invited_by: user?.id ?? null,
-            pre_populated_fund_id: createdFundId,
-            pre_populated_share_class: editedShareClass || null,
-            pre_populated_shares: parseFloat(editedAllocatedShares) || null,
-            pre_populated_investment_amount: parseFloat(editedInvestmentAmount) || null,
-            source_document_id: documentId,
-            custom_message: `You have been invited to access your investment in ${editedFundName}.`,
-          })
-          .select()
-          .single();
-
-        if (invitation) {
-          createdInvitationId = invitation.id;
-
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.access_token) {
-            fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invitation-email`, {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${session.access_token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ invitation_id: invitation.id }),
-            }).catch(() => {});
-          }
-        }
-      }
-
-      await supabase
-        .from('document_extraction_results')
-        .update({
-          approval_status: 'approved',
-          approved_by: user?.id ?? null,
-          approved_at: new Date().toISOString(),
-          created_fund_id: createdFundId,
-          created_invitation_id: createdInvitationId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', result.id);
-
-      await supabase
-        .from('fund_documents')
-        .update({ extraction_status: 'approved', fund_id: createdFundId, updated_at: new Date().toISOString() })
-        .eq('id', documentId);
-
-      onApproved(result.id, createdFundId, createdInvitationId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Approval failed');
+      onApproved(fundId, updatedCount);
+      onBack();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Approval failed.');
     } finally {
-      setApproving(false);
+      setSaving(false);
     }
   };
 
   const handleReject = async () => {
     if (!result) return;
     setSaving(true);
-    await supabase
-      .from('document_extraction_results')
-      .update({
-        approval_status: 'rejected',
-        rejection_notes: rejectionNotes,
-        updated_at: new Date().toISOString(),
-      })
+    const { error: rErr } = await supabase.from('document_extraction_results')
+      .update({ approval_status: 'rejected', rejection_notes: rejectNotes || null, updated_at: new Date().toISOString() })
       .eq('id', result.id);
-    await supabase
-      .from('fund_documents')
-      .update({ extraction_status: 'failed', extraction_error: rejectionNotes, updated_at: new Date().toISOString() })
-      .eq('id', documentId);
     setSaving(false);
+    if (rErr) { setError(rErr.message); return; }
     onBack();
   };
 
-  const updateShareClass = (index: number, field: keyof ShareClass, value: string | number | null) => {
-    setEditedShareClasses((prev) => prev.map((sc, i) => i === index ? { ...sc, [field]: value } : sc));
-  };
-
-  const addShareClass = () => {
-    setEditedShareClasses((prev) => [...prev, {
-      name: `Class ${String.fromCharCode(65 + prev.length)}`,
-      total_shares: null,
-      price_per_share: null,
-      currency: editedCurrency,
-      management_fee_pct: 1.5,
-      performance_fee_pct: 20,
-    }]);
-  };
-
-  const removeShareClass = (index: number) => {
-    setEditedShareClasses((prev) => prev.filter((_, i) => i !== index));
-  };
-
   if (loading) {
+    return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-cyan-400 animate-spin" /></div>;
+  }
+
+  if (!doc || !result) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-cyan-500" />
+      <div className="space-y-4">
+        <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm"><ArrowLeft className="w-4 h-4" /> Back</button>
+        <p className="text-red-300">{error ?? 'This document could not be loaded.'}</p>
       </div>
     );
   }
 
-  if (!result) {
-    return (
-      <div className="text-center py-16">
-        <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-3" />
-        <p className="text-white font-semibold">Extraction results not found</p>
-        <p className="text-slate-400 text-sm mt-1">The document may still be processing.</p>
-        <button onClick={onBack} className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors">
-          Go Back
-        </button>
-      </div>
-    );
-  }
-
-  const isApproved = result.approval_status === 'approved';
+  const readByAi = result.extraction_source === 'ai';
+  const card = 'rounded-xl border border-slate-700 bg-slate-800/30 p-5';
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-4">
-        <button
-          onClick={onBack}
-          className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h3 className="text-xl font-bold text-white">Review Extraction</h3>
-          <p className="text-slate-400 text-sm mt-0.5">{document?.file_name}</p>
+          <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm mb-3 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back to documents
+          </button>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-cyan-500/10"><FileText className="w-5 h-5 text-cyan-300" /></div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">{doc.file_name}</h2>
+              <p className="text-sm text-slate-400">{DOC_LABELS[doc.document_type] ?? 'Document'} · {filledCount} terms filled</p>
+            </div>
+          </div>
         </div>
-        {isApproved && (
-          <span className="ml-auto flex items-center space-x-1.5 px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm">
-            <CheckCircle className="w-4 h-4" />
-            <span>Approved</span>
-          </span>
-        )}
+        <span className={`inline-flex items-center gap-1.5 self-start px-3 py-1 rounded-full text-xs border ${readByAi ? 'border-cyan-500/40 text-cyan-300 bg-cyan-500/10' : 'border-sky-500/40 text-sky-300 bg-sky-500/10'}`}>
+          {readByAi ? <Sparkles className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+          {readByAi ? 'Read automatically, check each term' : 'Filled in by reviewer'}
+        </span>
       </div>
 
-      <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4 flex items-start space-x-3">
-        <Sparkles className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-cyan-300 font-medium text-sm">AI-extracted data — please review before approving</p>
-          <p className="text-cyan-400/70 text-xs mt-0.5">
-            All fields are editable. Approving will create the fund, share classes, initial NAV, and send an investor invitation if an email was found.
-          </p>
+      {result.approval_status === 'approved' && (
+        <div className="p-3 rounded-lg border border-green-500/30 bg-green-500/10 text-sm text-green-300">
+          These terms were already approved. Approving again will save any changes you make.
         </div>
-      </div>
-
+      )}
+      {result.raw_json?.notes && <p className="text-sm text-slate-400 italic">{result.raw_json.notes}</p>}
       {error && (
-        <div className="flex items-start space-x-2 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
-          <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-          <p className="text-red-300 text-sm">{error}</p>
+        <div className="flex items-start gap-2 p-3 rounded-lg border border-red-500/30 bg-red-500/10 text-sm text-red-300">
+          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" /> {error}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-700 flex items-center space-x-2">
-            <Building2 className="w-4 h-4 text-cyan-400" />
-            <h4 className="text-sm font-semibold text-white">Fund Details</h4>
-          </div>
-          <div className="p-5 space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">Fund Name</label>
-              <input
-                type="text"
-                value={editedFundName}
-                onChange={(e) => setEditedFundName(e.target.value)}
-                disabled={isApproved}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Fund Type</label>
-                <select
-                  value={editedFundType}
-                  onChange={(e) => setEditedFundType(e.target.value)}
-                  disabled={isApproved}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                >
-                  {FUND_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Base Currency</label>
-                <select
-                  value={editedCurrency}
-                  onChange={(e) => setEditedCurrency(e.target.value)}
-                  disabled={isApproved}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                >
-                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Inception Date</label>
-                <input
-                  type="date"
-                  value={editedInceptionDate}
-                  onChange={(e) => setEditedInceptionDate(e.target.value)}
-                  disabled={isApproved}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Total Commitments</label>
-                <input
-                  type="number"
-                  value={editedTotalCommitments}
-                  onChange={(e) => setEditedTotalCommitments(e.target.value)}
-                  disabled={isApproved}
-                  placeholder="0"
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-700 flex items-center space-x-2">
-            <User className="w-4 h-4 text-cyan-400" />
-            <h4 className="text-sm font-semibold text-white">Investor Details</h4>
-            <span className="ml-auto text-xs text-slate-500">Optional — triggers invitation email</span>
-          </div>
-          <div className="p-5 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Investor Name</label>
-                <input
-                  type="text"
-                  value={editedInvestorName}
-                  onChange={(e) => setEditedInvestorName(e.target.value)}
-                  disabled={isApproved}
-                  placeholder="Full name"
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Email Address</label>
-                <input
-                  type="email"
-                  value={editedInvestorEmail}
-                  onChange={(e) => setEditedInvestorEmail(e.target.value)}
-                  disabled={isApproved}
-                  placeholder="investor@email.com"
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Investment Amount</label>
-                <input
-                  type="number"
-                  value={editedInvestmentAmount}
-                  onChange={(e) => setEditedInvestmentAmount(e.target.value)}
-                  disabled={isApproved}
-                  placeholder="0.00"
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Allocated Shares</label>
-                <input
-                  type="number"
-                  value={editedAllocatedShares}
-                  onChange={(e) => setEditedAllocatedShares(e.target.value)}
-                  disabled={isApproved}
-                  placeholder="0"
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">Share Class</label>
-              <select
-                value={editedShareClass}
-                onChange={(e) => setEditedShareClass(e.target.value)}
-                disabled={isApproved}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-              >
-                <option value="">— Select share class —</option>
-                {editedShareClasses.map((sc) => (
-                  <option key={sc.name} value={sc.name}>{sc.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <LayersIcon className="w-4 h-4 text-cyan-400" />
-            <h4 className="text-sm font-semibold text-white">Share Classes</h4>
-            <span className="text-xs text-slate-500">— initial NAV will be set from price per share</span>
-          </div>
-          {!isApproved && (
-            <button
-              onClick={addShareClass}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-xs transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Class</span>
-            </button>
-          )}
-        </div>
-
-        {editedShareClasses.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-slate-500 text-sm">No share classes extracted. Add one manually.</p>
-          </div>
+      <section className={card}>
+        <h3 className="text-white font-medium mb-1">Which fund do these terms belong to?</h3>
+        <p className="text-sm text-slate-400 mb-3">Approving updates this fund. No new fund is created.</p>
+        {funds.length === 0 ? (
+          <p className="text-sm text-amber-300">Create the fund first, then come back to approve these terms.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  <th className="text-left text-xs font-medium text-slate-400 px-5 py-3">Class Name</th>
-                  <th className="text-right text-xs font-medium text-slate-400 px-4 py-3">Total Shares</th>
-                  <th className="text-right text-xs font-medium text-slate-400 px-4 py-3">Price / Share</th>
-                  <th className="text-right text-xs font-medium text-slate-400 px-4 py-3">Mgmt Fee %</th>
-                  <th className="text-right text-xs font-medium text-slate-400 px-4 py-3">Perf Fee %</th>
-                  <th className="text-right text-xs font-medium text-slate-400 px-4 py-3">Initial NAV</th>
-                  {!isApproved && <th className="w-10" />}
-                </tr>
-              </thead>
-              <tbody>
-                {editedShareClasses.map((sc, i) => (
-                  <tr key={i} className="border-b border-slate-700/50 last:border-0">
-                    <td className="px-5 py-3">
-                      <input
-                        type="text"
-                        value={sc.name}
-                        onChange={(e) => updateShareClass(i, 'name', e.target.value)}
-                        disabled={isApproved}
-                        className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-white text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="number"
-                        value={sc.total_shares ?? ''}
-                        onChange={(e) => updateShareClass(i, 'total_shares', parseFloat(e.target.value) || null)}
-                        disabled={isApproved}
-                        placeholder="—"
-                        className="w-28 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-white text-sm text-right focus:ring-1 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="number"
-                        value={sc.price_per_share ?? ''}
-                        onChange={(e) => updateShareClass(i, 'price_per_share', parseFloat(e.target.value) || null)}
-                        disabled={isApproved}
-                        placeholder="—"
-                        className="w-24 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-white text-sm text-right focus:ring-1 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="number"
-                        value={sc.management_fee_pct ?? ''}
-                        onChange={(e) => updateShareClass(i, 'management_fee_pct', parseFloat(e.target.value) || null)}
-                        disabled={isApproved}
-                        placeholder="—"
-                        className="w-20 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-white text-sm text-right focus:ring-1 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="number"
-                        value={sc.performance_fee_pct ?? ''}
-                        onChange={(e) => updateShareClass(i, 'performance_fee_pct', parseFloat(e.target.value) || null)}
-                        disabled={isApproved}
-                        placeholder="—"
-                        className="w-20 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-white text-sm text-right focus:ring-1 focus:ring-cyan-500 focus:outline-none disabled:opacity-60"
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {sc.total_shares && sc.price_per_share ? (
-                        <span className="text-cyan-400 font-medium">
-                          {(sc.total_shares * sc.price_per_share).toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                        </span>
-                      ) : (
-                        <span className="text-slate-600">—</span>
-                      )}
-                    </td>
-                    {!isApproved && (
-                      <td className="px-3 py-3">
-                        <button
-                          onClick={() => removeShareClass(i)}
-                          className="p-1 text-slate-500 hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <select value={fundId} onChange={e => setFundId(e.target.value)}
+            className="w-full sm:w-80 bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+            {funds.map(f => <option key={f.id} value={f.id}>{f.fund_name}</option>)}
+          </select>
+        )}
+      </section>
+
+      <section className={card}>
+        <h3 className="text-white font-medium mb-1">Dealing and fee terms</h3>
+        <p className="text-sm text-slate-400 mb-4">Each value should point to the clause and page it came from. Blank terms keep the current setting.</p>
+        <TermsTable terms={terms} current={current?.terms ?? {}} onChange={(k, entry) => setTerms(t => ({ ...t, [k]: entry }))} />
+      </section>
+
+      <section className={card}>
+        <h3 className="text-white font-medium mb-1">Share classes</h3>
+        <p className="text-sm text-slate-400 mb-4">Link each class named in the document to one of your existing classes.</p>
+        <ClassMappingTable docClasses={docClasses} existing={classes} mapping={mapping}
+          onClassesChange={setDocClasses} onMappingChange={setMapping} />
+      </section>
+
+      {rejecting && (
+        <section className={card}>
+          <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)} placeholder="Why are these terms being rejected?"
+            className="w-full h-20 bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500" />
+        </section>
+      )}
+
+      <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
+        {rejecting ? (
+          <>
+            <button onClick={() => setRejecting(false)} className="px-4 py-2 text-sm text-slate-300 hover:text-white">Cancel</button>
+            <button onClick={handleReject} disabled={saving}
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm disabled:opacity-50">
+              <XCircle className="w-4 h-4" /> Confirm reject
+            </button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setRejecting(true)} className="px-4 py-2 rounded-lg border border-slate-600 text-sm text-slate-300 hover:border-red-500/50 hover:text-red-300 transition-colors">
+              Reject
+            </button>
+            <button onClick={handleApprove} disabled={saving || !fundId || filledCount === 0}
+              className="flex items-center justify-center gap-2 px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              Approve and apply to fund
+            </button>
+          </>
         )}
       </div>
-
-      {isApproved && result.created_fund_id && (
-        <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-5">
-          <div className="flex items-center space-x-2 mb-4">
-            <CheckCircle className="w-5 h-5 text-green-400" />
-            <h4 className="text-white font-semibold">Successfully Approved</h4>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="flex items-center space-x-3 p-3 bg-slate-800/60 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-cyan-400 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-slate-400">Fund &amp; NAV Draft Created</p>
-                <p className="text-sm text-white font-medium">{editedFundName}</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-500 ml-auto" />
-            </div>
-            {result.created_invitation_id && (
-              <div className="flex items-center space-x-3 p-3 bg-slate-800/60 rounded-lg">
-                <Send className="w-5 h-5 text-cyan-400 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-slate-400">Invitation Sent</p>
-                  <p className="text-sm text-white font-medium">{editedInvestorEmail}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-500 ml-auto" />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {!isApproved && (
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setShowRejectForm(!showRejectForm)}
-              className="flex items-center space-x-2 px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/30 rounded-lg text-sm transition-colors"
-            >
-              <XCircle className="w-4 h-4" />
-              <span>Reject</span>
-            </button>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={handleSaveDraft}
-              disabled={saving}
-              className="flex items-center space-x-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Edit3 className="w-4 h-4" />}
-              <span>Save Draft</span>
-            </button>
-            <button
-              onClick={handleApprove}
-              disabled={approving || !editedFundName || editedShareClasses.length === 0}
-              className="flex items-center space-x-2 px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              {approving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              <span>{approving ? 'Processing...' : 'Approve & Create'}</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showRejectForm && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 space-y-3">
-          <p className="text-red-300 text-sm font-medium">Rejection notes (optional)</p>
-          <textarea
-            value={rejectionNotes}
-            onChange={(e) => setRejectionNotes(e.target.value)}
-            rows={3}
-            placeholder="Describe why this extraction is being rejected..."
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-red-500 focus:outline-none resize-none"
-          />
-          <div className="flex justify-end space-x-3">
-            <button
-              onClick={() => setShowRejectForm(false)}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleReject}
-              disabled={saving}
-              className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-              <span>Confirm Rejection</span>
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
