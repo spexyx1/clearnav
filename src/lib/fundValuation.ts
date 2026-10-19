@@ -22,6 +22,8 @@ export interface ItemRow {
   proceeds: number | null;
   multiplier: number | null;
   asset_category: string | null;
+  currency?: string | null;
+  notes?: string | null;
 }
 
 export interface PriceMark {
@@ -39,13 +41,15 @@ export interface ClassInfo {
   startPrice: number;
 }
 
-export type PriceSource = 'manual' | 'statement' | 'market' | 'trade' | 'missing';
+export type PriceSource = 'manual' | 'statement' | 'market' | 'trade' | 'missing' | 'expired';
 
 export interface HoldingValue {
   symbol: string;
   quantity: number;
   multiplier: number;
   assetCategory: string;
+  currency: string;
+  fxRate: number;
   price: number;
   priceSource: PriceSource;
   marketValue: number;
@@ -56,6 +60,7 @@ export interface MonthResult {
   date: string;
   openingValue: number;
   flows: number;
+  internalFlows: number;
   cash: number;
   holdings: HoldingValue[];
   holdingsValue: number;
@@ -70,6 +75,8 @@ export interface MonthResult {
   units: number;
   classNav: number;
   missingPrices: string[];
+  missingFx: string[];
+  unexplained: number;
 }
 
 export interface ClassValuation {
@@ -82,7 +89,29 @@ const round = (v: number, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
 const markKey = (symbol: string, date: string) => `${symbol}|${date}`;
 
 export function isMarketPriceable(assetCategory: string) {
-  return !/option|future|bond|fop|warrant|cfd/i.test(assetCategory || '');
+  return !/future|bond|fop|warrant|cfd/i.test(assetCategory || '');
+}
+
+export const isOption = (assetCategory: string, symbol: string) => /option/i.test(assetCategory || '') || OPTION_RE.test(symbol);
+const OPTION_RE = /\s(\d{2})([A-Z]{3})(\d{2})\s+[\d.]+\s+[CP]$/;
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+export function optionExpiry(symbol: string): string | null {
+  const m = symbol.match(OPTION_RE);
+  if (!m) return null;
+  const mi = MONTHS.indexOf(m[2]);
+  return mi < 0 ? null : `20${m[3]}-${String(mi + 1).padStart(2, '0')}-${m[1]}`;
+}
+
+export function guessCurrency(symbol: string) {
+  return /^\d{4}\.T$/i.test(symbol) ? 'JPY' : 'USD';
+}
+
+export const fxKey = (ccy: string) => `FX:${ccy}`;
+
+function fixMultiplier(mult: number, assetCategory: string, symbol: string) {
+  const m = Number(mult) || 1;
+  return m <= 1 && isOption(assetCategory, symbol) ? 100 : m;
 }
 
 export function valueClass(
@@ -104,9 +133,9 @@ export function valueClass(
       classId: cls.id,
       notes,
       months: months.map((m) => ({
-        month: m, date: monthEnd(+m.slice(0, 4), +m.slice(5, 7)), openingValue: capital, flows: 0, cash: capital,
+        month: m, date: monthEnd(+m.slice(0, 4), +m.slice(5, 7)), openingValue: capital, flows: 0, internalFlows: 0, cash: capital,
         holdings: [], holdingsValue: 0, accountValue: capital, computedValue: capital, brokerValue: null, income: 0, fees: 0,
-        tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [],
+        tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [], missingFx: [], unexplained: 0,
       })),
     };
   }
@@ -118,29 +147,61 @@ export function valueClass(
 
   const manual = new Map<string, number>();
   const market = new Map<string, number>();
-  marks.forEach((m) => (m.source === 'manual' ? manual : market).set(markKey(m.symbol, m.price_date), Number(m.price)));
+  const fxSeries = new Map<string, Array<[string, number]>>();
+  marks.forEach((m) => {
+    if (m.symbol.startsWith('FX:')) {
+      const ccy = m.symbol.slice(3);
+      fxSeries.set(ccy, [...(fxSeries.get(ccy) ?? []), [m.price_date, Number(m.price)]]);
+      return;
+    }
+    (m.source === 'manual' ? manual : market).set(markKey(m.symbol, m.price_date), Number(m.price));
+  });
+
+  const currencyOf = new Map<string, string>();
+  own.forEach((u) => [u.statement_data.opening, u.statement_data.closing].forEach((s) => s?.positions.forEach((p) => {
+    if (p.currency) currencyOf.set(p.symbol, p.currency);
+  })));
+  items.forEach((i) => { if (i.currency) currencyOf.set(i.instrument, i.currency); });
+  const ccyOf = (symbol: string) => currencyOf.get(symbol) ?? guessCurrency(symbol);
+
+  const missingFx = new Set<string>();
+  const fxFor = (ccy: string, date: string, stmtRates?: Record<string, number>): number => {
+    if (!ccy || ccy === 'USD') return 1;
+    if (stmtRates?.[ccy]) return stmtRates[ccy];
+    const series = fxSeries.get(ccy);
+    if (!series?.length) { missingFx.add(ccy); return 0; }
+    const target = Date.parse(date);
+    return series.reduce((best, cur) => (Math.abs(Date.parse(cur[0]) - target) < Math.abs(Date.parse(best[0]) - target) ? cur : best))[1];
+  };
 
   const first = byMonth.get(keys[0])!.statement_data;
   const opening = first.opening;
   const positions = new Map<string, { quantity: number; multiplier: number; assetCategory: string }>();
-  opening?.positions.forEach((p) => positions.set(p.symbol, { quantity: p.quantity, multiplier: p.multiplier || 1, assetCategory: p.assetCategory }));
+  opening?.positions.forEach((p) => positions.set(p.symbol, { quantity: p.quantity, multiplier: fixMultiplier(p.multiplier, p.assetCategory, p.symbol), assetCategory: p.assetCategory }));
   const lastTrade = new Map<string, number>();
 
-  const priceFor = (symbol: string, date: string, statementPrices: Map<string, number> | null): [number, PriceSource] => {
+  const priceFor = (symbol: string, assetCategory: string, date: string, statementPrices: Map<string, number> | null): [number, PriceSource] => {
     const k = markKey(symbol, date);
     if (manual.has(k)) return [manual.get(k)!, 'manual'];
     if (statementPrices?.has(symbol)) return [statementPrices.get(symbol)!, 'statement'];
+    const expiry = isOption(assetCategory, symbol) ? optionExpiry(symbol) : null;
+    if (expiry && expiry < date) return [0, 'expired'];
     if (market.has(k)) return [market.get(k)!, 'market'];
     if (lastTrade.has(symbol)) return [lastTrade.get(symbol)!, 'trade'];
     return [0, 'missing'];
   };
 
-  const valueHoldings = (date: string, statementPrices: Map<string, number> | null) => {
+  const valueHoldings = (date: string, statementPrices: Map<string, number> | null, stmtRates?: Record<string, number>) => {
     const holdings: HoldingValue[] = [];
     positions.forEach((p, symbol) => {
       if (Math.abs(p.quantity) < 1e-9) return;
-      const [price, priceSource] = priceFor(symbol, date, statementPrices);
-      holdings.push({ symbol, quantity: p.quantity, multiplier: p.multiplier, assetCategory: p.assetCategory, price, priceSource, marketValue: round(p.quantity * p.multiplier * price) });
+      const [price, priceSource] = priceFor(symbol, p.assetCategory, date, statementPrices);
+      const currency = ccyOf(symbol);
+      const fxRate = fxFor(currency, date, stmtRates);
+      holdings.push({
+        symbol, quantity: p.quantity, multiplier: p.multiplier, assetCategory: p.assetCategory, currency, fxRate,
+        price, priceSource, marketValue: round(p.quantity * p.multiplier * price * fxRate),
+      });
     });
     holdings.sort((a, b) => Math.abs(b.marketValue) - Math.abs(a.marketValue));
     return holdings;
@@ -151,8 +212,12 @@ export function valueClass(
   if (!hasBrokerCash) notes.push('The file had no cash balance, so the class starting capital was used as opening cash.');
 
   let prevValue: number;
+  let openingGap = 0;
   if (opening?.nav != null) {
     prevValue = opening.nav;
+    if (opening.cash != null) {
+      openingGap = opening.nav - (opening.cash + valueHoldings(opening.as_of, null).reduce((s, h) => s + h.marketValue, 0));
+    }
   } else {
     const oh = valueHoldings(opening?.as_of ?? `${keys[0]}-01`, null);
     prevValue = cash + oh.reduce((s, h) => s + h.marketValue, 0);
@@ -165,32 +230,54 @@ export function valueClass(
     const up = byMonth.get(mk);
     const data = up?.statement_data;
     const monthItems = up ? items.filter((i) => i.upload_id === up.id).sort((a, b) => a.trade_date.localeCompare(b.trade_date)) : [];
-    let fees = 0;
-    monthItems.forEach((t) => {
-      const mult = Number(t.multiplier) || 1;
-      const signed = t.direction === 'buy' ? Number(t.quantity) : -Number(t.quantity);
-      const proceeds = t.proceeds != null ? Number(t.proceeds) : -signed * Number(t.price) * mult;
-      cash += proceeds - Number(t.fees);
-      fees += Number(t.fees);
-      const cur = positions.get(t.instrument) ?? { quantity: 0, multiplier: mult, assetCategory: t.asset_category || '' };
-      cur.quantity += signed;
-      cur.multiplier = mult;
-      positions.set(t.instrument, cur);
-      if (Number(t.price) > 0) lastTrade.set(t.instrument, Number(t.price));
-    });
-    const events = data?.cash_events ?? [];
-    let flows = 0;
-    let income = 0;
-    events.forEach((e) => {
-      cash += e.amount;
-      if (e.type === 'deposit' || e.type === 'withdrawal') flows += e.amount;
-      else if (e.type === 'fee') fees += -e.amount;
-      else income += e.amount;
-    });
-
     const closing = data?.closing;
     const fullMonthEnd = monthEnd(+mk.slice(0, 4), +mk.slice(5, 7));
     const date = closing && closing.as_of < fullMonthEnd ? closing.as_of : fullMonthEnd;
+    const stmtRates = data?.fx_rates;
+    missingFx.clear();
+    let fees = 0;
+    let flows = 0;
+    let internalFlows = 0;
+    monthItems.forEach((t) => {
+      const assetCategory = t.asset_category || '';
+      const mult = fixMultiplier(Number(t.multiplier), assetCategory, t.instrument);
+      const fx = fxFor(t.currency || ccyOf(t.instrument), date, stmtRates);
+      const signed = t.direction === 'buy' ? Number(t.quantity) : -Number(t.quantity);
+      const cur = positions.get(t.instrument) ?? { quantity: 0, multiplier: mult, assetCategory };
+      cur.quantity += signed;
+      cur.multiplier = mult;
+      positions.set(t.instrument, cur);
+      if (t.notes === 'transfer') {
+        const value = signed * Number(t.price) * mult * fx;
+        flows += value;
+        internalFlows += value;
+        return;
+      }
+      const proceeds = t.proceeds != null ? Number(t.proceeds) : -signed * Number(t.price) * mult;
+      cash += (proceeds - Number(t.fees)) * fx;
+      fees += Number(t.fees) * fx;
+      if (Number(t.price) > 0 && t.notes !== 'corporate_action') lastTrade.set(t.instrument, Number(t.price));
+    });
+    const events = data?.cash_events ?? [];
+    let income = 0;
+    const paired = new Set<number>();
+    events.forEach((e, i) => {
+      if (paired.has(i) || (e.type !== 'deposit' && e.type !== 'withdrawal')) return;
+      const j = events.findIndex((o, k) => k > i && !paired.has(k) && o.currency === e.currency && Math.abs(o.amount + e.amount) < 0.005 && (o.type === 'deposit' || o.type === 'withdrawal'));
+      if (j >= 0) { paired.add(i); paired.add(j); }
+    });
+    events.forEach((e, i) => {
+      const amount = e.amount * fxFor(e.currency || 'USD', date, stmtRates);
+      cash += amount;
+      if (e.type === 'deposit' || e.type === 'withdrawal') {
+        flows += amount;
+        if (e.internal || paired.has(i)) internalFlows += amount;
+      } else if (e.type === 'fee') fees += -amount;
+      else income += amount;
+    });
+
+    let unexplained = openingGap;
+    openingGap = 0;
     let statementPrices: Map<string, number> | null = null;
     if (closing) {
       statementPrices = new Map(closing.positions.filter((p) => p.price).map((p) => [p.symbol, p.price!]));
@@ -202,15 +289,16 @@ export function valueClass(
       closing.positions.forEach((p) => {
         const cur = positions.get(p.symbol);
         if (!cur || Math.abs(cur.quantity - p.quantity) > 1e-6) notes.push(`${p.symbol}: rebuilt quantity ${cur?.quantity ?? 0} differs from broker ${p.quantity} at ${closing.as_of}; broker figure used.`);
-        positions.set(p.symbol, { quantity: p.quantity, multiplier: p.multiplier || 1, assetCategory: p.assetCategory });
+        positions.set(p.symbol, { quantity: p.quantity, multiplier: fixMultiplier(p.multiplier, p.assetCategory, p.symbol), assetCategory: p.assetCategory });
       });
       if (closing.cash != null) {
         if (Math.abs(closing.cash - cash) > 1) notes.push(`Cash rebuilt from activity (${round(cash)}) differs from broker ending cash (${round(closing.cash)}); broker figure used.`);
+        unexplained += closing.cash - cash;
         cash = closing.cash;
       }
     }
 
-    const holdings = valueHoldings(date, statementPrices);
+    const holdings = valueHoldings(date, statementPrices, stmtRates);
     const holdingsValue = round(holdings.reduce((s, h) => s + h.marketValue, 0));
     const computedValue = round(cash + holdingsValue);
     const brokerValue = closing?.nav ?? null;
@@ -221,10 +309,11 @@ export function valueClass(
     if (mk >= inceptionMonth) {
       unitPrice = unitPrice * (1 + monthReturn);
       results.push({
-        month: mk, date, openingValue: round(prevValue), flows: round(flows), cash: round(cash), holdings, holdingsValue,
+        month: mk, date, openingValue: round(prevValue), flows: round(flows), internalFlows: round(internalFlows), cash: round(cash), holdings, holdingsValue,
         accountValue: round(accountValue), computedValue, brokerValue, income: round(income), fees: round(fees),
         tradeCount: monthItems.length, monthReturn, unitPrice: round(unitPrice, 6), units: cls.units,
         classNav: round(unitPrice * cls.units), missingPrices: holdings.filter((h) => h.priceSource === 'missing').map((h) => h.symbol),
+        missingFx: [...missingFx], unexplained: round(unexplained),
       });
     }
     prevValue = accountValue;
@@ -257,7 +346,7 @@ export async function loadFundData(fundId: string): Promise<FundData> {
   let items: ItemRow[] = [];
   if (ids.length) {
     const { data: it, error: iErr } = await supabase.from('trade_upload_items')
-      .select('id, upload_id, trade_date, instrument, direction, quantity, price, fees, proceeds, multiplier, asset_category')
+      .select('id, upload_id, trade_date, instrument, direction, quantity, price, fees, proceeds, multiplier, asset_category, currency, notes')
       .in('upload_id', ids);
     if (iErr) throw new Error(iErr.message);
     items = (it ?? []) as ItemRow[];
@@ -291,21 +380,43 @@ export async function refreshMarketPrices(tenantId: string, fundId: string, valu
     }
   })));
   d.uploads.forEach((u) => u.statement_data.opening?.positions.forEach((p) => {
-    if (u.statement_data.opening?.nav == null && isMarketPriceable(p.assetCategory)) {
+    if (isMarketPriceable(p.assetCategory)) {
       if (!needs.has(p.symbol)) needs.set(p.symbol, new Set());
       needs.get(p.symbol)!.add(u.statement_data.opening!.as_of);
     }
   }));
-  if (!needs.size) return { updated: 0, failed: [] as string[] };
+  const symbolCcy = new Map<string, string>();
+  d.items.forEach((i) => { if (i.currency) symbolCcy.set(i.instrument, i.currency); });
+  valuations.forEach((v) => v.months.forEach((m) => m.holdings.forEach((h) => symbolCcy.set(h.symbol, h.currency))));
 
-  const symbols = [...needs.keys()];
-  const dates = [...new Set([...needs.values()].flatMap((s) => [...s]))];
-  const { data, error } = await supabase.functions.invoke('market-prices', { body: { symbols, dates } });
+  const fxNeeds = new Map<string, Set<string>>();
+  const haveFx = new Set(d.marks.filter((m) => m.symbol.startsWith('FX:')).map((m) => markKey(m.symbol, m.price_date)));
+  const currencies = new Set<string>([
+    ...symbolCcy.values(),
+    ...d.uploads.flatMap((u) => (u.statement_data.cash_events ?? []).map((e) => e.currency || 'USD')),
+  ]);
+  currencies.delete('USD');
+  valuations.forEach((v) => v.months.forEach((m) => currencies.forEach((ccy) => {
+    if (haveFx.has(markKey(fxKey(ccy), m.date))) return;
+    if (!fxNeeds.has(ccy)) fxNeeds.set(ccy, new Set());
+    fxNeeds.get(ccy)!.add(m.date);
+  })));
+  if (!needs.size && !fxNeeds.size) return { updated: 0, failed: [] as string[] };
+
+  const items = [...needs.keys()].map((symbol) => ({ symbol, currency: symbolCcy.get(symbol) ?? guessCurrency(symbol) }));
+  const dates = [...new Set([...needs.values(), ...fxNeeds.values()].flatMap((s) => [...s]))];
+  const { data, error } = await supabase.functions.invoke('market-prices', { body: { items, fx: [...fxNeeds.keys()], dates } });
   if (error) throw new Error('The price service could not be reached.');
   if (!data || typeof data.prices !== 'object') throw new Error('The price service returned an unexpected answer.');
 
   const manualKeys = new Set(d.marks.filter((m) => m.source === 'manual').map((m) => markKey(m.symbol, m.price_date)));
   const rows: Array<Record<string, unknown>> = [];
+  Object.entries((data.rates ?? {}) as Record<string, Record<string, number>>).forEach(([ccy, byDate]) => {
+    Object.entries(byDate).forEach(([price_date, price]) => {
+      if (!fxNeeds.get(ccy)?.has(price_date)) return;
+      if (typeof price === 'number' && price > 0) rows.push({ tenant_id: tenantId, fund_id: fundId, symbol: fxKey(ccy), price_date, price, source: 'market', updated_at: new Date().toISOString() });
+    });
+  });
   Object.entries(data.prices as Record<string, Record<string, number>>).forEach(([symbol, byDate]) => {
     Object.entries(byDate).forEach(([price_date, price]) => {
       if (!needs.get(symbol)?.has(price_date) || manualKeys.has(markKey(symbol, price_date))) return;
@@ -341,10 +452,12 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
   for (const v of valuations) {
     for (const m of v.months) {
       const { data: existing, error: exErr } = await supabase.from('nav_calculations')
-        .select('id, status').eq('fund_id', fundId).eq('share_class_id', v.classId).eq('nav_date', m.date)
+        .select('id, status, calculation_data').eq('fund_id', fundId).eq('share_class_id', v.classId).eq('nav_date', m.date)
         .order('version', { ascending: false }).limit(1).maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (existing?.status === 'approved') { skippedApproved++; continue; }
+      const signature = JSON.stringify([m.unitPrice, m.cash, m.accountValue, m.unexplained, v.notes.length, m.holdings.map((h) => [h.symbol, h.quantity, h.price, h.priceSource, h.marketValue])]);
+      if (existing && (existing.calculation_data as { signature?: string } | null)?.signature === signature) continue;
       const record = {
         fund_id: fundId,
         share_class_id: v.classId,
@@ -363,6 +476,7 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
           month: m.month, month_return: m.monthReturn, opening_value: m.openingValue, flows: m.flows, cash: m.cash,
           holdings_value: m.holdingsValue, account_value: m.accountValue, computed_value: m.computedValue,
           broker_value: m.brokerValue, income: m.income, fees: m.fees, trade_count: m.tradeCount, missing_prices: m.missingPrices,
+          internal_flows: m.internalFlows, missing_fx: m.missingFx, signature,
         },
       };
       let navId = existing?.id as string | undefined;
@@ -381,7 +495,7 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
         ...m.holdings.map((h, i) => ({
           nav_calculation_id: navId, line_type: 'position', category: h.assetCategory || 'Stocks', description: h.symbol,
           quantity: h.quantity, unit_price: h.price, amount: h.marketValue, currency: 'USD', base_currency_amount: h.marketValue,
-          source: h.priceSource, sort_order: i + 1, metadata: { multiplier: h.multiplier },
+          source: h.priceSource, sort_order: i + 1, metadata: { multiplier: h.multiplier, local_currency: h.currency, fx_rate: h.fxRate },
         })),
       ];
       const { error: detErr } = await supabase.from('nav_calculation_details').insert(details);

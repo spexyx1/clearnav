@@ -6,6 +6,7 @@ export interface PositionSnapshot {
   quantity: number;
   multiplier: number;
   assetCategory: string;
+  currency?: string;
   price?: number;
 }
 
@@ -16,6 +17,7 @@ export interface StatementMonthData {
   opening?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[] };
   closing?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[] };
   period: { start: string; end: string };
+  fx_rates?: Record<string, number>;
 }
 
 export interface MonthlyBatch {
@@ -34,14 +36,14 @@ function dayBefore(date: string) {
 }
 
 function snapshot(rows: PositionRow[]): PositionSnapshot[] {
-  return rows.map((p) => ({ symbol: p.symbol, quantity: p.quantity, multiplier: p.multiplier, assetCategory: p.assetCategory, price: p.closePrice }));
+  return rows.map((p) => ({ symbol: p.symbol, quantity: p.quantity, multiplier: p.multiplier, assetCategory: p.assetCategory, currency: p.currency, price: p.closePrice }));
 }
 
 function deriveOpening(trades: ParsedTrade[], closing: PositionRow[]): PositionSnapshot[] {
   const map = new Map<string, PositionSnapshot>();
-  closing.forEach((p) => map.set(p.symbol, { symbol: p.symbol, quantity: p.quantity, multiplier: p.multiplier, assetCategory: p.assetCategory }));
+  closing.forEach((p) => map.set(p.symbol, { symbol: p.symbol, quantity: p.quantity, multiplier: p.multiplier, assetCategory: p.assetCategory, currency: p.currency }));
   trades.forEach((t) => {
-    const cur = map.get(t.symbol) ?? { symbol: t.symbol, quantity: 0, multiplier: t.multiplier, assetCategory: t.assetCategory };
+    const cur = map.get(t.symbol) ?? { symbol: t.symbol, quantity: 0, multiplier: t.multiplier, assetCategory: t.assetCategory, currency: t.currency };
     cur.quantity -= t.direction === 'buy' ? t.quantity : -t.quantity;
     map.set(t.symbol, cur);
   });
@@ -86,6 +88,7 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
           nav: summary.currentNav ?? null,
           positions: snapshot(positions),
         };
+        if (Object.keys(st.fxRates).length) data.fx_rates = st.fxRates;
       }
       batches.push({
         account,
@@ -163,7 +166,7 @@ export async function saveStatementBatches({ tenantId, fundId, userId, filename,
         multiplier: t.multiplier,
         asset_category: t.assetCategory,
         currency: t.currency,
-        notes: t.assetCategory || null,
+        notes: t.action === 'transfer' || t.action === 'corporate_action' ? t.action : t.assetCategory || null,
         sort_order: i + 1,
       }));
       const { error: itemsErr } = await supabase.from('trade_upload_items').insert(items);

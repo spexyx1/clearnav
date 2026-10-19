@@ -10,7 +10,11 @@ const SOURCE_STYLE: Record<PriceSource, { label: string; cls: string }> = {
   market: { label: 'Market', cls: 'bg-sky-500/15 text-sky-300 border-sky-500/30' },
   trade: { label: 'Last trade', cls: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
   missing: { label: 'No price', cls: 'bg-red-500/15 text-red-300 border-red-500/30' },
+  expired: { label: 'Expired', cls: 'bg-slate-500/10 text-slate-400 border-slate-600/40' },
 };
+
+const localPrice = (v: number, ccy: string) =>
+  ccy === 'USD' ? usd(v, 4) : `${v.toLocaleString('en-US', { maximumFractionDigits: 4 })} ${ccy}`;
 
 interface Props {
   month: MonthResult;
@@ -75,7 +79,7 @@ export default function FundValueHoldings({ month, locked, onSetPrice }: Props) 
                   <tr key={h.symbol} className="hover:bg-slate-900/60 transition-colors">
                     <td className="py-2 pr-4">
                       <p className="text-white font-medium">{h.symbol}</p>
-                      <p className="text-xs text-slate-500">{h.assetCategory || 'Stocks'}{h.multiplier !== 1 ? ` · x${h.multiplier}` : ''}</p>
+                      <p className="text-xs text-slate-500">{h.assetCategory || 'Stocks'}{h.multiplier !== 1 ? ` · x${h.multiplier}` : ''}{h.currency !== 'USD' ? ` · ${h.currency} @ ${h.fxRate ? h.fxRate.toFixed(4) : 'no rate'}` : ''}</p>
                     </td>
                     <td className="py-2 pr-4 text-right tabular-nums text-slate-300">{h.quantity.toLocaleString()}</td>
                     <td className="py-2 pr-4 text-right">
@@ -98,7 +102,7 @@ export default function FundValueHoldings({ month, locked, onSetPrice }: Props) 
                           className="group inline-flex items-center gap-1.5 tabular-nums text-slate-200 hover:text-white disabled:cursor-default"
                           title={locked ? 'Approved months are locked' : 'Set a manual price'}
                         >
-                          {h.price ? usd(h.price, 4) : '—'}
+                          {h.price ? localPrice(h.price, h.currency) : '—'}
                           {!locked && <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-slate-500" />}
                         </button>
                       )}

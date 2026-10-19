@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronDown, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, Loader2, RefreshCw } from 'lucide-react';
 import { loadOpenReviewItems, resolveReviewItem, runTenantAutomation, describeResult, type ReviewItem } from '../../lib/fundAutomation';
 
 interface Props {
@@ -15,6 +15,8 @@ export default function FundReviewQueue({ tenantId, userId, refreshKey, onApplie
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [needsRefresh, setNeedsRefresh] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -30,23 +32,61 @@ export default function FundReviewQueue({ tenantId, userId, refreshKey, onApplie
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
+  async function refreshFigures() {
+    setRefreshing(true);
+    setNeedsRefresh(false);
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const result = await runTenantAutomation(tenantId, userId);
+        onApplied(`Decision applied. ${describeResult(result)}`);
+        await load();
+        setRefreshing(false);
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    console.error('updating fund figures after a decision failed', lastError);
+    setNeedsRefresh(true);
+    setRefreshing(false);
+    await load();
+  }
+
   async function choose(item: ReviewItem, key: string) {
     setBusy(item.id);
     setError('');
     try {
       await resolveReviewItem(item, key, userId);
-      const result = await runTenantAutomation(tenantId, userId);
-      onApplied(`Decision applied. ${describeResult(result)}`);
-      await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Your decision could not be applied. Please try again.');
-    } finally {
+      console.error('saving decision failed', e);
+      setError('Your decision could not be saved. Please check your connection and try again.');
       setBusy(null);
+      return;
     }
+    setItems((cur) => cur.filter((i) => i.id !== item.id));
+    setOpen(null);
+    setBusy(null);
+    await refreshFigures();
   }
 
-  if (loading && !items.length) return null;
+  const banner = (refreshing || needsRefresh) && (
+    <div className={`flex items-center gap-3 text-sm rounded-xl px-5 py-3 border ${needsRefresh ? 'bg-red-500/5 border-red-500/30 text-red-200' : 'bg-slate-900/50 border-slate-800 text-slate-300'}`}>
+      {refreshing ? <Loader2 className="w-4 h-4 animate-spin text-sky-400" /> : <AlertTriangle className="w-4 h-4 text-red-400" />}
+      <span className="flex-1">
+        {refreshing ? 'Decision saved. Updating the fund figures…' : 'Your decision is saved, but the fund figures did not finish updating.'}
+      </span>
+      {needsRefresh && (
+        <button onClick={refreshFigures} className="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-white rounded-lg px-3 py-1.5 transition-colors">
+          <RefreshCw className="w-3.5 h-3.5" /> Try again
+        </button>
+      )}
+    </div>
+  );
+
+  if (loading && !items.length && !banner) return null;
   if (!items.length && !error) {
+    if (banner) return banner;
     return (
       <div className="flex items-center gap-2 text-sm text-slate-400 bg-slate-900/50 border border-slate-800 rounded-xl px-5 py-3">
         <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Nothing needs your decision.
@@ -55,6 +95,8 @@ export default function FundReviewQueue({ tenantId, userId, refreshKey, onApplie
   }
 
   return (
+    <div className="space-y-3">
+    {banner}
     <div className="bg-amber-500/5 border border-amber-500/30 rounded-xl overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-4 border-b border-amber-500/20">
         <AlertTriangle className="w-4 h-4 text-amber-400" />
@@ -92,6 +134,7 @@ export default function FundReviewQueue({ tenantId, userId, refreshKey, onApplie
           </li>
         ))}
       </ul>
+    </div>
     </div>
   );
 }

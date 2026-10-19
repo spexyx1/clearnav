@@ -1,12 +1,13 @@
 import { supabase } from './supabase';
 import { monthEnd } from './statementParser';
-import { loadFundData, refreshMarketPrices, saveDrafts, valueFund, type ClassValuation, type FundData, type MonthResult } from './fundValuation';
+import { loadFundData, refreshMarketPrices, saveDrafts, setManualPrice, valueFund, type ClassValuation, type FundData, type HoldingValue, type MonthResult } from './fundValuation';
 import { MONTH_NAMES, buildReportNumbers, emptyNarrative, type ReportContent } from './monthlyReport';
 
 export interface ReviewOption { key: string; label: string; description: string }
 
 export interface ReviewItem {
   id: string;
+  tenant_id: string;
   fund_id: string;
   share_class_id: string | null;
   month: string | null;
@@ -128,27 +129,125 @@ function detectDuplicateTrades(d: FundData, className: (id: string) => string): 
   return out;
 }
 
-function detectMonthIssues(v: ClassValuation, m: MonthResult, className: string): DetectedItem[] {
+function detectClassGaps(v: ClassValuation, className: string): DetectedItem[] {
   const out: DetectedItem[] = [];
-  const base = { share_class_id: v.classId, month: m.month, blocking: true };
-  if (m.missingPrices.length) {
+  const group = (pick: (m: MonthResult) => string[]) => {
+    const months = v.months.filter((m) => pick(m).length);
+    return { months, names: [...new Set(months.flatMap(pick))].sort() };
+  };
+  const prices = group((m) => m.missingPrices);
+  if (prices.names.length) {
+    const n = prices.names;
     out.push({
-      ...base, kind: 'missing_prices',
-      dedupe_key: `missing_prices:${v.classId}:${m.month}:${[...m.missingPrices].sort().join(',')}`,
-      title: `${className}: no month-end price for ${m.missingPrices.length} position${m.missingPrices.length === 1 ? '' : 's'} in ${monthLabel(m.month)}`,
-      detail: `Missing: ${m.missingPrices.slice(0, 8).join(', ')}${m.missingPrices.length > 8 ? '…' : ''}. You can also type the prices in on the Fund Value screen and the month will approve itself.`,
+      share_class_id: v.classId, month: prices.months[0].month, blocking: true, kind: 'missing_prices',
+      dedupe_key: `missing_prices:${v.classId}:${n.join(',')}`,
+      title: `${className}: ${n.length} holding${n.length === 1 ? '' : 's'} could not be priced`,
+      detail: `${n.slice(0, 10).join(', ')}${n.length > 10 ? '…' : ''} had no broker price, no market price on its home exchange and no recent trade, in ${prices.months.length} month${prices.months.length === 1 ? '' : 's'} from ${monthLabel(prices.months[0].month)}. You can type a price in on the Fund Value screen and the months will approve themselves.`,
       options: APPROVE_OR_HOLD('Approve, valuing them at zero'),
-      context: { symbols: m.missingPrices },
+      context: { symbols: n, months: prices.months.map((m) => m.month) },
     });
   }
+  const fx = group((m) => m.missingFx);
+  if (fx.names.length) {
+    out.push({
+      share_class_id: v.classId, month: fx.months[0].month, blocking: true, kind: 'missing_fx',
+      dedupe_key: `missing_fx:${v.classId}:${fx.names.join(',')}`,
+      title: `${className}: no exchange rate found for ${fx.names.join(', ')}`,
+      detail: `Holdings and cash in ${fx.names.join(', ')} cannot be converted to US dollars, so they are valued at zero. This usually resolves itself when the rate service is reachable again.`,
+      options: APPROVE_OR_HOLD('Approve anyway'),
+      context: { currencies: fx.names },
+    });
+  }
+  return out;
+}
+
+interface Diagnosis { cause: string; detail: string; options: ReviewOption[]; fixes: Record<string, { symbol: string; date: string; price: number }> }
+
+function diagnoseMove(m: MonthResult, prev: MonthResult | undefined): Diagnosis {
+  const before = new Map<string, HoldingValue>((prev?.holdings ?? []).map((h) => [h.symbol, h]));
+  const change = m.accountValue - m.openingValue - m.flows;
+  const options: ReviewOption[] = [];
+  const fixes: Diagnosis['fixes'] = {};
+  const lines: string[] = [];
+  let cause = 'market';
+
+  if (Math.abs(m.unexplained) > Math.max(1000, Math.abs(change) * 0.25, Math.abs(m.openingValue) * 0.02)) {
+    cause = 'incomplete';
+    lines.push(m.unexplained > 0
+      ? `${usd(m.unexplained)} of value shows up at the broker that the uploaded activity does not explain.`
+      : `${usd(-m.unexplained)} of value the uploaded activity expects is not at the broker.`);
+    lines.push('This usually means some activity is missing from the file, such as a takeover paid in cash, a share or cash transfer, or a section of the statement that was not exported. Uploading the full statement again (with all sections ticked) should fix it.');
+  }
+
+  const movers = m.holdings
+    .map((h) => ({ h, p: before.get(h.symbol), delta: h.marketValue - (before.get(h.symbol)?.marketValue ?? 0) }))
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+  for (const { h, p } of movers.slice(0, 5)) {
+    if (!p?.price || !h.price || h.priceSource === 'statement' || h.priceSource === 'expired') continue;
+    const ratio = h.price / p.price;
+    const units = Math.abs(h.quantity) * h.multiplier;
+    if (units > 1 && Math.abs(h.price / (p.price * units) - 1) < 0.35) {
+      cause = 'aggregate';
+      const perUnit = h.price / units;
+      const key = `fix_price:${h.symbol}`;
+      fixes[key] = { symbol: h.symbol, date: m.date, price: perUnit };
+      options.push({ key, label: `Treat ${h.symbol}'s figure as the position total`, description: `Use ${perUnit.toFixed(4)} ${h.currency} per unit instead of ${h.price} and re-value the month.` });
+      lines.push(`${h.symbol}: the price used (${h.price} ${h.currency}) is about ${units.toLocaleString()} times last month's, which is the size of the whole position. It looks like the total value was recorded as the price.`);
+      continue;
+    }
+    const n = ratio >= 1 ? Math.round(ratio) : Math.round(1 / ratio);
+    const splitLike = n >= 2 && Math.abs((ratio >= 1 ? ratio : 1 / ratio) - n) < 0.08;
+    if (splitLike && Math.abs(h.quantity - p.quantity) < 1e-6) {
+      if (cause === 'market') cause = 'split';
+      lines.push(`${h.symbol}: price moved ${ratio >= 1 ? `${n} times up` : `to 1/${n}`} while the share count stayed the same. This often means a share split or reverse split that the statement did not record.`);
+    } else if (Math.abs(ratio - 1) > 0.6) {
+      if (cause === 'market') cause = 'price';
+      lines.push(`${h.symbol}: price went from ${p.price} to ${h.price} ${h.currency} (${h.priceSource === 'trade' ? 'last trade' : 'market lookup'}).`);
+    } else continue;
+    const key = `fix_price:${h.symbol}`;
+    if (!fixes[key]) {
+      fixes[key] = { symbol: h.symbol, date: m.date, price: p.price };
+      options.push({ key, label: `Use last month's price for ${h.symbol}`, description: `Value ${h.symbol} at ${p.price} ${h.currency} for ${monthLabel(m.month)} and re-value the month.` });
+    }
+  }
+
+  if (m.internalFlows && Math.abs(m.internalFlows) > Math.abs(m.openingValue) * 0.05) {
+    lines.push(`${usd(Math.abs(m.internalFlows))} moved between your own accounts. This is not counted as gain or loss.`);
+  }
+  const fxHeavy = m.holdings.filter((h) => h.currency !== 'USD').reduce((s, h) => s + Math.abs(h.marketValue), 0);
+  if (cause === 'market' && fxHeavy > Math.abs(m.accountValue) * 0.3) {
+    cause = 'currency';
+    lines.push(`${usd(fxHeavy)} is held in foreign currencies, so exchange-rate moves add to the swing.`);
+  }
+  if (cause === 'market') {
+    const top = movers.slice(0, 3).filter((x) => Math.abs(x.delta) > 1).map((x) => `${x.h.symbol} ${x.delta >= 0 ? '+' : '−'}${usd(Math.abs(x.delta))}`);
+    lines.push(`No data problem was found. The biggest contributors were ${top.join(', ') || 'cash'}, out of a total change of ${usd(change)}.`);
+  }
+  return { cause, detail: lines.join(' '), options, fixes };
+}
+
+const CAUSE_TITLE: Record<string, string> = {
+  incomplete: 'activity seems to be missing from the upload',
+  aggregate: 'a price looks like a position total',
+  split: 'possible unrecorded share split',
+  price: 'a holding has a suspicious price',
+  currency: 'large move, partly from exchange rates',
+  market: 'large market move',
+};
+
+function detectMonthIssues(v: ClassValuation, m: MonthResult, prev: MonthResult | undefined, className: string): DetectedItem[] {
+  const out: DetectedItem[] = [];
+  const base = { share_class_id: v.classId, month: m.month, blocking: true };
   if (Math.abs(m.monthReturn) > UNUSUAL_RETURN) {
+    const d = diagnoseMove(m, prev);
     out.push({
       ...base, kind: 'unusual_return',
-      dedupe_key: `unusual_return:${v.classId}:${m.month}:${m.unitPrice.toFixed(4)}`,
-      title: `${className}: unusually large move in ${monthLabel(m.month)} (${pct(m.monthReturn)})`,
-      detail: `Value went from ${usd(m.openingValue)} to ${usd(m.accountValue)}. Please confirm this is right before investors see it.`,
-      options: APPROVE_OR_HOLD('Approve, the figure is right'),
-      context: {},
+      dedupe_key: `unusual_return:${v.classId}:${m.month}:${m.unitPrice.toFixed(4)}:${d.cause}`,
+      title: `${className}, ${monthLabel(m.month)}: ${pct(m.monthReturn)} — ${CAUSE_TITLE[d.cause]}`,
+      detail: `Value went from ${usd(m.openingValue)} to ${usd(m.accountValue)}. ${d.detail}`,
+      options: [...d.options, ...APPROVE_OR_HOLD(d.options.length ? 'Approve as it is' : 'Approve, the figure is right')],
+      context: { cause: d.cause, fixes: d.fixes },
     });
   }
   if (m.brokerValue != null && Math.abs(m.computedValue - m.brokerValue) > Math.max(50, Math.abs(m.brokerValue) * 0.01)) {
@@ -278,7 +377,8 @@ export async function runFundAutomation(tenantId: string, fundId: string, userId
   const detected: DetectedItem[] = [
     ...(await detectDuplicateUploads(fundId, className)),
     ...detectDuplicateTrades(data, className),
-    ...fullVals.flatMap((v) => v.months.flatMap((m) => detectMonthIssues(v, m, className(v.classId)))),
+    ...fullVals.flatMap((v) => detectClassGaps(v, className(v.classId))),
+    ...fullVals.flatMap((v) => v.months.flatMap((m, i) => detectMonthIssues(v, m, v.months[i - 1], className(v.classId)))),
   ];
   const items = await syncReviewItems(tenantId, fundId, detected);
   const blockingKeys = new Set(detected.filter((d) => d.blocking).map((d) => d.dedupe_key));
@@ -351,6 +451,8 @@ export async function resolveReviewItem(item: ReviewItem, optionKey: string, use
     const { error: b } = await supabase.from('trade_uploads').update({ status: 'confirmed' }).eq('id', previous_id);
     if (b) fail('restore earlier upload', b);
   }
+  const fix = (item.context.fixes as Record<string, { symbol: string; date: string; price: number }> | undefined)?.[optionKey];
+  if (fix) await setManualPrice(item.tenant_id, item.fund_id, fix.symbol, fix.date, fix.price).catch((e) => fail('save corrected price', e));
   if (item.kind === 'duplicate_trades' && optionKey === 'remove_extra') {
     const ids = (item.context.extra_ids as string[]) ?? [];
     if (ids.length) {

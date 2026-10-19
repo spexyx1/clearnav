@@ -3,8 +3,8 @@ import { AlertCircle, ArrowLeft, Check, ChevronDown, FileSpreadsheet, Loader2, R
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import {
-  GENERIC_FIELD_LABELS, isMappingUsable, parseGenericRows, parseStatementText,
-  type ColumnMapping, type GenericField, type ParsedStatement,
+  GENERIC_FIELD_LABELS, TRADE_ACTION_LABELS, isMappingUsable, parseGenericRows, parseStatementText,
+  type ColumnMapping, type GenericField, type ParsedStatement, type TradeAction,
 } from '../../lib/statementParser';
 import { buildMonthlyBatches, saveStatementBatches } from '../../lib/statementImport';
 
@@ -14,6 +14,19 @@ interface MappingState { rows: string[][]; headerRow: number; headers: string[];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const usd = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
+
+function actionSummary(st: ParsedStatement): Array<[string, number]> {
+  const cash = (pred: (c: ParsedStatement['cashEvents'][number]) => boolean) => st.cashEvents.filter(pred).length;
+  const rows: Array<[string, number]> = [
+    ...(Object.keys(TRADE_ACTION_LABELS) as TradeAction[]).map((k): [string, number] => [TRADE_ACTION_LABELS[k], st.trades.filter((t) => t.action === k).length]),
+    ['Dividends and withholding tax', cash((c) => c.type === 'dividend' || c.type === 'withholding')],
+    ['Interest', cash((c) => c.type === 'interest')],
+    ['Fees', cash((c) => c.type === 'fee')],
+    ['Investor deposits and withdrawals', cash((c) => (c.type === 'deposit' || c.type === 'withdrawal') && !c.internal)],
+    ['Transfers between your own accounts', cash((c) => !!c.internal)],
+  ];
+  return rows.filter(([, n]) => n > 0);
+}
 const fieldCls = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition';
 
 export default function StatementImport({ onDone, onCancel }: { onDone: (saved: number) => void; onCancel: () => void }) {
@@ -232,6 +245,15 @@ export default function StatementImport({ onDone, onCancel }: { onDone: (saved: 
               </span>
               <span className="text-sm text-slate-300">{statement.periodStart} to {statement.periodEnd}</span>
               <span className="text-sm text-slate-500">{statement.trades.length} trades · {statement.cashEvents.length} cash items · {statement.positions.length} closing positions</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-5">
+              {actionSummary(statement).map(([label, n]) => (
+                <div key={label} className="bg-slate-800/40 border border-slate-800 rounded-lg px-3 py-2">
+                  <p className="text-lg font-semibold text-white tabular-nums">{n}</p>
+                  <p className="text-xs text-slate-400 leading-snug">{label}</p>
+                </div>
+              ))}
             </div>
 
             <h3 className="text-sm font-semibold text-white mb-1">Match each account to a share class</h3>

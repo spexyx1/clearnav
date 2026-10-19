@@ -1,5 +1,17 @@
 export type Direction = 'buy' | 'sell';
 export type CashEventType = 'dividend' | 'withholding' | 'interest' | 'fee' | 'deposit' | 'withdrawal';
+export type TradeAction = 'open' | 'close' | 'expired' | 'assigned' | 'exercised' | 'transfer' | 'corporate_action' | 'trade';
+
+export const TRADE_ACTION_LABELS: Record<TradeAction, string> = {
+  open: 'Opening trades',
+  close: 'Closing trades',
+  expired: 'Options expired',
+  assigned: 'Options assigned',
+  exercised: 'Options exercised',
+  transfer: 'Position transfers',
+  corporate_action: 'Corporate actions (splits, mergers, spin-offs)',
+  trade: 'Other trades',
+};
 
 export interface ParsedTrade {
   account: string;
@@ -14,6 +26,7 @@ export interface ParsedTrade {
   fees: number;
   realizedPl: number;
   multiplier: number;
+  action: TradeAction;
 }
 
 export interface CashEvent {
@@ -23,6 +36,7 @@ export interface CashEvent {
   description: string;
   currency: string;
   amount: number;
+  internal?: boolean;
 }
 
 export interface PositionRow {
@@ -62,6 +76,7 @@ export interface ParsedStatement {
   cashEvents: CashEvent[];
   positions: PositionRow[];
   summaries: Record<string, AccountSummary>;
+  fxRates: Record<string, number>;
   skipped: SkippedRow[];
   warnings: string[];
 }
@@ -202,14 +217,25 @@ export function isIbkrActivityStatement(rows: string[][]): boolean {
 }
 
 function emptyStatement(format: ParsedStatement['format']): ParsedStatement {
-  return { format, accounts: [], trades: [], cashEvents: [], positions: [], summaries: {}, skipped: [], warnings: [] };
+  return { format, accounts: [], trades: [], cashEvents: [], positions: [], summaries: {}, fxRates: {}, skipped: [], warnings: [] };
 }
 
-function inferMultiplier(qty: number, price: number, proceeds: number): number {
-  if (!qty || !price || !proceeds) return 1;
+function inferMultiplier(qty: number, price: number, proceeds: number, assetCategory: string): number {
+  const fallback = /option/i.test(assetCategory) ? 100 : 1;
+  if (!qty || !price || !proceeds) return fallback;
   const m = Math.abs(proceeds) / (Math.abs(qty) * Math.abs(price));
   if (m > 1.5) return Math.round(m);
-  return 1;
+  return fallback === 100 && m < 0.5 ? fallback : 1;
+}
+
+function classifyTrade(code: string): TradeAction {
+  const codes = code.split(/[;,\s]+/).filter(Boolean);
+  if (codes.includes('Ep')) return 'expired';
+  if (codes.includes('A')) return 'assigned';
+  if (codes.includes('Ex')) return 'exercised';
+  if (codes.includes('O')) return 'open';
+  if (codes.includes('C')) return 'close';
+  return 'trade';
 }
 
 export function parseIbkrStatement(rows: string[][]): ParsedStatement {
@@ -306,7 +332,7 @@ export function parseIbkrStatement(rows: string[][]): ParsedStatement {
         const proceedsRaw = parseNumber(f['Proceeds']);
         const commRaw = parseNumber(f['Comm/Fee'] ?? f['Comm in USD'] ?? f['Commission']);
         const p = Number.isNaN(price) ? 0 : price;
-        const mult = inferMultiplier(qty, p, proceedsRaw);
+        const mult = inferMultiplier(qty, p, proceedsRaw, assetCategory);
         const currency = f['Currency'] || 'USD';
         if (currency !== 'USD') nonBase.add(currency);
         out.trades.push({
@@ -322,7 +348,58 @@ export function parseIbkrStatement(rows: string[][]): ParsedStatement {
           fees: Number.isNaN(commRaw) ? 0 : Math.abs(commRaw),
           realizedPl: parseNumber(f['Realized P/L']) || 0,
           multiplier: mult,
+          action: classifyTrade(f['Code'] || ''),
         });
+        accountSet.add(acct);
+        break;
+      }
+      case 'Base Currency Exchange Rate': {
+        const ccy = (f['Currency'] || '').toUpperCase();
+        const rate = parseNumber(f['Rate']);
+        if (/^[A-Z]{3}$/.test(ccy) && rate > 0) out.fxRates[ccy] = rate;
+        break;
+      }
+      case 'Corporate Actions': {
+        const desc = f['Description'] || '';
+        const symbol = desc.split('(')[0].trim();
+        const qty = parseNumber(f['Quantity']);
+        const date = normalizeDate(f['Date/Time'] || f['Report Date']);
+        if (!symbol || !date || Number.isNaN(qty)) { skip('Corporate action without symbol, date or quantity'); return; }
+        const proceeds = parseNumber(f['Proceeds']);
+        const value = parseNumber(f['Value']);
+        out.trades.push({
+          account: acct, date, symbol, assetCategory: f['Asset Category'] || 'Stocks', currency: f['Currency'] || 'USD',
+          direction: qty >= 0 ? 'buy' : 'sell', quantity: Math.abs(qty),
+          price: qty && !Number.isNaN(value) ? Math.abs(value / qty) : 0,
+          proceeds: Number.isNaN(proceeds) ? 0 : proceeds, fees: 0,
+          realizedPl: parseNumber(f['Realized P/L']) || 0, multiplier: 1, action: 'corporate_action',
+        });
+        accountSet.add(acct);
+        break;
+      }
+      case 'Transfers': {
+        const date = normalizeDate(f['Date']);
+        const ccy = f['Currency'] || 'USD';
+        if (!date || /^total/i.test(ccy)) return;
+        const out_ = /out/i.test(f['Direction'] || '');
+        const qty = parseNumber(f['Qty'] ?? f['Quantity']);
+        const symbol = f['Symbol'] || '';
+        const internal = !!f['Xfer Account'] && /^U\d+/.test(f['Xfer Account']);
+        if (symbol && !Number.isNaN(qty) && qty !== 0 && !/cash/i.test(f['Asset Category'] || '')) {
+          const mv = parseNumber(f['Market Value']);
+          const xp = parseNumber(f['Xfer Price']);
+          const price = xp > 0 ? xp : !Number.isNaN(mv) ? Math.abs(mv / qty) : 0;
+          out.trades.push({
+            account: acct, date, symbol, assetCategory: f['Asset Category'] || 'Stocks', currency: ccy,
+            direction: out_ || qty < 0 ? 'sell' : 'buy', quantity: Math.abs(qty), price, proceeds: 0, fees: 0,
+            realizedPl: 0, multiplier: /option/i.test(f['Asset Category'] || '') ? 100 : 1, action: 'transfer',
+          });
+        } else {
+          const amount = parseNumber(f['Cash Amount'] ?? f['Amount']);
+          if (Number.isNaN(amount) || amount === 0) { skip('Transfer without quantity or amount'); return; }
+          const signed = out_ ? -Math.abs(amount) : amount;
+          out.cashEvents.push({ account: acct, date, type: signed >= 0 ? 'deposit' : 'withdrawal', description: `Transfer ${f['Xfer Account'] || ''}`.trim(), currency: ccy, amount: signed, internal });
+        }
         accountSet.add(acct);
         break;
       }
@@ -375,8 +452,14 @@ export function parseIbkrStatement(rows: string[][]): ParsedStatement {
 
   out.accounts = [...accountSet].filter(Boolean);
   if (out.accounts.length > 1) out.accounts = out.accounts.filter((a) => a !== 'MAIN');
-  if (unsupportedForex.count) out.warnings.push(`${unsupportedForex.count} currency conversion row(s) were not treated as trades.`);
-  if (nonBase.size) out.warnings.push(`Some activity is in ${[...nonBase].join(', ')}. Values are treated as US dollars.`);
+  out.cashEvents.forEach((e) => {
+    if ((e.type === 'deposit' || e.type === 'withdrawal') && (/internal/i.test(e.description) || out.accounts.some((a) => a !== e.account && e.description.includes(a)))) e.internal = true;
+  });
+  if (unsupportedForex.count) out.warnings.push(`${unsupportedForex.count} currency exchange row(s) were recognised as conversions between your cash balances, not security trades.`);
+  if (nonBase.size) {
+    const known = [...nonBase].filter((c) => out.fxRates[c]);
+    out.warnings.push(`Some activity is in ${[...nonBase].join(', ')}. It is converted to US dollars using ${known.length === nonBase.size ? "the statement's exchange rates" : 'month-end market exchange rates'}.`);
+  }
   fillPeriod(out);
   return out;
 }
@@ -466,6 +549,7 @@ export function parseGenericRows(rows: string[][], headerRow: number, mapping: C
       fees: Number.isNaN(fees) ? 0 : Math.abs(fees),
       realizedPl: 0,
       multiplier: 1,
+      action: 'trade',
     });
   });
 
