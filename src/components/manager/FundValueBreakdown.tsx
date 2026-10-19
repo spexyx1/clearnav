@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertTriangle, History } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, History, ShieldCheck } from 'lucide-react';
 import { MOVEMENT_LABELS, type MonthResult } from '../../lib/fundValuation';
 
 export interface PreviousFigures { unit_price: number; class_value: number; units: number; replaced_at: string }
@@ -69,6 +69,26 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
             <p className="text-xs text-amber-300 mt-2">Differs from the broker by {usd(Math.abs(brokerGap))}.</p>
           )}
         </section>
+      </div>
+
+      <div className={`mt-4 rounded-lg border p-4 text-sm ${m.final ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'}`}>
+        <h4 className={`flex items-center gap-2 font-medium ${m.final ? 'text-emerald-300' : 'text-amber-300'}`}>
+          {m.final ? <ShieldCheck className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+          {m.final ? 'Final - ties to IBKR to the cent' : 'Not final yet'}
+        </h4>
+        {!m.final && (
+          <ul className="mt-2 space-y-1 text-slate-300 list-disc pl-5">
+            {m.finalReasons.map((r) => <li key={r}>{r}</li>)}
+          </ul>
+        )}
+        {m.changeInNav && (
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+            <p className="sm:col-span-2 text-xs uppercase tracking-wider text-slate-500 mb-1">IBKR change in value, {m.changeInNav.from} to {m.changeInNav.to}</p>
+            {m.changeInNav.starting != null && <Line label="IBKR starting value" value={usd(m.changeInNav.starting)} />}
+            {Object.entries(m.changeInNav.lines).map(([label, v]) => <Line key={label} label={label} value={signed(v)} tone={v >= 0 ? 'up' : 'down'} />)}
+            {m.changeInNav.ending != null && <Line label="IBKR ending value" value={usd(m.changeInNav.ending)} strong />}
+          </div>
+        )}
       </div>
 
       {m.movements.length > 0 && (

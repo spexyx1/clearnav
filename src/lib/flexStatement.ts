@@ -16,6 +16,29 @@ function cashType(type: string, amount: number): CashEventType {
   return 'fee';
 }
 
+const CHANGE_IN_NAV_LABELS: Record<string, string> = {
+  mtm: 'Mark-to-market', realized: 'Realised', changeInUnrealized: 'Change in unrealised',
+  depositsWithdrawals: 'Deposits & withdrawals', internalCashTransfers: 'Internal cash transfers', assetTransfers: 'Position transfers',
+  dividends: 'Dividends', withholdingTax: 'Withholding tax', changeInDividendAccruals: 'Change in dividend accruals',
+  interest: 'Interest', changeInInterestAccruals: 'Change in interest accruals', advisorFees: 'Advisor fees',
+  clientFees: 'Client fees', otherFees: 'Other fees', commissions: 'Commissions', brokerFees: 'Broker fees',
+  fxTranslation: 'FX translation', otherIncome: 'Other income', other: 'Other',
+};
+
+export const FLEX_SECTIONS: Array<{ name: string; tags: string[]; required: boolean; why: string }> = [
+  { name: 'Account Information', tags: ['AccountInformation'], required: true, why: 'Matches each IBKR account to its share class.' },
+  { name: 'Net Asset Value (NAV) in Base', tags: ['EquitySummaryByReportDateInBase'], required: true, why: "Gives IBKR's own account value at every month-end." },
+  { name: 'Change in NAV', tags: ['ChangeInNAV'], required: true, why: "IBKR's own explanation of how the account value moved, used to prove each month ties out." },
+  { name: 'Prior Period Positions', tags: ['PriorPeriodPosition'], required: true, why: "IBKR's closing price for every holding on every day, so each month-end is priced by IBKR." },
+  { name: 'Open Positions', tags: ['OpenPosition'], required: true, why: 'Holdings and IBKR prices at the end of the report.' },
+  { name: 'Trades', tags: ['Trade'], required: true, why: 'Every buy and sell.' },
+  { name: 'Cash Transactions', tags: ['CashTransaction'], required: true, why: 'Deposits, withdrawals, dividends, interest and fees.' },
+  { name: 'Transfers', tags: ['Transfer'], required: true, why: 'Shares moved in or out, such as class switches and the seed transfer.' },
+  { name: 'Cash Report', tags: ['CashReportCurrency'], required: false, why: 'Starting and ending cash.' },
+  { name: 'Corporate Actions', tags: ['CorporateAction'], required: false, why: 'Splits, mergers and similar events.' },
+  { name: 'Conversion Rates', tags: ['ConversionRate'], required: false, why: "IBKR's exchange rates for non-US-dollar holdings." },
+];
+
 export function isFlexXml(text: string) {
   return /<FlexQueryResponse[\s>]/.test(text.slice(0, 4000));
 }
@@ -74,7 +97,7 @@ export function parseFlexXml(xml: string): ParsedStatement {
       (prices[d] ??= {})[symbol] = price;
     };
     st.querySelectorAll('PriorPeriodPosition').forEach((p) => {
-      addPrice(day(p.getAttribute('date')), p.getAttribute('symbol') || '', num(p.getAttribute('price')));
+      addPrice(day(p.getAttribute('date')) || '', p.getAttribute('symbol') || '', num(p.getAttribute('price')));
     });
 
     st.querySelectorAll('OpenPosition').forEach((p) => {
@@ -83,7 +106,7 @@ export function parseFlexXml(xml: string): ParsedStatement {
       const qty = num(p.getAttribute('position'));
       const symbol = p.getAttribute('symbol') || '';
       if (!symbol || Number.isNaN(qty)) return;
-      addPrice(day(p.getAttribute('reportDate')) || to, symbol, num(p.getAttribute('markPrice')));
+      addPrice(day(p.getAttribute('reportDate')) || to || '', symbol, num(p.getAttribute('markPrice')));
       const mult = num(p.getAttribute('multiplier'));
       out.positions.push({
         account: acct, symbol, assetCategory: p.getAttribute('assetCategory') || '', currency: p.getAttribute('currency') || 'USD',
@@ -93,6 +116,21 @@ export function parseFlexXml(xml: string): ParsedStatement {
     });
 
     if (Object.keys(prices).length) s.pricesByDate = prices;
+
+    const cin = st.querySelector('ChangeInNAV');
+    if (cin) {
+      const lines: Record<string, number> = {};
+      Object.entries(CHANGE_IN_NAV_LABELS).forEach(([k, label]) => {
+        const v = num(cin.getAttribute(k));
+        if (!Number.isNaN(v) && v !== 0) lines[label] = v;
+      });
+      const starting = num(cin.getAttribute('startingValue'));
+      const ending = num(cin.getAttribute('endingValue'));
+      s.changeInNav = {
+        from: day(cin.getAttribute('fromDate')) || from || '', to: day(cin.getAttribute('toDate')) || to || '',
+        starting: Number.isNaN(starting) ? null : starting, ending: Number.isNaN(ending) ? null : ending, lines,
+      };
+    }
 
     const trades = [...st.querySelectorAll('Trade')];
     const level = ['ORDER', 'EXECUTION'].find((l) => trades.some((t) => t.getAttribute('levelOfDetail') === l));
@@ -181,6 +219,7 @@ export function parseFlexXml(xml: string): ParsedStatement {
   });
 
   out.accounts = [...accounts];
+  out.sectionsFound = FLEX_SECTIONS.filter((sec) => sec.tags.some((t) => doc.getElementsByTagName(t).length > 0)).map((sec) => sec.name);
   if (!out.accounts.length) throw new Error('The IBKR data did not contain any accounts. Check that the Flex query includes Account Information.');
   out.cashEvents.forEach((e) => {
     if ((e.type === 'deposit' || e.type === 'withdrawal') && !e.internal && out.accounts.some((a) => a !== e.account && e.description.includes(a))) e.internal = true;

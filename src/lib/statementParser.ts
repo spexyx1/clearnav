@@ -62,6 +62,15 @@ export interface AccountSummary {
   navByDate?: Record<string, number>;
   cashByDate?: Record<string, number>;
   pricesByDate?: Record<string, Record<string, number>>;
+  changeInNav?: ChangeInNav;
+}
+
+export interface ChangeInNav {
+  from: string;
+  to: string;
+  starting: number | null;
+  ending: number | null;
+  lines: Record<string, number>;
 }
 
 export interface SkippedRow {
@@ -83,6 +92,7 @@ export interface ParsedStatement {
   fxRates: Record<string, number>;
   skipped: SkippedRow[];
   warnings: string[];
+  sectionsFound?: string[];
 }
 
 export type GenericField =
@@ -302,6 +312,17 @@ export function parseIbkrStatement(rows: string[][]): ParsedStatement {
         }
         break;
       }
+      case 'Change in NAV': {
+        const label = (f['Field Name'] || '').trim();
+        const v = parseNumber(f['Field Value']);
+        if (!label || Number.isNaN(v)) break;
+        const s = summary(acct);
+        const c = (s.changeInNav ??= { from: '', to: '', starting: null, ending: null, lines: {} });
+        if (/^starting value$/i.test(label)) c.starting = v;
+        else if (/^ending value$/i.test(label)) c.ending = v;
+        else c.lines[label] = v;
+        break;
+      }
       case 'Net Asset Value': {
         const assetClass = (f['Asset Class'] || '').trim();
         if (assetClass && assetClass.toLowerCase() !== 'total') {
@@ -475,6 +496,9 @@ export function parseIbkrStatement(rows: string[][]): ParsedStatement {
     out.warnings.push(`Some activity is in ${[...nonBase].join(', ')}. It is converted to US dollars using ${known.length === nonBase.size ? "the statement's exchange rates" : 'month-end market exchange rates'}.`);
   }
   fillPeriod(out);
+  Object.values(out.summaries).forEach((s) => {
+    if (s.changeInNav) { s.changeInNav.from = out.periodStart ?? ''; s.changeInNav.to = out.periodEnd ?? ''; }
+  });
   return out;
 }
 

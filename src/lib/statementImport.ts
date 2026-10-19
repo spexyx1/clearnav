@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { monthsBetween, type CashEvent, type ParsedStatement, type ParsedTrade, type PositionRow } from './statementParser';
+import { monthsBetween, type CashEvent, type ChangeInNav, type ParsedStatement, type ParsedTrade, type PositionRow } from './statementParser';
 
 export interface PositionSnapshot {
   symbol: string;
@@ -19,6 +19,7 @@ export interface StatementMonthData {
   period: { start: string; end: string };
   fx_rates?: Record<string, number>;
   ibkr_prices?: { as_of: string; prices: Record<string, number> };
+  change_in_nav?: ChangeInNav;
 }
 
 export interface MonthlyBatch {
@@ -99,6 +100,7 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
       }
       const priceDay = priceDates.filter((d) => d.startsWith(mk)).pop();
       if (priceDay) data.ibkr_prices = { as_of: priceDay, prices: summary.pricesByDate![priceDay] };
+      if (summary.changeInNav?.to.startsWith(mk)) data.change_in_nav = summary.changeInNav;
       batches.push({
         account,
         shareClassId,
@@ -204,6 +206,7 @@ async function carryOver(fundId: string, b: MonthlyBatch, first: boolean) {
   // A new file may cover fewer checkpoints than what is on file; keep the broker values already known.
   if (!b.data.closing && old.closing?.nav != null) b.data.closing = { ...old.closing, positions: [], has_positions: false };
   if (!b.data.ibkr_prices && old.ibkr_prices) b.data.ibkr_prices = old.ibkr_prices;
+  if (!b.data.change_in_nav && old.change_in_nav) b.data.change_in_nav = old.change_in_nav;
   if (first && old.opening?.nav != null && b.data.opening && b.data.opening.nav == null) b.data.opening = { ...b.data.opening, nav: old.opening.nav, cash: b.data.opening.cash ?? old.opening.cash };
 }
 

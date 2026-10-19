@@ -311,12 +311,16 @@ export default function FundValue() {
                             <span className={`text-xs px-2 py-0.5 rounded-full border ${st === 'approved' ? 'border-emerald-500/30 text-emerald-300' : st ? 'border-sky-500/30 text-sky-300' : 'border-slate-700 text-slate-500'}`}>
                               {st === 'approved' ? 'Approved' : st ? 'Draft' : 'Not saved'}
                             </span>
-                            {r!.unofficialPrices.length > 0 && (
-                              <span title={`No IBKR price yet for: ${r!.unofficialPrices.join(', ')}`} className="ml-2 text-xs px-2 py-0.5 rounded-full border border-amber-500/30 text-amber-300">
-                                Not final - waiting for IBKR price
+                            {r!.final ? (
+                              <span title="Matches IBKR to the cent and every price is from IBKR" className="ml-2 text-xs px-2 py-0.5 rounded-full border border-emerald-500/30 text-emerald-300">
+                                Final - ties to IBKR
+                              </span>
+                            ) : (
+                              <span title={r!.finalReasons.join('\n')} className="ml-2 text-xs px-2 py-0.5 rounded-full border border-amber-500/30 text-amber-300">
+                                {r!.unofficialPrices.length > 0 ? 'Not final - waiting for IBKR price' : 'Not final'}
                               </span>
                             )}
-                            {st && st !== 'approved' && r!.unofficialPrices.length === 0 && (
+                            {st && st !== 'approved' && r!.final && (
                               <button onClick={(e) => { e.stopPropagation(); doApprove(v.classId, m, r!.date); }} disabled={!!busy}
                                 className="ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-600/15 text-emerald-300 hover:bg-emerald-600/25 border border-emerald-500/30 transition disabled:opacity-50">
                                 {busy === `approve-${v.classId}-${m}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}

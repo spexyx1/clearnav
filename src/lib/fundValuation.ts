@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { monthEnd, monthsBetween } from './statementParser';
+import { monthEnd, monthsBetween, type ChangeInNav } from './statementParser';
 import type { StatementMonthData } from './statementImport';
 
 export interface UploadRow {
@@ -119,6 +119,9 @@ export interface MonthResult {
   missingFx: string[];
   unexplained: number;
   tradeFx: Record<string, number>;
+  final: boolean;
+  finalReasons: string[];
+  changeInNav: ChangeInNav | null;
 }
 
 export interface ClassValuation {
@@ -168,6 +171,14 @@ function chargeCategory(description: string): keyof Charges {
 
 const DAY = 86_400_000;
 
+const usdText = (v: number) => `${v < 0 ? '-' : ''}${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+function lastWeekday(date: string) {
+  const d = new Date(`${date}T00:00:00Z`);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 export function valueClass(
   cls: ClassInfo,
   uploads: UploadRow[],
@@ -196,6 +207,7 @@ export function valueClass(
         movements: [], charges: { ...NO_CHARGES }, dividends: 0, interest: 0, investmentGain: 0, unitsStart: cls.units, unitsIssued: 0, unitsRedeemed: 0,
         holdings: [], holdingsValue: 0, accountValue: capital, computedValue: capital, brokerValue: null, income: 0, fees: 0,
         tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [], unofficialPrices: [], missingFx: [], unexplained: 0, tradeFx: {},
+        final: false, finalReasons: ['No IBKR account activity for this class yet.'], changeInNav: null,
       })),
     };
   }
@@ -448,6 +460,19 @@ export function valueClass(
       units = unitsStart + issued - redeemed;
       unitPrice = unitPrice * (1 + monthReturn);
       Object.keys(charges).forEach((k) => { charges[k as keyof Charges] = round(charges[k as keyof Charges]); });
+      const unofficial = holdings.filter((h) => !isIbkrPrice(h.priceSource)).map((h) => h.symbol);
+      const changeInNav = data?.change_in_nav ?? null;
+      const finalReasons: string[] = [];
+      if (brokerValue == null) finalReasons.push('IBKR has not reported a month-end account value yet.');
+      else if (date < lastWeekday(fullMonthEnd)) finalReasons.push(`IBKR has only reported up to ${date}; the month is not over.`);
+      if (brokerValue != null && Math.abs(unexplained) >= 0.005) finalReasons.push(`Our rebuild from trades and cash differs from IBKR's value by ${usdText(unexplained)}.`);
+      if (changeInNav?.ending != null && changeInNav.to === date && brokerValue != null && Math.abs(changeInNav.ending - brokerValue) >= 0.005) {
+        finalReasons.push(`IBKR's Change in NAV ends at ${usdText(changeInNav.ending)} but its month-end value is ${usdText(brokerValue)}.`);
+      }
+      if (unofficial.length) finalReasons.push(`Waiting for IBKR price: ${unofficial.join(', ')}.`);
+      if (missingFx.size) finalReasons.push(`No IBKR exchange rate for ${[...missingFx].join(', ')}.`);
+      const unexplainedMoves = movements.filter((x) => !x.confirmed).length;
+      if (unexplainedMoves) finalReasons.push(`${unexplainedMoves} money or share movement${unexplainedMoves === 1 ? '' : 's'} not yet explained.`);
       results.push({
         month: mk, date, openingValue: round(prevValue), flows: round(flows), internalFlows: round(internalFlows), cash: round(cash), unitemisedCash: round(unitemisedCash), holdings, holdingsValue,
         movements, charges, dividends: round(dividends), interest: round(interest),
@@ -456,8 +481,9 @@ export function valueClass(
         accountValue: round(accountValue), computedValue, brokerValue, income: round(income), fees: round(fees),
         tradeCount: monthItems.length, monthReturn, unitPrice: round(unitPrice, 6), units: round(units, 4),
         classNav: round(unitPrice * units), missingPrices: holdings.filter((h) => h.priceSource === 'missing').map((h) => h.symbol),
-        unofficialPrices: holdings.filter((h) => !isIbkrPrice(h.priceSource)).map((h) => h.symbol),
+        unofficialPrices: unofficial,
         missingFx: [...missingFx], unexplained: round(unexplained), tradeFx,
+        final: finalReasons.length === 0, finalReasons, changeInNav,
       });
     }
     prevValue = accountValue;
@@ -634,7 +660,7 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
         .order('version', { ascending: false }).limit(1).maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (existing?.status === 'approved') { skippedApproved++; continue; }
-      const signature = JSON.stringify([m.unitPrice, m.units, m.cash, m.accountValue, m.unexplained, v.notes.length, m.movements.map((x) => [x.key, x.label]), m.holdings.map((h) => [h.symbol, h.quantity, h.price, h.priceSource, h.marketValue])]);
+      const signature = JSON.stringify([m.unitPrice, m.units, m.cash, m.accountValue, m.unexplained, m.final, m.finalReasons, v.notes.length, m.movements.map((x) => [x.key, x.label]), m.holdings.map((h) => [h.symbol, h.quantity, h.price, h.priceSource, h.marketValue])]);
       const prior = existing?.calculation_data as { signature?: string; previous?: unknown } | null;
       if (existing && prior?.signature === signature) continue;
       const previous = existing && Math.abs(Number(existing.nav_per_share) - m.unitPrice) > 1e-6
@@ -662,6 +688,7 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
           units_start: m.unitsStart, units_issued: m.unitsIssued, units_redeemed: m.unitsRedeemed,
           charges: m.charges, dividends: m.dividends, interest: m.interest, investment_gain: m.investmentGain,
           unexplained: m.unexplained, movements: m.movements,
+          final: m.final, final_reasons: m.finalReasons, change_in_nav: m.changeInNav,
         },
       };
       let navId = existing?.id as string | undefined;
@@ -694,7 +721,8 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
 export async function approveClassMonth(fundId: string, classId: string, date: string, userId: string) {
   const { data, error } = await supabase.from('nav_calculations')
     .update({ status: 'approved', approved_by: userId, approved_at: new Date().toISOString() })
-    .eq('fund_id', fundId).eq('share_class_id', classId).eq('nav_date', date).in('status', ['draft', 'pending_approval']).select('id');
+    .eq('fund_id', fundId).eq('share_class_id', classId).eq('nav_date', date).in('status', ['draft', 'pending_approval'])
+    .eq('calculation_data->>final', 'true').select('id');
   if (error) throw new Error(error.message);
   return data?.length ?? 0;
 }

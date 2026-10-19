@@ -16,6 +16,10 @@ const TOKEN_RE = /^[0-9A-Za-z]{10,64}$/;
 const QUERY_RE = /^[0-9]{3,20}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const UA = { "User-Agent": "FundAdmin/1.0" };
+const SECTION_TAGS = [
+  "AccountInformation", "EquitySummaryByReportDateInBase", "ChangeInNAV", "PriorPeriodPosition", "OpenPosition",
+  "Trade", "CashTransaction", "Transfer", "CashReportCurrency", "CorporateAction", "ConversionRate",
+];
 
 const tag = (xml: string, name: string) => xml.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1]?.trim() ?? "";
 
@@ -114,7 +118,8 @@ Deno.serve(async (req: Request) => {
       try {
         const { ref, url } = await sendRequest(conn.token, conn.query_id);
         const xml = await getStatement(conn.token, ref, url);
-        await admin.from("ibkr_flex_connections").update({ last_sync_at: new Date().toISOString(), last_status: "ok", last_error: null, updated_at: new Date().toISOString() }).eq("id", conn.id);
+        const sections_found = SECTION_TAGS.filter((t) => xml.includes(`<${t} `) || xml.includes(`<${t}>`) || xml.includes(`<${t}/`));
+        await admin.from("ibkr_flex_connections").update({ last_sync_at: new Date().toISOString(), last_status: "ok", last_error: null, sections_found, updated_at: new Date().toISOString() }).eq("id", conn.id);
         return json({ xml });
       } catch (e) {
         const message = (e as Error).message;
