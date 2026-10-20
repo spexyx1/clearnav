@@ -114,6 +114,7 @@ export default function FundDocumentUpload({ onReviewDocument }: FundDocumentUpl
   const startPolling = () => {
     if (pollIntervalRef.current) return;
     pollIntervalRef.current = setInterval(async () => {
+      if (document.hidden) return;
       const { data } = await supabase
         .from('fund_documents')
         .select('*')

@@ -5,6 +5,7 @@ import { Button, Empty, Modal, Pill, Section, day, units, usd, type OnboardingCt
 
 const TYPE_LABEL: Record<RegisterTx['type'], string> = {
   contribution: 'Units issued', transfer_in: 'Units issued (shares in)', redemption: 'Units redeemed', transfer_out: 'Units redeemed (shares out)',
+  fee: 'Units cancelled (fee)', adjustment: 'Units issued (rebate)',
 };
 
 export default function RegisterPanel({ ctx, register }: { ctx: OnboardingCtx; register: UnitRegister }) {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FileText, Plus, Calendar, Send, CheckCircle, Filter } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { fetchAllIn } from '../../lib/fetchAll';
 
 interface Fund {
   id: string;
@@ -133,43 +134,60 @@ export default function TaxDocumentManager() {
       .lte('metric_date', `${selectedYear}-12-31`)
       .maybeSingle();
 
-    for (const account of accounts) {
-      const { data: transactions } = await supabase
+    let distributions: { capital_account_id: string; amount: number }[];
+    try {
+      distributions = await fetchAllIn(accounts.map(a => a.id), (ids) => supabase
         .from('capital_transactions')
-        .select('*')
-        .eq('capital_account_id', account.id)
+        .select('id, capital_account_id, amount')
+        .in('capital_account_id', ids)
+        .eq('transaction_type', 'distribution')
         .gte('transaction_date', `${selectedYear}-01-01`)
-        .lte('transaction_date', `${selectedYear}-12-31`);
+        .lte('transaction_date', `${selectedYear}-12-31`)
+        .order('id'));
+    } catch (e) {
+      setGenerating(false);
+      alert(`Could not load transactions: ${(e as Error).message}`);
+      return;
+    }
 
-      const distributions = transactions?.filter(t => t.transaction_type === 'distribution') || [];
-      const totalDistributions = distributions.reduce((sum, t) => sum + t.amount, 0);
+    const totals = new Map<string, number>();
+    for (const t of distributions) {
+      totals.set(t.capital_account_id, (totals.get(t.capital_account_id) ?? 0) + Number(t.amount));
+    }
+    const today = new Date().toISOString().split('T')[0];
+
+    const documents = accounts.map((account) => {
+      const totalDistributions = totals.get(account.id) ?? 0;
 
       const ordinaryIncome = totalDistributions * 0.3;
       const qualifiedDividends = totalDistributions * 0.2;
       const capitalGainsLong = totalDistributions * 0.4;
       const capitalGainsShort = totalDistributions * 0.1;
 
-      await supabase
-        .from('tax_documents')
-        .insert({
-          tenant_id: currentTenant?.id,
-          capital_account_id: account.id,
-          fund_id: selectedFund,
-          document_type: 'k1',
-          tax_year: selectedYear,
-          document_status: 'draft',
-          generation_date: new Date().toISOString().split('T')[0],
-          ordinary_income: ordinaryIncome,
-          qualified_dividends: qualifiedDividends,
-          capital_gains_short: capitalGainsShort,
-          capital_gains_long: capitalGainsLong,
-          interest_income: 0,
-          other_income: 0,
-          created_by: user?.id,
-        });
-    }
+      return {
+        tenant_id: currentTenant?.id,
+        capital_account_id: account.id,
+        fund_id: selectedFund,
+        document_type: 'k1',
+        tax_year: selectedYear,
+        document_status: 'draft',
+        generation_date: today,
+        ordinary_income: ordinaryIncome,
+        qualified_dividends: qualifiedDividends,
+        capital_gains_short: capitalGainsShort,
+        capital_gains_long: capitalGainsLong,
+        interest_income: 0,
+        other_income: 0,
+        created_by: user?.id,
+      };
+    });
 
+    const { error: insertError } = await supabase.from('tax_documents').insert(documents);
     setGenerating(false);
+    if (insertError) {
+      alert(`Could not generate documents: ${insertError.message}`);
+      return;
+    }
     loadTaxDocuments();
     alert(`Generated ${accounts.length} K-1 documents`);
   };

@@ -238,7 +238,7 @@ export async function undoMoneyReceived(sub: SubscriptionRow) {
   fail('Could not undo the match', error);
 }
 
-async function finalMonth(fundId: string, classId: string, dealingDay: string) {
+export async function finalMonth(fundId: string, classId: string, dealingDay: string) {
   const month = dealingDay.slice(0, 7);
   const { data, error } = await supabase.from('nav_calculations')
     .select('nav_date, nav_per_share, status, calculation_data')
@@ -273,7 +273,7 @@ async function officialAccountFor(tenantId: string, fundId: string, classId: str
   return created;
 }
 
-async function existingDeal(fundId: string, reference: string) {
+export async function existingDeal(fundId: string, reference: string) {
   const { data, error } = await supabase.from('capital_transactions').select('id').eq('fund_id', fundId).eq('reference_number', reference).limit(1).maybeSingle();
   fail('Could not check the unit register', error);
   return data?.id as string | undefined;

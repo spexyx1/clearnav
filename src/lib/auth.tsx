@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { Database } from '../types/database';
@@ -77,8 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
   const [tenantUser, setTenantUser] = useState<TenantUser | null>(null);
   const [userRoleRecord, setUserRoleRecord] = useState<UserRoleRecord | null>(null);
+  const loadedUserId = useRef<string | null>(null);
 
-  const loadUserRole = async (userId: string) => {
+  const loadUserRole = useCallback(async (userId: string) => {
+    loadedUserId.current = userId;
     dbg('[Auth] Loading user role for:', userId);
 
     const { data: userRoleData, error: roleError } = await supabase
@@ -180,9 +182,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTenantUser(detail.tenantUserData);
     setStaffAccount(detail.staffData);
     setAuditorProfile(detail.auditorData);
-  };
+  }, []);
 
-  const resetRoleState = () => {
+  const resetRoleState = useCallback(() => {
+    loadedUserId.current = null;
     setUserRole(null);
     setRoleCategory(null);
     setRoleDetail(null);
@@ -191,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPlatformAdminUser(null);
     setTenantUser(null);
     setUserRoleRecord(null);
-  };
+  }, []);
 
   useEffect(() => {
     let initComplete = false;
@@ -217,6 +220,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       (async () => {
         setSession(session);
+        const sameUser = !!session?.user && session.user.id === loadedUserId.current;
+        // Token refreshes and tab-focus re-sign-ins keep the same user; skip reloading roles.
+        if (sameUser && event !== 'USER_UPDATED') return;
         setUser(session?.user ?? null);
 
         if (session?.user) {
@@ -229,58 +235,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [loadUserRole, resetRoleState]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     resetRoleState();
     setCurrentTenant(null);
-  };
+  }, [resetRoleState]);
 
-  const refetch = async () => {
+  const refetch = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
       await loadUserRole(session.user.id);
     }
-  };
+  }, [loadUserRole]);
 
-  // Derived boolean flags — kept for backwards compatibility with existing consumers.
-  // For new code, compare roleCategory directly.
-  const isStaff = roleCategory === 'staff_user';
-  const isTenantAdmin = roleCategory === 'tenant_admin';
-  const isClient = roleCategory === 'client';
-  const isAuditor = roleCategory === 'auditor';
-  const isPlatformAdmin = roleCategory === 'superadmin';
+  const value = useMemo<AuthContextType>(() => ({
+    user,
+    session,
+    loading,
+    userRole,
+    roleCategory,
+    roleDetail,
+    isStaff: roleCategory === 'staff_user',
+    isTenantAdmin: roleCategory === 'tenant_admin',
+    isClient: roleCategory === 'client',
+    isAuditor: roleCategory === 'auditor',
+    staffAccount,
+    auditorProfile,
+    isPlatformAdmin: roleCategory === 'superadmin',
+    platformAdminUser,
+    currentTenant,
+    tenantId: currentTenant?.id || null,
+    tenantUser,
+    userRoleRecord,
+    signIn,
+    signOut,
+    refetch,
+  }), [user, session, loading, userRole, roleCategory, roleDetail, staffAccount, auditorProfile, platformAdminUser,
+    currentTenant, tenantUser, userRoleRecord, signIn, signOut, refetch]);
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      session,
-      loading,
-      userRole,
-      roleCategory,
-      roleDetail,
-      isStaff,
-      isTenantAdmin,
-      isClient,
-      isAuditor,
-      staffAccount,
-      auditorProfile,
-      isPlatformAdmin,
-      platformAdminUser,
-      currentTenant,
-      tenantId: currentTenant?.id || null,
-      tenantUser,
-      userRoleRecord,
-      signIn,
-      signOut,
-      refetch
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

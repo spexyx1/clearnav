@@ -54,7 +54,7 @@ export default function PendingApprovals() {
     loadPendingActions();
     const subscription = subscribeToActions();
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(subscription);
     };
   }, [tenant?.id]);
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowDownToLine, BookOpen, CheckCircle, ClipboardList, Landmark, Loader2, LogOut, Scale } from 'lucide-react';
 import { useAuth } from '../../../lib/auth';
-import { loadDealingTerms, scheduleFrom, type DealingTerms } from '../../../lib/dealingTerms';
+import { scheduleFrom, type DealingTerms } from '../../../lib/dealingTerms';
 import { loadFundData, valueFund, type ClassValuation } from '../../../lib/fundValuation';
 import { loadOnboarding, unmatchedMoneyIn, type ClassRef } from '../../../lib/onboarding';
 import ApplicationsPanel from './ApplicationsPanel';
@@ -14,13 +14,15 @@ import { loadUnitRegister, type UnitRegister } from '../../../lib/unitRegister';
 import type { OnboardingCtx, OnboardingData } from './ui';
 
 type View = 'applications' | 'money' | 'dealing' | 'withdrawals' | 'register' | 'accounts';
+export type OnboardingView = View;
 
-interface Props { tenantId: string; funds: { id: string; fund_name: string }[] }
+interface Props { tenantId: string; funds: { id: string; fund_name: string }[]; initialView?: View }
 
-export default function InvestorOnboarding({ tenantId, funds }: Props) {
+export default function InvestorOnboarding({ tenantId, funds, initialView = 'applications' }: Props) {
   const { user } = useAuth();
   const [fundId, setFundId] = useState(funds[0]?.id ?? '');
-  const [view, setView] = useState<View>('applications');
+  const [view, setView] = useState<View>(initialView);
+  useEffect(() => { if (!fundId && funds[0]) setFundId(funds[0].id); }, [funds, fundId]);
   const [data, setData] = useState<OnboardingData | null>(null);
   const [classes, setClasses] = useState<ClassRef[]>([]);
   const [valuations, setValuations] = useState<ClassValuation[]>([]);
@@ -33,12 +35,12 @@ export default function InvestorOnboarding({ tenantId, funds }: Props) {
 
   const load = useCallback(async () => {
     if (!fundId) return;
-    const [onb, fund, t, reg] = await Promise.all([loadOnboarding(tenantId, fundId), loadFundData(fundId), loadDealingTerms(fundId), loadUnitRegister(fundId)]);
+    const [onb, fund, reg] = await Promise.all([loadOnboarding(tenantId, fundId), loadFundData(fundId), loadUnitRegister(fundId)]);
     setData(onb);
     setRegister(reg);
     setClasses(fund.classes.map((c) => ({ id: c.id, class_code: c.class_code, class_name: c.class_name })));
     setValuations(valueFund(fund));
-    setTerms(t?.terms ?? {});
+    setTerms(fund.terms);
   }, [tenantId, fundId]);
 
   useEffect(() => {

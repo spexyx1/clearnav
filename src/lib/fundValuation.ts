@@ -1,7 +1,8 @@
 import { supabase } from './supabase';
 import { monthEnd, monthsBetween, type CashEvent, type ChangeInNav } from './statementParser';
 import type { StatementMonthData } from './statementImport';
-import { loadDealingTerms, numberOf } from './dealingTerms';
+import { loadDealingTerms, numberOf, type DealingTerms } from './dealingTerms';
+import { fetchAll, fetchAllIn } from './fetchAll';
 
 export interface UploadRow {
   id: string;
@@ -98,6 +99,36 @@ export interface DealingSubscription {
   name: string;
   kind: 'cash' | 'in_kind';
   dealingDate: string;
+  ref?: string;
+}
+
+export type ManualKind = 'class_charge' | 'investor_fee' | 'manager_rebate';
+export type ManualCategory = 'admin' | 'audit' | 'legal' | 'custom';
+
+export interface ManualCharge {
+  id: string;
+  kind: ManualKind;
+  category: ManualCategory;
+  amount: number;
+  month: string;
+  classId: string;
+  accountId: string | null;
+  name: string;
+  note: string;
+  movementKey: string | null;
+  paidMonth: string | null;
+  correctsId: string | null;
+}
+
+export interface ManualLine {
+  id: string;
+  kind: ManualKind;
+  category: ManualCategory;
+  amount: number;
+  note: string;
+  name: string;
+  status: 'charged' | 'owed' | 'paid';
+  units?: number;
 }
 
 export interface DealingRedemption {
@@ -113,6 +144,7 @@ export interface OfficialDealing {
   launchPrice: number;
   subscriptions: DealingSubscription[];
   redemptions: DealingRedemption[];
+  manualCharges: ManualCharge[];
 }
 
 export interface OfficialAccount {
@@ -127,6 +159,7 @@ export interface Charges {
   adjustments: number;
   trading: number;
   other: number;
+  manual: number;
 }
 
 export interface MonthResult {
@@ -169,6 +202,9 @@ export interface MonthResult {
   uninvestedCash: number;
   redemptionsPayable: number;
   dealt: Dealt[];
+  manual: ManualLine[];
+  chargesPayable: number;
+  manualPaid: number;
 }
 
 export interface ClassValuation {
@@ -206,7 +242,9 @@ function fixMultiplier(mult: number, assetCategory: string, symbol: string) {
   return m <= 1 && isOption(assetCategory, symbol) ? 100 : m;
 }
 
-const NO_CHARGES: Charges = { management: 0, performance: 0, subadvisor: 0, adjustments: 0, trading: 0, other: 0 };
+const NO_CHARGES: Charges = { management: 0, performance: 0, subadvisor: 0, adjustments: 0, trading: 0, other: 0, manual: 0 };
+
+export const MANUAL_CATEGORY_LABELS: Record<ManualCategory, string> = { admin: 'Administration', audit: 'Audit', legal: 'Legal', custom: 'Other' };
 
 function chargeCategory(description: string): keyof Charges {
   const d = description.toLowerCase();
@@ -265,7 +303,7 @@ export function valueClass(
         holdings: [], holdingsValue: 0, accountValue: capital, computedValue: capital, brokerValue: null, income: 0, fees: 0,
         tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [], unofficialPrices: [], missingFx: [], unexplained: 0, tradeFx: {},
         final: false, finalReasons: ['No IBKR account activity for this class yet.'], changeInNav: null,
-        trackRecord: !official, uninvestedCash: 0, redemptionsPayable: 0, dealt: [],
+        trackRecord: !official, uninvestedCash: 0, redemptionsPayable: 0, dealt: [], manual: [], chargesPayable: 0, manualPaid: 0,
       })),
     };
   }
@@ -389,7 +427,15 @@ export function valueClass(
   const results: MonthResult[] = [];
   let pending: Array<{ key: string; amount: number; date: string; sub?: DealingSubscription }> = [];
   let payable = 0;
+  let chargesPayable = 0;
   const subByKey = new Map((official?.subscriptions ?? []).filter((s) => s.classId === cls.id).map((s) => [s.key, s]));
+  const ownManual = (official?.manualCharges ?? []).filter((c) => c.classId === cls.id);
+  const settleByKey = new Map(ownManual.filter((c) => c.kind === 'class_charge' && c.movementKey).map((c) => [c.movementKey!, c]));
+  const rebateByKey = new Map(ownManual.filter((c) => c.kind === 'manager_rebate' && c.movementKey).map((c) => [c.movementKey!, c]));
+  const manualFor = (mk: string, kind: ManualKind) => ownManual.filter((c) => c.kind === kind && c.month === mk);
+  const lineOf = (c: ManualCharge, status: ManualLine['status'], units?: number): ManualLine => ({
+    id: c.id, kind: c.kind, category: c.category, amount: c.amount, note: c.note, name: c.name, status, units,
+  });
 
   allMonths.forEach((mk) => {
     const up = byMonth.get(mk);
@@ -405,6 +451,7 @@ export function valueClass(
     let fees = 0;
     let flows = 0;
     let internalFlows = 0;
+    let manualPaid = 0;
     const charges: Charges = { ...NO_CHARGES };
     const movements: Movement[] = [];
     const tradeFx: Record<string, number> = {};
@@ -489,7 +536,20 @@ export function valueClass(
                   ? 'a payment out of the account, which looks like an adviser fee payment.'
                   : `no matching entry in another class account, so it looks like investor money ${e.amount > 0 ? 'in' : 'out'}.`;
         const { label, confirmed, reason } = classify(key, suggested, auto, why);
-        movements.push({ key, date: e.date, kind: 'cash', amount: round(amount), suggested, label, confirmed, reason, description: `${e.description || (e.amount < 0 ? 'Withdrawal' : 'Deposit')} (${e.amount.toLocaleString('en-US')} ${e.currency || 'USD'})` });
+        const mv: Movement = { key, date: e.date, kind: 'cash', amount: round(amount), suggested, label, confirmed, reason, description: `${e.description || (e.amount < 0 ? 'Withdrawal' : 'Deposit')} (${e.amount.toLocaleString('en-US')} ${e.currency || 'USD'})` };
+        movements.push(mv);
+        const settles = official && !feeCredit ? settleByKey.get(key) : undefined;
+        if (settles) {
+          Object.assign(mv, { label: 'fee', confirmed: true, reason: `Pays the ${MANUAL_CATEGORY_LABELS[settles.category].toLowerCase()} charge entered by hand for ${settles.month} ("${settles.note}"). It already lowered the unit price when it was entered, so it is not counted again.` });
+          manualPaid += -amount;
+          return;
+        }
+        const rebate = official && !feeCredit ? rebateByKey.get(key) : undefined;
+        if (rebate) {
+          Object.assign(mv, { label: 'investor', confirmed: true });
+          flows += amount;
+          return;
+        }
         if (label === 'fee') {
           fees += -amount;
           charges[amount < 0 ? 'subadvisor' : 'adjustments'] += -amount;
@@ -547,13 +607,22 @@ export function valueClass(
       // Units for money in or out are dealt at the price the month opened at, which keeps units x price equal to the account value.
       const unitsStart = units;
       const startPrice = unitPrice;
+      let monthManual: ManualLine[] = [];
       const unpricedDays: string[] = [];
       const dealingReasons: string[] = [];
       const dealt: Dealt[] = [];
       let issued = 0;
       let redeemed = 0;
       if (official) {
+        const manual: ManualLine[] = [];
         movements.filter((x) => x.label !== 'fee').forEach((x) => {
+          const reb = rebateByKey.get(x.key);
+          if (reb) {
+            pending.push({ key: x.key, amount: x.amount, date: x.date, sub: { id: reb.id, classId: cls.id, key: x.key, name: reb.name, kind: 'cash', dealingDate: fullMonthEnd, ref: `reb:${reb.id}` } });
+            x.reason = `Arkline's payment of the fee rebate for ${reb.name} ("${reb.note}"). Units are issued to them at this month's final price.`;
+            if (Math.abs(x.amount - reb.amount) >= 0.005) dealingReasons.push(`Arkline paid ${usdText(x.amount)} for ${reb.name}'s rebate, but the rebate is ${usdText(reb.amount)}. Link the right IBKR payment on the Fees page.`);
+            return;
+          }
           if (x.amount > 0) {
             const sub = subByKey.get(x.key);
             pending.push({ key: x.key, amount: x.amount, date: x.date, sub });
@@ -571,9 +640,13 @@ export function valueClass(
             x.reason = 'Needs your answer: money left the account but no withdrawal was dealt at an earlier month-end. Record the withdrawal request on the Onboarding page.';
           }
         });
-        // Money waiting for its dealing day and withdrawals not yet paid out are not part of the class value.
+        manualFor(mk, 'class_charge').forEach((c) => { charges.manual += c.amount; manual.push(lineOf(c, 'charged')); });
+        manualFor(mk, 'manager_rebate').filter((r) => r.paidMonth !== mk).forEach((r) => manual.push(lineOf(r, r.paidMonth ? 'paid' : 'owed')));
+        chargesPayable += charges.manual - manualPaid;
+        if (chargesPayable < -0.01) dealingReasons.push('More was paid from IBKR for hand-entered charges than was charged. Check which IBKR payments are linked on the Fees page.');
+        // Money waiting for its dealing day, unpaid withdrawals and unpaid hand-entered charges are not part of the class value.
         const pendingTotal = pending.reduce((s, p) => s + p.amount, 0);
-        const value = accountValue - pendingTotal - payable;
+        const value = accountValue - pendingTotal - payable - chargesPayable;
         const launching = unitsStart < 1e-9;
         const price = launching ? official.launchPrice : value / unitsStart;
         if (!launching && price <= 0) dealingReasons.push('The class value after setting aside application money is not positive, so no unit price can be set.');
@@ -593,7 +666,9 @@ export function valueClass(
             const amount = round(issueValue(p));
             const u = round(amount / price, 4);
             issued += u;
-            dealt.push({ ref: `sub:${p.sub!.id}`, kind: 'issue', name: p.sub!.name, amount, units: u, price: round(price, 6) });
+            dealt.push({ ref: p.sub!.ref ?? `sub:${p.sub!.id}`, kind: 'issue', name: p.sub!.name, amount, units: u, price: round(price, 6) });
+            const reb = p.sub!.ref ? ownManual.find((c) => `reb:${c.id}` === p.sub!.ref) : undefined;
+            if (reb) manual.push(lineOf(reb, 'paid', u));
           });
           (official.redemptions ?? []).filter((r) => r.classId === cls.id && r.dealingDate.slice(0, 7) === mk).forEach((r) => {
             const u = round(r.shares ?? (r.amount ?? 0) / price, 4);
@@ -602,11 +677,19 @@ export function valueClass(
             payable += amount;
             dealt.push({ ref: `red:${r.id}`, kind: 'redeem', name: r.name, amount, units: u, price: round(price, 6) });
           });
+          manualFor(mk, 'investor_fee').forEach((f) => {
+            const u = round(f.amount / price, 4);
+            redeemed += u;
+            payable += f.amount;
+            dealt.push({ ref: `fee:${f.id}`, kind: 'redeem', name: f.name, amount: f.amount, units: u, price: round(price, 6) });
+            manual.push(lineOf(f, 'charged', u));
+          });
           pending = pending.filter((p) => !due.includes(p));
         }
         if (redeemed > unitsStart + issued + 1e-6) dealingReasons.push('Withdrawals dealt this month are larger than the units on issue.');
         units = unitsStart + issued - redeemed;
         unitPrice = price > 0 ? price : unitPrice;
+        monthManual = manual;
       } else {
       const dailyNav = data?.daily_nav ?? {};
       const navDays = Object.keys(dailyNav).sort();
@@ -651,7 +734,7 @@ export function valueClass(
       results.push({
         month: mk, date, openingValue: round(prevValue), flows: round(flows), internalFlows: round(internalFlows), cash: round(cash), unitemisedCash: round(unitemisedCash), holdings, holdingsValue,
         movements, charges, dividends: round(dividends), interest: round(interest),
-        investmentGain: round(accountValue - prevValue - flows - income + fees),
+        investmentGain: round(accountValue - prevValue - flows - income + fees + manualPaid),
         unitsStart: round(unitsStart, 4), unitsIssued: round(issued, 4), unitsRedeemed: round(redeemed, 4),
         accountValue: round(accountValue), computedValue, brokerValue, income: round(income), fees: round(fees),
         tradeCount: monthItems.length, monthReturn: official && unitsStart < 1e-9 ? 0 : startPrice > 0 ? unitPrice / startPrice - 1 : monthReturn, unitPrice: round(unitPrice, 6), units: round(units, 4),
@@ -660,6 +743,7 @@ export function valueClass(
         missingFx: [...missingFx], unexplained: round(unexplained), tradeFx,
         final: finalReasons.length === 0, finalReasons, changeInNav,
         trackRecord: !official, uninvestedCash: round(pending.reduce((s, p) => s + p.amount, 0)), redemptionsPayable: round(payable), dealt,
+        manual: monthManual, chargesPayable: round(chargesPayable), manualPaid: round(manualPaid),
       });
     }
     prevValue = accountValue;
@@ -677,79 +761,88 @@ export interface FundData {
   inceptionMonth: string;
   officialAccounts: Record<string, OfficialAccount>;
   dealing: OfficialDealing;
+  terms: DealingTerms;
 }
 
+type Joined<T> = T | T[] | null;
+const one = <T,>(v: Joined<T>): T | null => (Array.isArray(v) ? v[0] ?? null : v);
+
 export async function loadFundData(fundId: string): Promise<FundData> {
-  const { data: fund, error: fErr } = await supabase.from('funds').select('id, inception_date').eq('id', fundId).maybeSingle();
-  if (fErr || !fund) throw new Error(fErr?.message || 'Fund not found');
-  const { data: sc, error: scErr } = await supabase.from('share_classes').select('id, class_code, class_name').eq('fund_id', fundId).order('class_code');
-  if (scErr) throw new Error(scErr.message);
-  const { data: accts, error: aErr } = await supabase.from('capital_accounts').select('share_class_id, shares_owned, metadata').eq('fund_id', fundId);
-  if (aErr) throw new Error(aErr.message);
-  const { data: openings } = await supabase.from('nav_calculations').select('share_class_id, nav_per_share, total_shares, nav_date').eq('fund_id', fundId).eq('calculation_method', 'opening');
-  const { data: labelRows, error: lErr } = await supabase.from('fund_movement_labels').select('movement_key, label').eq('fund_id', fundId);
-  if (lErr) throw new Error(lErr.message);
-  const { data: uploads, error: uErr } = await supabase.from('trade_uploads')
-    .select('id, share_class_id, broker_account, upload_year, upload_month, statement_data')
-    .eq('fund_id', fundId).eq('status', 'confirmed').not('share_class_id', 'is', null);
-  if (uErr) throw new Error(uErr.message);
-  const ids = (uploads ?? []).map((u) => u.id);
-  let items: ItemRow[] = [];
-  if (ids.length) {
-    const { data: it, error: iErr } = await supabase.from('trade_upload_items')
-      .select('id, upload_id, trade_date, instrument, direction, quantity, price, fees, proceeds, multiplier, asset_category, currency, notes')
-      .in('upload_id', ids);
-    if (iErr) throw new Error(iErr.message);
-    items = (it ?? []) as ItemRow[];
-  }
-  const { data: marks, error: mErr } = await supabase.from('fund_price_marks').select('symbol, price_date, price, source').eq('fund_id', fundId);
-  if (mErr) throw new Error(mErr.message);
-  const { data: official, error: oErr } = await supabase.from('fund_broker_accounts').select('account_id, share_class_id, official_from').eq('fund_id', fundId).eq('account_role', 'official');
-  if (oErr) throw new Error(oErr.message);
-  const { data: subs, error: sErr } = await supabase.from('unit_subscriptions')
-    .select('id, share_class_id, broker_movement_key, investor_name, kind, dealing_date')
-    .eq('fund_id', fundId).in('status', ['money_received', 'units_issued']);
-  if (sErr) throw new Error(sErr.message);
-  const { data: reds, error: rErr } = await supabase.from('redemption_requests')
-    .select('id, redemption_date, shares_requested, amount_requested, capital_accounts(share_class_id), client_profiles(full_name)')
-    .eq('fund_id', fundId).in('status', ['approved', 'processing', 'completed']).not('redemption_date', 'is', null).not('capital_account_id', 'is', null);
-  if (rErr) throw new Error(rErr.message);
-  const terms = await loadDealingTerms(fundId);
-  const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? v[0] ?? null : v);
+  const [fundRes, scRes, openRes, accts, labelRows, uploads, marks, officialRes, subs, reds, manualRows, terms] = await Promise.all([
+    supabase.from('funds').select('id, inception_date').eq('id', fundId).maybeSingle(),
+    supabase.from('share_classes').select('id, class_code, class_name').eq('fund_id', fundId).order('class_code'),
+    supabase.from('nav_calculations').select('share_class_id, nav_per_share, total_shares, nav_date').eq('fund_id', fundId).eq('calculation_method', 'opening'),
+    fetchAll(() => supabase.from('capital_accounts').select('id, share_class_id, shares_owned, metadata').eq('fund_id', fundId).order('id')),
+    fetchAll(() => supabase.from('fund_movement_labels').select('movement_key, label').eq('fund_id', fundId).order('id')),
+    fetchAll(() => supabase.from('trade_uploads')
+      .select('id, share_class_id, broker_account, upload_year, upload_month, statement_data')
+      .eq('fund_id', fundId).eq('status', 'confirmed').not('share_class_id', 'is', null).order('id')),
+    fetchAll(() => supabase.from('fund_price_marks').select('symbol, price_date, price, source').eq('fund_id', fundId).order('id')),
+    supabase.from('fund_broker_accounts').select('account_id, share_class_id, official_from').eq('fund_id', fundId).eq('account_role', 'official'),
+    fetchAll(() => supabase.from('unit_subscriptions')
+      .select('id, share_class_id, broker_movement_key, investor_name, kind, dealing_date')
+      .eq('fund_id', fundId).in('status', ['money_received', 'units_issued']).order('id')),
+    fetchAll(() => supabase.from('redemption_requests')
+      .select('id, redemption_date, shares_requested, amount_requested, capital_accounts(share_class_id), client_profiles(full_name)')
+      .eq('fund_id', fundId).in('status', ['approved', 'processing', 'completed']).not('redemption_date', 'is', null).not('capital_account_id', 'is', null).order('id')),
+    fetchAll(() => supabase.from('fund_manual_charges')
+      .select('id, kind, category, amount, charge_month, share_class_id, capital_account_id, note, ibkr_movement_key, paid_month, corrects_id, capital_accounts(client_profiles(full_name))')
+      .eq('fund_id', fundId).eq('status', 'active').order('id')),
+    loadDealingTerms(fundId),
+  ]);
+  if (fundRes.error || !fundRes.data) throw new Error(fundRes.error?.message || 'Fund not found');
+  if (scRes.error) throw new Error(scRes.error.message);
+  if (openRes.error) throw new Error(openRes.error.message);
+  if (officialRes.error) throw new Error(officialRes.error.message);
+  const fund = fundRes.data;
+  const openings = openRes.data ?? [];
+  const items = (await fetchAllIn(uploads.map((u) => u.id as string), (chunk) => supabase.from('trade_upload_items')
+    .select('id, upload_id, trade_date, instrument, direction, quantity, price, fees, proceeds, multiplier, asset_category, currency, notes')
+    .in('upload_id', chunk).order('id'))) as ItemRow[];
+
   const dealing: OfficialDealing = {
     launchPrice: (terms && numberOf(terms.terms.launch_unit_price)) || 1,
-    subscriptions: (subs ?? []).filter((s) => s.broker_movement_key && s.dealing_date).map((s) => ({
+    subscriptions: subs.filter((s) => s.broker_movement_key && s.dealing_date).map((s) => ({
       id: s.id, classId: s.share_class_id, key: s.broker_movement_key!, name: s.investor_name, kind: s.kind as 'cash' | 'in_kind', dealingDate: s.dealing_date!,
     })),
-    redemptions: (reds ?? []).flatMap((r) => {
-      const classId = one(r.capital_accounts as { share_class_id: string } | { share_class_id: string }[] | null)?.share_class_id;
+    redemptions: reds.flatMap((r) => {
+      const classId = one(r.capital_accounts as Joined<{ share_class_id: string }>)?.share_class_id;
       if (!classId) return [];
       return [{
         id: r.id, classId, dealingDate: r.redemption_date as string,
-        name: one(r.client_profiles as { full_name: string } | { full_name: string }[] | null)?.full_name ?? 'Investor',
+        name: one(r.client_profiles as Joined<{ full_name: string }>)?.full_name ?? 'Investor',
         shares: r.shares_requested != null ? Number(r.shares_requested) : null,
         amount: r.amount_requested != null ? Number(r.amount_requested) : null,
       }];
     }),
+    manualCharges: manualRows.map((c) => {
+      const acct = one(c.capital_accounts as Joined<{ client_profiles: Joined<{ full_name: string }> }>);
+      return {
+        id: c.id, kind: c.kind as ManualKind, category: c.category as ManualCategory, amount: Number(c.amount),
+        month: String(c.charge_month).slice(0, 7), classId: c.share_class_id, accountId: c.capital_account_id,
+        name: acct ? one(acct.client_profiles)?.full_name ?? 'Investor' : 'Whole class',
+        note: c.note, movementKey: c.ibkr_movement_key, paidMonth: c.paid_month ? String(c.paid_month).slice(0, 7) : null, correctsId: c.corrects_id,
+      };
+    }),
   };
-  const officialAccounts: Record<string, OfficialAccount> = Object.fromEntries((official ?? []).filter((o) => o.official_from)
+  const officialAccounts: Record<string, OfficialAccount> = Object.fromEntries((officialRes.data ?? []).filter((o) => o.official_from)
     .map((o) => [o.share_class_id, { account: o.account_id, fromMonth: String(o.official_from).slice(0, 7) }]));
 
-  const classes: ClassInfo[] = (sc ?? []).map((c) => {
-    const open = openings?.find((o) => o.share_class_id === c.id);
+  const classes: ClassInfo[] = (scRes.data ?? []).map((c) => {
+    const open = openings.find((o) => o.share_class_id === c.id);
     return {
       id: c.id,
       class_code: c.class_code,
       class_name: c.class_name,
-      units: open?.total_shares != null ? Number(open.total_shares) : (accts ?? []).filter((a) => a.share_class_id === c.id && !(a.metadata as { official?: boolean } | null)?.official)
+      units: open?.total_shares != null ? Number(open.total_shares) : accts.filter((a) => a.share_class_id === c.id && !(a.metadata as { official?: boolean } | null)?.official)
         .reduce((s, a) => s + Number(a.shares_owned || 0), 0),
       startPrice: Number(open?.nav_per_share ?? 1),
     };
   });
   const inception = fund.inception_date ?? `${new Date().getFullYear()}-01-01`;
-  const labels = Object.fromEntries((labelRows ?? []).map((l) => [l.movement_key, l.label as MovementLabel]));
+  const labels = Object.fromEntries(labelRows.map((l) => [l.movement_key, l.label as MovementLabel]));
   return {
-    classes, uploads: (uploads ?? []) as UploadRow[], items, marks: (marks ?? []) as PriceMark[], labels, inceptionMonth: inception.slice(0, 7), officialAccounts, dealing,
+    classes, uploads: uploads as UploadRow[], items, marks: marks as PriceMark[], labels, inceptionMonth: inception.slice(0, 7), officialAccounts, dealing, terms: terms?.terms ?? {},
   };
 }
 
@@ -881,14 +974,16 @@ export interface SaveDraftResult { saved: number; skippedApproved: number }
 export async function saveDrafts(fundId: string, userId: string, valuations: ClassValuation[]): Promise<SaveDraftResult> {
   let saved = 0;
   let skippedApproved = 0;
+  const latest = new Map<string, { id: string; status: string; calculation_data: unknown; nav_per_share: number; net_asset_value: number; total_shares: number }>();
+  (await fetchAll(() => supabase.from('nav_calculations')
+    .select('id, share_class_id, nav_date, status, calculation_data, nav_per_share, net_asset_value, total_shares').eq('fund_id', fundId)
+    .order('version', { ascending: false }).order('id')))
+    .forEach((r) => { const k = `${r.share_class_id}|${r.nav_date}`; if (!latest.has(k)) latest.set(k, r); });
   for (const v of valuations) {
     for (const m of v.months) {
-      const { data: existing, error: exErr } = await supabase.from('nav_calculations')
-        .select('id, status, calculation_data, nav_per_share, net_asset_value, total_shares').eq('fund_id', fundId).eq('share_class_id', v.classId).eq('nav_date', m.date)
-        .order('version', { ascending: false }).limit(1).maybeSingle();
-      if (exErr) throw new Error(exErr.message);
+      const existing = latest.get(`${v.classId}|${m.date}`);
       if (existing?.status === 'approved') { skippedApproved++; continue; }
-      const signature = JSON.stringify([m.unitPrice, m.units, m.cash, m.accountValue, m.unexplained, m.final, m.finalReasons, v.notes.length, m.movements.map((x) => [x.key, x.label]), m.holdings.map((h) => [h.symbol, h.quantity, h.price, h.priceSource, h.marketValue]), m.dealt, m.uninvestedCash, m.redemptionsPayable]);
+      const signature = JSON.stringify([m.unitPrice, m.units, m.cash, m.accountValue, m.unexplained, m.final, m.finalReasons, v.notes.length, m.movements.map((x) => [x.key, x.label]), m.holdings.map((h) => [h.symbol, h.quantity, h.price, h.priceSource, h.marketValue]), m.dealt, m.uninvestedCash, m.redemptionsPayable, m.manual, m.chargesPayable]);
       const prior = existing?.calculation_data as { signature?: string; previous?: unknown } | null;
       if (existing && prior?.signature === signature) continue;
       const previous = existing && Math.abs(Number(existing.nav_per_share) - m.unitPrice) > 1e-6
@@ -918,6 +1013,7 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
           unexplained: m.unexplained, movements: m.movements,
           final: m.final, final_reasons: m.finalReasons, change_in_nav: m.changeInNav,
           track_record: m.trackRecord, uninvested_cash: m.uninvestedCash, redemptions_payable: m.redemptionsPayable, dealt: m.dealt,
+          manual_charges: m.manual, charges_payable: m.chargesPayable, manual_paid: m.manualPaid,
         },
       };
       let navId = existing?.id as string | undefined;
