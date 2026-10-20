@@ -19,10 +19,11 @@ function Line({ label, value, tone, strong }: { label: string; value: string; to
 
 export default function FundValueBreakdown({ month: m, previous }: { month: MonthResult; previous?: PreviousFigures | null }) {
   const c = m.charges;
-  const totalCharges = c.management + c.performance + c.subadvisor + c.adjustments + c.trading + c.other;
+  const totalCharges = c.management + c.performance + c.subadvisor + c.adjustments + c.trading + c.other + c.manual;
   const chargeRows: Array<[string, number]> = [
     ['Management fee', c.management], ['Performance fee', c.performance], ['Subadvisor fees', c.subadvisor],
     ['Fee adjustments and credits', c.adjustments], ['Trading commissions', c.trading], ['Other charges', c.other],
+    ['Charges entered by hand', c.manual],
   ];
   const externalFlows = m.flows;
   const accounted = Math.abs(m.unexplained) < 1;
@@ -52,7 +53,21 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
           <h4 className="text-xs uppercase tracking-wider text-slate-500 mb-2">Fees and charges</h4>
           {chargeRows.map(([label, v]) => <Line key={label} label={label} value={v ? signed(-v) : '—'} tone={v ? (v > 0 ? 'down' : 'up') : 'muted'} />)}
           <Line label="Total" value={signed(-totalCharges)} strong />
-          <p className="text-xs text-slate-500 mt-3 leading-relaxed">Fees lower the unit price. They never remove units from investors.</p>
+          {m.manual.length > 0 && (
+            <ul className="mt-3 space-y-1.5 text-xs">
+              {m.manual.map((x) => (
+                <li key={`${x.id}-${x.status}`} className="flex justify-between gap-3 text-slate-400">
+                  <span className="min-w-0 truncate" title={x.note}>
+                    {x.kind === 'class_charge' ? 'Class' : x.kind === 'investor_fee' ? `Fee: ${x.name}` : `Rebate: ${x.name}`} - {x.note}
+                    {x.status === 'owed' && <span className="text-amber-300"> (owed by Arkline)</span>}
+                  </span>
+                  <span className="tabular-nums shrink-0">{x.kind === 'manager_rebate' ? '+' : '-'}{usd(Math.abs(x.amount))}{x.units != null ? ` / ${units(x.units)} units` : ''}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {m.chargesPayable > 0.005 && <Line label="Hand-entered charges not yet paid" value={usd(m.chargesPayable)} tone="muted" />}
+          <p className="text-xs text-slate-500 mt-3 leading-relaxed">Class fees lower the unit price. Fees for one investor cancel only that investor's units; rebates from Arkline add units.</p>
         </section>
 
         <section className="bg-slate-900/70 border border-slate-800 rounded-lg p-4">

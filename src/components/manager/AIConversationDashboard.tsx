@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { useVisibleInterval } from '../../lib/useVisibleInterval';
 
 interface Conversation {
   id: string;
@@ -38,10 +39,10 @@ export default function AIConversationDashboard() {
   useEffect(() => {
     if (tenant?.id) {
       loadConversations();
-      const interval = setInterval(loadConversations, 10000);
-      return () => clearInterval(interval);
     }
   }, [tenant?.id, filterChannel, filterStatus]);
+
+  useVisibleInterval(() => loadConversations(), 10000, !!tenant?.id);
 
   const loadConversations = async () => {
     if (!tenant?.id) return;

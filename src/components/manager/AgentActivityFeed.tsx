@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useVisibleInterval } from '../../lib/useVisibleInterval';
 import { Activity, Mail, Phone, Calendar, User, CheckCircle, XCircle, Clock, TrendingUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useTenantInfo } from '../../lib/hooks';
@@ -58,15 +59,7 @@ export default function AgentActivityFeed() {
     }
   }, [tenantInfo?.id, filter]);
 
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const interval = setInterval(() => {
-      fetchActivities();
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, tenantInfo?.id, filter]);
+  useVisibleInterval(() => fetchActivities(), 10000, autoRefresh);
 
   const fetchActivities = async () => {
     if (!tenantInfo?.id) return;

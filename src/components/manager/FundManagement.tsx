@@ -6,7 +6,7 @@ import TenantNotice from './TenantNotice';
 import FundDocumentUpload from './documents/FundDocumentUpload';
 import DocumentExtractionReview from './documents/DocumentExtractionReview';
 import DealingRules from './DealingRules';
-import InvestorOnboarding from './onboarding/InvestorOnboarding';
+import InvestorOnboarding, { type OnboardingView } from './onboarding/InvestorOnboarding';
 
 interface Fund {
   id: string;
@@ -25,9 +25,9 @@ interface Fund {
 type ActiveTab = 'funds' | 'documents' | 'rules' | 'investors';
 type DocumentView = 'list' | 'review';
 
-export default function FundManagement() {
+export default function FundManagement({ initialTab = 'funds', investorView }: { initialTab?: ActiveTab; investorView?: OnboardingView }) {
   const { tenant: currentTenant, state: tenantState, retry } = useTenantId();
-  const [activeTab, setActiveTab] = useState<ActiveTab>('funds');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab);
   const [documentView, setDocumentView] = useState<DocumentView>('list');
   const [reviewDocumentId, setReviewDocumentId] = useState<string | null>(null);
   const [funds, setFunds] = useState<Fund[]>([]);
@@ -189,7 +189,7 @@ export default function FundManagement() {
 
       {activeTab === 'investors' && currentTenant && (
         <div className="bg-slate-800/30 rounded-xl border border-slate-700 p-6">
-          <InvestorOnboarding tenantId={currentTenant.id} funds={funds} />
+          <InvestorOnboarding tenantId={currentTenant.id} funds={funds} initialView={investorView} />
         </div>
       )}
 

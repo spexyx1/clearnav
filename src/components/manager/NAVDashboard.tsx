@@ -1,399 +1,143 @@
-import { useState, useEffect } from 'react';
-import { TrendingUp, DollarSign, Calendar, CheckCircle, Clock, Plus, Eye, LineChart, ThumbsUp, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, ChevronDown, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
+import { fetchAll } from '../../lib/fetchAll';
 import { useTenantId } from '../../lib/useTenantId';
+import { MANUAL_CATEGORY_LABELS, type ManualLine } from '../../lib/fundValuation';
 import TenantNotice from './TenantNotice';
-import { getLatestNAV, getNAVHistory, approveNAV } from '../../lib/navCalculation';
-import NAVCalculator from './NAVCalculator';
+import { FundSelect, PageHeader, useFunds } from './history/useFunds';
+import { Empty, Pill, Section, day, units, usd } from './onboarding/ui';
 
-interface Fund {
+interface PriceRow {
   id: string;
-  fund_code: string;
-  fund_name: string;
-  base_currency: string;
-  status: string;
-}
-
-interface NAVCalculation {
-  id: string;
+  share_class_id: string | null;
   nav_date: string;
-  nav_per_share: number;
-  net_asset_value: number;
-  total_shares: number;
+  version: number | null;
   status: string;
-  version: number;
-  created_at: string;
+  net_asset_value: number | null;
+  total_shares: number | null;
+  nav_per_share: number | null;
+  total_fees: number | null;
+  calculation_method: string | null;
+  notes: string | null;
+  calculation_data: { final?: boolean; track_record?: boolean; manual_charges?: ManualLine[] } | null;
 }
 
 export default function NAVDashboard() {
-  const { user } = useAuth();
-  const { tenant: currentTenant, state: tenantState, retry } = useTenantId();
-  const [funds, setFunds] = useState<Fund[]>([]);
-  const [selectedFund, setSelectedFund] = useState<string>('');
-  const [latestNAV, setLatestNAV] = useState<NAVCalculation | null>(null);
-  const [navHistory, setNavHistory] = useState<NAVCalculation[]>([]);
-  const [pendingNAVs, setPendingNAVs] = useState<NAVCalculation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCalculator, setShowCalculator] = useState(false);
+  const { tenantId, state, retry } = useTenantId();
+  const { funds, fundId, setFundId, error: fundsError } = useFunds(tenantId);
+  const [classes, setClasses] = useState<{ id: string; class_name: string }[]>([]);
+  const [rows, setRows] = useState<PriceRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
-    if (currentTenant) loadFunds();
-    else if (tenantState === 'missing' || tenantState === 'error') setLoading(false);
-  }, [currentTenant, tenantState]);
-
-  useEffect(() => {
-    if (selectedFund) {
-      loadNAVData();
-    }
-  }, [selectedFund]);
-
-  const loadFunds = async () => {
+    if (!fundId) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('funds')
-      .select('*')
-      .eq('tenant_id', currentTenant?.id)
-      .eq('status', 'active')
-      .order('fund_name');
+    setError('');
+    Promise.all([
+      supabase.from('share_classes').select('id, class_name').eq('fund_id', fundId).order('class_name'),
+      fetchAll<PriceRow>(() => supabase.from('nav_calculations')
+        .select('id, share_class_id, nav_date, version, status, net_asset_value, total_shares, nav_per_share, total_fees, calculation_method, notes, calculation_data')
+        .eq('fund_id', fundId).order('nav_date', { ascending: false }).order('id')),
+    ]).then(([cls, navs]) => {
+      if (cls.error) throw new Error('Could not load the share classes.');
+      setClasses(cls.data ?? []);
+      setRows(navs);
+    }).catch((e: Error) => setError(e.message || 'Could not load the price history.'))
+      .finally(() => setLoading(false));
+  }, [fundId]);
 
-    if (!error && data) {
-      setFunds(data);
-      if (data.length > 0 && !selectedFund) {
-        setSelectedFund(data[0].id);
-      }
+  const byClass = useMemo(() => {
+    const latest = new Map<string, PriceRow>();
+    for (const r of rows) {
+      const key = `${r.share_class_id}|${r.nav_date}`;
+      const cur = latest.get(key);
+      if (!cur || (r.version ?? 0) > (cur.version ?? 0)) latest.set(key, r);
     }
-    setLoading(false);
-  };
+    const out = new Map<string, PriceRow[]>();
+    for (const r of latest.values()) out.set(r.share_class_id ?? '', [...(out.get(r.share_class_id ?? '') ?? []), r]);
+    for (const list of out.values()) list.sort((a, b) => b.nav_date.localeCompare(a.nav_date));
+    return out;
+  }, [rows]);
 
-  const loadNAVData = async () => {
-    if (!selectedFund) return;
-
-    const latest = await getLatestNAV(selectedFund);
-    setLatestNAV(latest);
-
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - 12);
-
-    const history = await getNAVHistory(selectedFund, undefined, startDate, endDate);
-    setNavHistory(history);
-
-    const { data: pending } = await supabase
-      .from('nav_calculations')
-      .select('*')
-      .eq('fund_id', selectedFund)
-      .in('status', ['draft', 'pending_approval'])
-      .order('nav_date', { ascending: false });
-
-    if (pending) {
-      setPendingNAVs(pending);
-    }
-  };
-
-  const handleApproveNAV = async (navId: string) => {
-    try {
-      await approveNAV(navId, user?.id || '');
-      loadNAVData();
-    } catch (error) {
-      console.error('Error approving NAV:', error);
-      alert('Error approving NAV');
-    }
-  };
-
-  const handleRejectNAV = async (navId: string) => {
-    if (confirm('Are you sure you want to reject this NAV calculation?')) {
-      await supabase
-        .from('nav_calculations')
-        .update({ status: 'superseded' })
-        .eq('id', navId);
-      loadNAVData();
-    }
-  };
-
-  const calculateChange = () => {
-    if (navHistory.length < 2) return { value: 0, percentage: 0 };
-
-    const current = navHistory[navHistory.length - 1].nav_per_share;
-    const previous = navHistory[navHistory.length - 2].nav_per_share;
-    const change = current - previous;
-    const percentage = (change / previous) * 100;
-
-    return { value: change, percentage };
-  };
-
-  const change = calculateChange();
-  const selectedFundData = funds.find(f => f.id === selectedFund);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
-      </div>
-    );
-  }
+  if (state !== 'ready') return <TenantNotice state={state} retry={retry} />;
 
   return (
     <div className="space-y-6">
-      <TenantNotice state={tenantState} retry={retry} />
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-white">NAV Dashboard</h2>
-          <p className="text-slate-400 mt-1">Calculate and track Net Asset Value</p>
-        </div>
-        <div className="flex space-x-3">
-          <select
-            value={selectedFund}
-            onChange={(e) => setSelectedFund(e.target.value)}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
-          >
-            {funds.map(fund => (
-              <option key={fund.id} value={fund.id}>
-                {fund.fund_code} - {fund.fund_name}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => setShowCalculator(true)}
-            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg flex items-center space-x-2 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Calculate NAV</span>
-          </button>
-        </div>
-      </div>
+      <PageHeader title="Unit price" strong="history"
+        intro="Every monthly unit price, read straight from the saved valuations. Prices are worked out and approved on the Fund Value page from IBKR statements; this page is a read-only record.">
+        <FundSelect funds={funds} value={fundId} onChange={setFundId} />
+      </PageHeader>
 
-      {latestNAV && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Current NAV per Share</span>
-              <DollarSign className="w-5 h-5 text-cyan-500" />
-            </div>
-            <div className="text-3xl font-bold text-white">
-              {selectedFundData?.base_currency} {latestNAV.nav_per_share.toFixed(4)}
-            </div>
-            <div className={`text-sm mt-2 flex items-center ${change.percentage >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              <TrendingUp className="w-4 h-4 mr-1" />
-              {change.percentage >= 0 ? '+' : ''}{change.percentage.toFixed(2)}% from last NAV
-            </div>
-          </div>
+      {(error || fundsError) && <div className="flex items-start gap-2 p-3 rounded-lg border border-red-500/30 bg-red-500/10 text-sm text-red-300"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />{error || fundsError}</div>}
 
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Total Fund NAV</span>
-              <DollarSign className="w-5 h-5 text-emerald-500" />
-            </div>
-            <div className="text-3xl font-bold text-white">
-              {selectedFundData?.base_currency} {(latestNAV.net_asset_value / 1000000).toFixed(2)}M
-            </div>
-            <div className="text-sm text-slate-400 mt-2">
-              {latestNAV.total_shares.toLocaleString()} shares outstanding
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Latest NAV Date</span>
-              <Calendar className="w-5 h-5 text-blue-500" />
-            </div>
-            <div className="text-2xl font-bold text-white">
-              {new Date(latestNAV.nav_date).toLocaleDateString()}
-            </div>
-            <div className="text-sm text-slate-400 mt-2">
-              Version {latestNAV.version}
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Status</span>
-              {latestNAV.status === 'approved' ? (
-                <CheckCircle className="w-5 h-5 text-green-500" />
-              ) : (
-                <Clock className="w-5 h-5 text-yellow-500" />
+      {loading ? <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 text-cyan-400 animate-spin" /></div>
+        : classes.length === 0 ? <Empty>{funds.length ? 'This fund has no share classes yet.' : 'Create a fund first.'}</Empty>
+        : classes.map((c) => {
+          const list = byClass.get(c.id) ?? [];
+          return (
+            <Section key={c.id} title={c.class_name} hint={list.length ? `${list.length} month${list.length === 1 ? '' : 's'} on record` : undefined}>
+              {list.length === 0 ? <Empty>No prices saved for this class yet.</Empty> : (
+                <div className="overflow-x-auto border-t border-slate-700/60">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs uppercase tracking-wider text-slate-500">
+                        {['Month end', 'Price per unit', 'Class value', 'Units in issue', 'Fees', 'Status', ''].map((h, i) => (
+                          <th key={h || i} className={`px-5 py-2.5 font-medium ${i > 0 && i < 5 ? 'text-right' : 'text-left'}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700/60">
+                      {list.map((r) => <PriceRowView key={r.id} r={r} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)} />)}
+                    </tbody>
+                  </table>
+                </div>
               )}
-            </div>
-            <div className="text-2xl font-bold text-white capitalize">
-              {latestNAV.status.replace('_', ' ')}
-            </div>
-            <div className="text-sm text-slate-400 mt-2">
-              {new Date(latestNAV.created_at).toLocaleDateString()}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {pendingNAVs.length > 0 && (
-        <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-xl p-6 border border-yellow-500/50">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-semibold text-white flex items-center">
-              <Clock className="w-5 h-5 mr-2 text-yellow-500" />
-              Pending NAV Approvals ({pendingNAVs.length})
-            </h3>
-          </div>
-
-          <div className="space-y-3">
-            {pendingNAVs.map((nav) => (
-              <div
-                key={nav.id}
-                className="bg-slate-800/80 rounded-lg p-4 flex items-center justify-between"
-              >
-                <div className="flex-1 grid grid-cols-5 gap-4">
-                  <div>
-                    <div className="text-xs text-slate-400">Date</div>
-                    <div className="text-white font-medium">
-                      {new Date(nav.nav_date).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">NAV per Share</div>
-                    <div className="text-white font-mono">
-                      {selectedFundData?.base_currency} {nav.nav_per_share.toFixed(4)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Total NAV</div>
-                    <div className="text-white">
-                      {selectedFundData?.base_currency} {(nav.net_asset_value / 1000000).toFixed(2)}M
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Status</div>
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                      nav.status === 'pending_approval'
-                        ? 'bg-yellow-500/20 text-yellow-400'
-                        : 'bg-slate-500/20 text-slate-400'
-                    }`}>
-                      {nav.status.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Created</div>
-                    <div className="text-slate-300 text-sm">
-                      {new Date(nav.created_at).toLocaleDateString()}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex space-x-2 ml-4">
-                  <button
-                    onClick={() => handleApproveNAV(nav.id)}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm flex items-center space-x-1 transition-colors"
-                  >
-                    <ThumbsUp className="w-4 h-4" />
-                    <span>Approve</span>
-                  </button>
-                  <button
-                    onClick={() => handleRejectNAV(nav.id)}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm flex items-center space-x-1 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                    <span>Reject</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-semibold text-white flex items-center">
-            <LineChart className="w-5 h-5 mr-2 text-cyan-500" />
-            NAV History (Last 12 Months)
-          </h3>
-        </div>
-
-        {navHistory.length > 0 ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-6 gap-4 text-sm font-medium text-slate-400 pb-3 border-b border-slate-700">
-              <div>Date</div>
-              <div>NAV per Share</div>
-              <div>Total NAV</div>
-              <div>Shares</div>
-              <div>Status</div>
-              <div>Actions</div>
-            </div>
-            {navHistory.slice().reverse().map((nav) => (
-              <div
-                key={nav.id}
-                className="grid grid-cols-6 gap-4 items-center py-3 hover:bg-slate-700/50 rounded-lg px-3 transition-colors"
-              >
-                <div className="text-white font-medium">
-                  {new Date(nav.nav_date).toLocaleDateString()}
-                </div>
-                <div className="text-white font-mono">
-                  {selectedFundData?.base_currency} {nav.nav_per_share.toFixed(4)}
-                </div>
-                <div className="text-slate-300">
-                  {selectedFundData?.base_currency} {(nav.net_asset_value / 1000000).toFixed(2)}M
-                </div>
-                <div className="text-slate-300">
-                  {nav.total_shares.toLocaleString()}
-                </div>
-                <div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    nav.status === 'approved'
-                      ? 'bg-green-500/20 text-green-400'
-                      : nav.status === 'pending_approval'
-                      ? 'bg-yellow-500/20 text-yellow-400'
-                      : 'bg-slate-500/20 text-slate-400'
-                  }`}>
-                    {nav.status.replace('_', ' ')}
-                  </span>
-                </div>
-                <div>
-                  <button className="p-2 hover:bg-slate-600 rounded-lg transition-colors">
-                    <Eye className="w-4 h-4 text-cyan-400" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <LineChart className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-            <p className="text-slate-400 text-lg">No NAV history available</p>
-            <p className="text-slate-500 text-sm mt-2">Calculate your first NAV to get started</p>
-          </div>
-        )}
-      </div>
-
-      {!latestNAV && funds.length > 0 && (
-        <div className="bg-slate-800/30 rounded-xl p-12 border-2 border-dashed border-slate-700 text-center">
-          <TrendingUp className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-white mb-2">No NAV Calculated Yet</h3>
-          <p className="text-slate-400 mb-6">
-            Calculate your first NAV to start tracking fund performance
-          </p>
-          <button
-            onClick={() => setShowCalculator(true)}
-            className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg inline-flex items-center space-x-2 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Calculate First NAV</span>
-          </button>
-        </div>
-      )}
-
-      {funds.length === 0 && (
-        <div className="bg-slate-800/30 rounded-xl p-12 border-2 border-dashed border-slate-700 text-center">
-          <DollarSign className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-white mb-2">No Funds Found</h3>
-          <p className="text-slate-400 mb-6">
-            Create a fund first to start calculating NAV
-          </p>
-        </div>
-      )}
-
-      {showCalculator && (
-        <NAVCalculator
-          fundId={selectedFund}
-          onClose={() => setShowCalculator(false)}
-          onSuccess={() => loadNAVData()}
-        />
-      )}
+            </Section>
+          );
+        })}
     </div>
+  );
+}
+
+function statusOf(r: PriceRow) {
+  if (r.calculation_method !== 'broker_statement') return <Pill tone="slate">Entered by hand (old)</Pill>;
+  if (r.calculation_data?.track_record) return <Pill tone="slate">Track record</Pill>;
+  if (r.status === 'approved' && r.calculation_data?.final) return <Pill tone="green">Final, IBKR confirmed</Pill>;
+  if (r.status === 'approved') return <Pill tone="cyan">Approved</Pill>;
+  if (r.status === 'superseded') return <Pill tone="slate">Replaced</Pill>;
+  return <Pill tone="amber">Draft</Pill>;
+}
+
+function PriceRowView({ r, open, onToggle }: { r: PriceRow; open: boolean; onToggle: () => void }) {
+  const manual = r.calculation_data?.manual_charges ?? [];
+  const hasDetail = manual.length > 0 || !!r.notes;
+  return (
+    <>
+      <tr className={`hover:bg-slate-800/40 transition-colors ${hasDetail ? 'cursor-pointer' : ''}`} onClick={hasDetail ? onToggle : undefined}>
+        <td className="px-5 py-3 text-white">{day(r.nav_date)}</td>
+        <td className="px-5 py-3 text-right tabular-nums text-white">{r.nav_per_share != null ? Number(r.nav_per_share).toFixed(4) : '-'}</td>
+        <td className="px-5 py-3 text-right tabular-nums text-slate-300">{r.net_asset_value != null ? usd(Number(r.net_asset_value)) : '-'}</td>
+        <td className="px-5 py-3 text-right tabular-nums text-slate-300">{r.total_shares != null ? units(Number(r.total_shares)) : '-'}</td>
+        <td className="px-5 py-3 text-right tabular-nums text-slate-300">{r.total_fees ? usd(Number(r.total_fees)) : '-'}</td>
+        <td className="px-5 py-3">{statusOf(r)}</td>
+        <td className="px-5 py-3 text-right">{hasDetail && <ChevronDown className={`w-4 h-4 text-slate-500 inline transition-transform ${open ? 'rotate-180' : ''}`} />}</td>
+      </tr>
+      {open && (
+        <tr className="bg-slate-900/40">
+          <td colSpan={7} className="px-5 py-4 space-y-2">
+            {r.notes && <p className="text-xs text-slate-400">{r.notes}</p>}
+            {manual.map((m) => (
+              <div key={m.id} className="flex justify-between gap-4 text-xs">
+                <span className="text-slate-300">{MANUAL_CATEGORY_LABELS[m.category]}: {m.note}{m.name ? ` (${m.name})` : ''}{m.status === 'owed' ? ' - owed by Arkline' : ''}</span>
+                <span className={`tabular-nums ${m.kind === 'manager_rebate' ? 'text-emerald-300' : 'text-slate-300'}`}>{m.kind === 'manager_rebate' ? '+' : '-'}{usd(Math.abs(m.amount))}</span>
+              </div>
+            ))}
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

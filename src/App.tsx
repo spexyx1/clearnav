@@ -57,11 +57,13 @@ const InvoicePublicView = lazyWithReload(() => import('./components/manager/invo
 const MailApp = lazyWithReload(() => import('./components/mail/MailApp'));
 const ResetPassword = lazyWithReload(() => import('./components/ResetPassword'));
 
+const Fallback = () => <FullPageLoader />;
+
 function AppContent() {
   const { user, loading, roleCategory, currentTenant } = useAuth();
   const [route, navigate] = useRoute();
   const primedTenant = (window as any).__PRIMED_TENANT__ as { id: string; slug: string; name?: string } | undefined;
-  const [publicTenant, setPublicTenant] = useState<{ id: string; slug: string; name?: string } | null>(primedTenant ?? null);
+  const [resolvedTenant, setPublicTenant] = useState<{ id: string; slug: string; name?: string } | null>(primedTenant ?? null);
   const [vaultPassphrase, setVaultPassphrase] = useState('');
 
   // On the platform root (clearnav.cv, vercel previews, localhost without ?tenant),
@@ -69,39 +71,23 @@ function AppContent() {
   const isPlatformRoot = isPlatformRootDomain(window.location.hostname);
   const isInvoiceApp = isInvoiceAppDomain(window.location.hostname);
   const isPhoneApp = isPhoneAppDomain(window.location.hostname);
-  const [tenantLoading, setTenantLoading] = useState(!isPlatformRoot && !isInvoiceApp && !isPhoneApp && !primedTenant);
+  const [tenantResolving, setTenantLoading] = useState(!isPlatformRoot && !isInvoiceApp && !isPhoneApp && !primedTenant);
 
+  // Resolved in parallel with sign-in; only used for signed-out visitors.
   useEffect(() => {
-    if (loading) return;
-    // Platform root never has a tenant — no lookup needed
-    if (isPlatformRoot) return;
-    if (isInvoiceApp) return;
-    if (isPhoneApp) return;
-    if (primedTenant) { setTenantLoading(false); return; }
+    if (isPlatformRoot || isInvoiceApp || isPhoneApp || primedTenant) return;
+    let cancelled = false;
+    resolveTenantFromDomain(window.location.hostname)
+      .then((result) => {
+        if (!cancelled && result.tenant) setPublicTenant({ id: result.tenant.id, slug: result.tenant.slug, name: result.tenant.name });
+      })
+      .catch((error) => console.error('Error resolving tenant:', error))
+      .finally(() => { if (!cancelled) setTenantLoading(false); });
+    return () => { cancelled = true; };
+  }, [isPlatformRoot, isInvoiceApp, isPhoneApp, primedTenant]);
 
-    async function resolveTenant() {
-      try {
-        setTenantLoading(true);
-        const result = await resolveTenantFromDomain(window.location.hostname);
-        if (result.tenant) {
-          setPublicTenant({ id: result.tenant.id, slug: result.tenant.slug, name: result.tenant.name });
-        }
-      } catch (error) {
-        console.error('Error resolving tenant:', error);
-      } finally {
-        setTenantLoading(false);
-      }
-    }
-
-    if (!user) {
-      if (!isInvoiceApp && !isPhoneApp) resolveTenant();
-      else setTenantLoading(false);
-    } else {
-      setTenantLoading(false);
-    }
-  }, [user, loading, isPlatformRoot, primedTenant]);
-
-  const Fallback = () => <FullPageLoader />;
+  const publicTenant = user && !primedTenant ? null : resolvedTenant;
+  const tenantLoading = !user && tenantResolving;
 
   // On the platform root, don't block on auth loading for unauthenticated visitors —
   // ClearNAVLandingPage doesn't need auth and can paint immediately.

@@ -31,7 +31,6 @@ const CapitalAccountManager = lazy(() => import('./manager/CapitalAccountManager
 const TransactionManager = lazy(() => import('./manager/TransactionManager'));
 const CapitalCallManager = lazy(() => import('./manager/CapitalCallManager'));
 const DistributionManager = lazy(() => import('./manager/DistributionManager'));
-const RedemptionManager = lazy(() => import('./manager/RedemptionManager'));
 const FeeManager = lazy(() => import('./manager/FeeManager'));
 const InvestorStatements = lazy(() => import('./manager/InvestorStatements'));
 const PerformanceReports = lazy(() => import('./manager/PerformanceReports'));
@@ -163,14 +162,14 @@ export default function ManagerPortal() {
             <div className="animate-fadeIn">
               <Suspense fallback={<TabFallback />}>
                 {activeTab === 'dashboard' && <OperatorDashboard onNavigate={(tab) => setActiveTab(tab as TabType)} />}
-                {activeTab === 'funds' && <FundManagement />}
+                {activeTab === 'funds' && <FundManagement key="funds" />}
                 {activeTab === 'classes' && <ShareClassManager />}
                 {activeTab === 'accounts' && <CapitalAccountManager />}
                 {activeTab === 'nav' && <NAVDashboard />}
                 {activeTab === 'transactions' && <TransactionManager />}
                 {activeTab === 'capital_calls' && <CapitalCallManager />}
                 {activeTab === 'distributions' && <DistributionManager />}
-                {activeTab === 'redemptions' && <RedemptionManager />}
+                {activeTab === 'redemptions' && <FundManagement key="redemptions" initialTab="investors" investorView="withdrawals" />}
                 {activeTab === 'fees' && <FeeManager />}
                 {activeTab === 'invoices' && <InvoiceManager />}
                 {activeTab === 'statements' && <InvestorStatements />}

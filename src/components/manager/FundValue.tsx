@@ -98,9 +98,8 @@ export default function FundValue() {
     setLoading(true);
     setError('');
     try {
-      const d = await loadFundData(fundId);
-      const { data: navs, error: nErr } = await supabase.from('nav_calculations')
-        .select('share_class_id, nav_date, status, nav_per_share, net_asset_value, total_shares, previous:calculation_data->previous').eq('fund_id', fundId).neq('calculation_method', 'opening').neq('status', 'superseded');
+      const [d, { data: navs, error: nErr }] = await Promise.all([loadFundData(fundId), supabase.from('nav_calculations')
+        .select('share_class_id, nav_date, status, nav_per_share, net_asset_value, total_shares, previous:calculation_data->previous').eq('fund_id', fundId).neq('calculation_method', 'opening').neq('status', 'superseded')]);
       if (nErr) throw nErr;
       setData(d);
       setSaved((navs ?? []) as SavedNav[]);

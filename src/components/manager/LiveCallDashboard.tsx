@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Phone, PhoneOff, Clock, TrendingUp, Users, PhoneIncoming, PhoneOutgoing } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { useVisibleInterval } from '../../lib/useVisibleInterval';
 
 interface CallSession {
   id: string;
@@ -32,10 +33,10 @@ export default function LiveCallDashboard() {
   useEffect(() => {
     if (currentTenant?.id) {
       loadActiveCalls();
-      const interval = setInterval(loadActiveCalls, 5000);
-      return () => clearInterval(interval);
     }
   }, [currentTenant?.id]);
+
+  useVisibleInterval(() => loadActiveCalls(), 5000, !!currentTenant?.id);
 
   async function loadActiveCalls() {
     if (!currentTenant?.id) return;

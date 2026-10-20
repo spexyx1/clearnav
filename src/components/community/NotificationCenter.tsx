@@ -40,7 +40,7 @@ export default function NotificationCenter() {
         .subscribe();
 
       return () => {
-        subscription.unsubscribe();
+        supabase.removeChannel(subscription);
       };
     }
   }, [user, filter]);

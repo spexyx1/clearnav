@@ -219,30 +219,36 @@ export default function DistributionManager() {
         .select('*')
         .eq('distribution_id', distributionId);
 
-      if (allocations) {
-        for (const allocation of allocations) {
-          await supabase
-            .from('capital_transactions')
-            .insert({
-              tenant_id: currentTenant?.id,
-              capital_account_id: allocation.capital_account_id,
-              fund_id: selectedFund,
-              transaction_type: 'distribution',
-              transaction_date: new Date().toISOString().split('T')[0],
-              amount: allocation.allocation_amount,
-              shares: 0,
-              currency: funds.find(f => f.id === selectedFund)?.base_currency || 'USD',
-              status: 'settled',
-              description: `Distribution ${distributionId.slice(0, 8)}`,
-              created_by: user?.id,
-            });
-
-          await supabase
-            .from('distribution_allocations')
-            .update({ status: 'paid' })
-            .eq('id', allocation.id);
+      if (allocations && allocations.length > 0) {
+        const today = new Date().toISOString().split('T')[0];
+        const currency = funds.find(f => f.id === selectedFund)?.base_currency || 'USD';
+        const { error: txError } = await supabase
+          .from('capital_transactions')
+          .insert(allocations.map(allocation => ({
+            tenant_id: currentTenant?.id,
+            capital_account_id: allocation.capital_account_id,
+            fund_id: selectedFund,
+            transaction_type: 'distribution',
+            transaction_date: today,
+            amount: allocation.allocation_amount,
+            shares: 0,
+            currency,
+            status: 'settled',
+            description: `Distribution ${distributionId.slice(0, 8)}`,
+            created_by: user?.id,
+          })));
+        if (txError) {
+          alert(`Could not record distribution payments: ${txError.message}`);
+          return;
         }
 
+        await supabase
+          .from('distribution_allocations')
+          .update({ status: 'paid' })
+          .in('id', allocations.map(a => a.id));
+      }
+
+      if (allocations) {
         await supabase
           .from('distributions')
           .update({ status: 'completed' })

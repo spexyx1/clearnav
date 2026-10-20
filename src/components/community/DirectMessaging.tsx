@@ -71,7 +71,7 @@ export default function DirectMessaging() {
         .subscribe();
 
       return () => {
-        subscription.unsubscribe();
+        supabase.removeChannel(subscription);
       };
     }
   }, [selectedThread]);
@@ -137,14 +137,14 @@ export default function DirectMessaging() {
 
     const unreadMessages = messages.filter(m => m.sender_id !== user.id);
 
-    for (const message of unreadMessages) {
+    if (unreadMessages.length > 0) {
+      const readAt = new Date().toISOString();
       await supabase
         .from('message_read_receipts')
-        .upsert({
-          message_id: message.id,
-          user_id: user.id,
-          read_at: new Date().toISOString()
-        }, { onConflict: 'message_id,user_id' });
+        .upsert(
+          unreadMessages.map(message => ({ message_id: message.id, user_id: user.id, read_at: readAt })),
+          { onConflict: 'message_id,user_id' }
+        );
     }
 
     loadThreads();

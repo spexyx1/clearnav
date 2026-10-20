@@ -58,7 +58,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isTenantAdmin, 
     loadPendingCount();
     const subscription = subscribeToApprovals();
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(subscription);
     };
   }, [tenantId]);
 

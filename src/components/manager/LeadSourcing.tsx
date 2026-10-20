@@ -188,8 +188,8 @@ export default function LeadSourcing() {
   const importSelected = async () => {
     const toImport = results.filter(c => selectedIds.has(c.id));
     setImportingAll(true);
-    for (const contact of toImport) {
-      await importContact(contact);
+    for (let i = 0; i < toImport.length; i += 5) {
+      await Promise.all(toImport.slice(i, i + 5).map(importContact));
     }
     setImportingAll(false);
   };
