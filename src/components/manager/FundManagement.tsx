@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useTenantId } from '../../lib/useTenantId';
 import TenantNotice from './TenantNotice';
 import FundDocumentUpload from './documents/FundDocumentUpload';
-import DocumentExtractionReview from './documents/DocumentExtractionReview';
+import DocumentExtractionReview, { type ApprovalSummary } from './documents/DocumentExtractionReview';
 import DealingRules from './DealingRules';
 import InvestorOnboarding, { type OnboardingView } from './onboarding/InvestorOnboarding';
 
@@ -33,10 +33,7 @@ export default function FundManagement({ initialTab = 'funds', investorView }: {
   const [funds, setFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [approvalSummary, setApprovalSummary] = useState<{
-    fundId: string;
-    classesUpdated: number;
-  } | null>(null);
+  const [approvalSummary, setApprovalSummary] = useState<ApprovalSummary | null>(null);
   const [formData, setFormData] = useState({
     fund_code: '',
     fund_name: '',
@@ -98,8 +95,8 @@ export default function FundManagement({ initialTab = 'funds', investorView }: {
     setApprovalSummary(null);
   };
 
-  const handleExtractionApproved = (fundId: string, classesUpdated: number) => {
-    setApprovalSummary({ fundId, classesUpdated });
+  const handleExtractionApproved = (summary: ApprovalSummary) => {
+    setApprovalSummary(summary);
     loadFunds();
   };
 
@@ -305,23 +302,10 @@ export default function FundManagement({ initialTab = 'funds', investorView }: {
                 <div className="mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl flex items-start space-x-3">
                   <Sparkles className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-green-300 font-medium">Terms approved</p>
-                    <p className="text-green-400/70 text-sm mt-0.5">
-                      The fund's dealing rules were saved
-                      {approvalSummary.classesUpdated > 0
-                        ? ` and ${approvalSummary.classesUpdated} share class${approvalSummary.classesUpdated === 1 ? ' was' : 'es were'} updated.`
-                        : '. No share class settings changed.'}
-                    </p>
+                    <p className="text-green-300 font-medium">{approvalSummary.title}</p>
+                    <p className="text-green-400/80 text-sm mt-0.5">{approvalSummary.detail}</p>
                   </div>
-                  <div className="flex items-center space-x-2 flex-shrink-0">
-                    <button
-                      onClick={() => { setActiveTab('funds'); setApprovalSummary(null); }}
-                      className="flex items-center space-x-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs transition-colors"
-                    >
-                      <Building2 className="w-3.5 h-3.5" />
-                      <span>View Fund</span>
-                    </button>
-                  </div>
+                  <button onClick={() => setApprovalSummary(null)} className="text-xs text-green-300/70 hover:text-green-200 flex-shrink-0">Dismiss</button>
                 </div>
               )}
               <FundDocumentUpload onReviewDocument={handleReviewDocument} />

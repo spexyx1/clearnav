@@ -70,6 +70,7 @@ export default function TaxJurisdictionManager({ fundId, tenantId }: TaxJurisdic
       ]);
 
       if (jurisdictionsResult.error) throw jurisdictionsResult.error;
+      if (profileResult.error) throw profileResult.error;
       setJurisdictions(jurisdictionsResult.data || []);
 
       if (profileResult.data) {
@@ -77,6 +78,7 @@ export default function TaxJurisdictionManager({ fundId, tenantId }: TaxJurisdic
       }
     } catch (error) {
       console.error('Error loading data:', error);
+      alert('Could not load the tax settings for this fund. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -112,10 +114,10 @@ export default function TaxJurisdictionManager({ fundId, tenantId }: TaxJurisdic
         setTaxProfile({ ...taxProfile, id: data.id });
       }
 
-      alert('Tax profile saved successfully');
+      alert('Tax profile saved.');
     } catch (error) {
       console.error('Error saving tax profile:', error);
-      alert('Failed to save tax profile');
+      alert(`Could not save the tax profile: ${(error as { message?: string })?.message || 'please try again'}.`);
     } finally {
       setSaving(false);
     }

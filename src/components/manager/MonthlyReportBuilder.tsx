@@ -104,7 +104,7 @@ export default function MonthlyReportBuilder() {
     }
   }
 
-  if (active) return <MonthlyReportEditor report={active} onBack={() => { setActive(null); load(); }} />;
+  if (active && currentTenant) return <MonthlyReportEditor tenantId={currentTenant.id} report={active} onBack={() => { setActive(null); load(); }} />;
 
   const years = Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - i);
   const sel = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500';

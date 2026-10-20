@@ -60,6 +60,7 @@ export default function MultiFrameworkSelector({
       setFrameworks(data || []);
     } catch (error) {
       console.error('Error loading frameworks:', error);
+      alert('Could not load the list of regulatory frameworks. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -153,10 +154,11 @@ export default function MultiFrameworkSelector({
 
     setSaving(true);
     try {
-      await supabase
+      const { error: delError } = await supabase
         .from('regulatory_framework_fund_mappings')
         .delete()
         .eq('fund_id', fundId);
+      if (delError) throw delError;
 
       const mappings = selectedFrameworks.map(s => ({
         tenant_id: tenantId,
@@ -169,15 +171,15 @@ export default function MultiFrameworkSelector({
         marketing_jurisdictions: s.marketing_jurisdictions
       }));
 
-      const { error } = await supabase
-        .from('regulatory_framework_fund_mappings')
-        .insert(mappings);
+      const { error } = mappings.length
+        ? await supabase.from('regulatory_framework_fund_mappings').insert(mappings)
+        : { error: null };
 
       if (error) throw error;
-      alert('Framework selections saved successfully');
+      alert('Framework selections saved.');
     } catch (error) {
       console.error('Error saving selections:', error);
-      alert('Failed to save framework selections');
+      alert(`Could not save the framework selections: ${(error as { message?: string })?.message || 'please try again'}. Your previous selections may have been cleared, so please save again.`);
     } finally {
       setSaving(false);
     }

@@ -14,6 +14,7 @@ interface DashboardData {
   latestNav: number | null;
   latestNavDate: string | null;
   mtdReturn: number | null;
+  mtdDate: string | null;
   totalInvestors: number;
   recentReports: { id: string; report_type: string; created_at: string; status: string }[];
   recentUploads: { id: string; upload_month: string; status: string; trade_count: number }[];
@@ -63,8 +64,8 @@ export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: st
           supabase.from('nav_calculations').select('nav_per_share, nav_date, status')
             .eq('status', 'approved').neq('calculation_method', 'opening')
             .order('nav_date', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('performance_metrics').select('period_return')
-            .eq('period_type', 'monthly').order('period_end', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('performance_metrics').select('total_return_percent, metric_date').eq('tenant_id', tid)
+            .eq('period_type', 'monthly').is('share_class_id', null).order('metric_date', { ascending: false }).limit(1).maybeSingle(),
           supabase.from('client_profiles').select('id', { count: 'exact', head: true }),
           supabase.from('reports').select('id, report_type, created_at, status').eq('tenant_id', tid)
             .order('created_at', { ascending: false }).limit(5),
@@ -86,7 +87,8 @@ export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: st
         totalAum,
         latestNav: navRes.data?.nav_per_share ?? null,
         latestNavDate: navRes.data?.nav_date ?? null,
-        mtdReturn: mtdRes.data?.period_return ?? null,
+        mtdReturn: mtdRes.data?.total_return_percent != null ? Number(mtdRes.data.total_return_percent) : null,
+        mtdDate: mtdRes.data?.metric_date ?? null,
         totalInvestors: investorRes.count ?? 0,
         recentReports: reportsRes.data ?? [],
         recentUploads: (uploadsRes.data ?? []).map((u) => ({
@@ -127,9 +129,10 @@ export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: st
     { label: 'Latest NAV', value: data?.latestNav != null ? navFmt.format(data.latestNav) : '—',
       sub: data?.latestNavDate ? `as of ${new Date(data.latestNavDate).toLocaleDateString()}` : null,
       icon: BarChart3, color: 'blue' },
-    { label: 'MTD Return',
+    { label: 'Latest Monthly Return',
       value: data?.mtdReturn != null ? `${data.mtdReturn >= 0 ? '+' : ''}${pctFmt.format(data.mtdReturn / 100)}` : '—',
-      sub: null, icon: TrendingUp, color: 'violet',
+      sub: data?.mtdDate ? `Whole trust, ${new Date(`${data.mtdDate}T12:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : 'Awaiting IBKR-confirmed month',
+      icon: TrendingUp, color: 'cyan',
       valueColor: data?.mtdReturn != null ? (data.mtdReturn >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-slate-500' },
     { label: 'Total Investors', value: String(data?.totalInvestors ?? 0), sub: null,
       icon: Users, color: 'amber' },
@@ -138,7 +141,7 @@ export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: st
   const colorMap: Record<string, string> = {
     emerald: 'bg-emerald-500/20 text-emerald-400',
     blue: 'bg-blue-500/20 text-blue-400',
-    violet: 'bg-violet-500/20 text-violet-400',
+    cyan: 'bg-cyan-500/20 text-cyan-400',
     amber: 'bg-amber-500/20 text-amber-400',
   };
 

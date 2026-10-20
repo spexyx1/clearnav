@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Landmark, AlertCircle } from 'lucide-react';
-import { useAuth } from '../../lib/auth';
+import { useTenantId } from '../../lib/useTenantId';
 import { supabase } from '../../lib/supabase';
 import { PanelLoader } from '../shared/Spinner';
+import TenantNotice from './TenantNotice';
 
 const MultiFrameworkSelector = lazy(() => import('./MultiFrameworkSelector'));
 const FrameworkComplianceAlerts = lazy(() => import('./FrameworkComplianceAlerts'));
@@ -22,8 +23,7 @@ const SECTIONS: Array<{ id: Section; label: string }> = [
 ];
 
 export default function RegulatoryTaxCenter() {
-  const { currentTenant } = useAuth();
-  const tenantId = currentTenant?.id;
+  const { tenantId, state, retry } = useTenantId();
   const [funds, setFunds] = useState<FundOption[]>([]);
   const [fundId, setFundId] = useState('');
   const [section, setSection] = useState<Section>('frameworks');
@@ -35,6 +35,7 @@ export default function RegulatoryTaxCenter() {
     let active = true;
     (async () => {
       setLoading(true);
+      setError('');
       const { data, error: fetchError } = await supabase
         .from('funds')
         .select('id, fund_name')
@@ -53,7 +54,9 @@ export default function RegulatoryTaxCenter() {
     return () => { active = false; };
   }, [tenantId]);
 
-  if (!tenantId || loading) return <PanelLoader />;
+  if (state === 'loading') return <PanelLoader />;
+  if (state !== 'ready' || !tenantId) return <TenantNotice state={state} retry={retry} />;
+  if (loading) return <PanelLoader />;
 
   return (
     <div className="space-y-6">

@@ -1,381 +1,214 @@
-import { useState, useEffect } from 'react';
-import { FileText, Calendar, Send, Eye, Download } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { CheckCircle2, FileText, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { createStatements } from '../../lib/unitRegister';
+import { useTenantId } from '../../lib/useTenantId';
+import { formatNumber } from '../../lib/format';
+import { createStatements, latestFinalMonth } from '../../lib/unitRegister';
+import TenantNotice from './TenantNotice';
+import { PanelLoader } from '../shared/Spinner';
+import { FundSelect, PageHeader, useFunds } from './history/useFunds';
+import { Button, Empty, Pill, Section, card, input, usd } from './onboarding/ui';
 
-interface Fund {
+interface StatementRow {
   id: string;
-  fund_code: string;
-  fund_name: string;
-  base_currency: string;
-}
-
-interface InvestorStatement {
-  id: string;
-  statement_date: string;
-  period_start: string;
-  period_end: string;
-  statement_type: string;
-  beginning_balance: number;
-  ending_balance: number;
-  contributions: number;
-  distributions: number;
-  fees: number;
-  return_amount: number;
-  return_percent: number;
-  shares_beginning: number;
-  shares_ending: number;
-  nav_per_share: number;
+  period_end: string | null;
+  beginning_balance: number | null;
+  ending_balance: number | null;
+  contributions: number | null;
+  distributions: number | null;
+  fees: number | null;
+  return_amount: number | null;
+  return_percent: number | null;
+  shares_beginning: number | null;
+  shares_ending: number | null;
+  nav_per_share: number | null;
   status: string;
-  capital_account: {
-    account_number: string;
-    investor: { full_name: string; email: string };
-  };
+  capital_account: { account_number: string | null; investor: { full_name: string | null; email: string | null } | null } | null;
 }
+
+const STATUS: Record<string, { label: string; tone: 'amber' | 'cyan' | 'green' | 'slate' }> = {
+  draft: { label: 'Draft', tone: 'amber' },
+  finalized: { label: 'Checked', tone: 'cyan' },
+  ready: { label: 'Ready', tone: 'green' },
+  sent: { label: 'Sent', tone: 'green' },
+  viewed: { label: 'Viewed', tone: 'green' },
+};
+
+const money = (v: number | null) => (v == null ? '—' : usd(Number(v)));
+const monthName = (d: string | null) => (d ? new Date(`${d.slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—');
 
 export default function InvestorStatements() {
-  const { currentTenant, user } = useAuth();
-  const [funds, setFunds] = useState<Fund[]>([]);
-  const [statements, setStatements] = useState<InvestorStatement[]>([]);
-  const [selectedFund, setSelectedFund] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [selectedPeriod, setSelectedPeriod] = useState('');
+  const { user } = useAuth();
+  const { tenantId, state, retry } = useTenantId();
+  const { funds, fundId, setFundId, error: fundsError } = useFunds(tenantId);
+  const [statements, setStatements] = useState<StatementRow[]>([]);
+  const [filter, setFilter] = useState('all');
+  const [period, setPeriod] = useState('');
+  const [latest, setLatest] = useState<string | null | undefined>(undefined);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
-  useEffect(() => {
-    loadFunds();
-  }, [currentTenant]);
-
-  useEffect(() => {
-    if (selectedFund) {
-      loadStatements();
-    }
-  }, [selectedFund, filterStatus]);
-
-  const loadFunds = async () => {
+  const load = useCallback(async () => {
+    if (!fundId) return;
     setLoading(true);
-    const { data } = await supabase
-      .from('funds')
-      .select('id, fund_code, fund_name, base_currency')
-      .eq('tenant_id', currentTenant?.id)
-      .eq('status', 'active')
-      .order('fund_name');
-
-    if (data) {
-      setFunds(data);
-      if (data.length > 0 && !selectedFund) {
-        setSelectedFund(data[0].id);
-      }
-    }
+    let q = supabase.from('investor_statements')
+      .select('id, period_end, beginning_balance, ending_balance, contributions, distributions, fees, return_amount, return_percent, shares_beginning, shares_ending, nav_per_share, status, capital_account:capital_accounts!capital_account_id(account_number, investor:client_profiles!investor_id(full_name, email))')
+      .eq('fund_id', fundId).order('period_end', { ascending: false }).limit(200);
+    if (filter !== 'all') q = q.eq('status', filter);
+    const { data, error } = await q;
+    if (error) setMessage({ ok: false, text: 'Could not load the statements. Please try again.' });
+    else setStatements((data ?? []) as unknown as StatementRow[]);
     setLoading(false);
-  };
+  }, [fundId, filter]);
 
-  const loadStatements = async () => {
-    let query = supabase
-      .from('investor_statements')
-      .select(`
-        *,
-        capital_account:capital_accounts!capital_account_id(
-          account_number,
-          investor:client_profiles!investor_id(full_name, email)
-        )
-      `)
-      .eq('fund_id', selectedFund)
-      .order('statement_date', { ascending: false });
+  useEffect(() => { load(); }, [load]);
 
-    if (filterStatus !== 'all') {
-      query = query.eq('status', filterStatus);
-    }
+  useEffect(() => {
+    if (!fundId) return;
+    setLatest(undefined);
+    latestFinalMonth(fundId)
+      .then((m) => { setLatest(m); setPeriod((cur) => cur || m || ''); })
+      .catch(() => setLatest(null));
+  }, [fundId]);
 
-    const { data } = await query.limit(100);
-
-    if (data) {
-      setStatements(data as any);
-    }
-  };
-
-  const generateStatements = async () => {
-    if (!selectedPeriod) {
-      alert('Please select a period');
-      return;
-    }
-
-    if (!currentTenant || !user) return;
-    setGenerating(true);
+  const generate = async () => {
+    if (!tenantId || !user || !period) return;
+    setBusy('generate');
+    setMessage(null);
     try {
-      const r = await createStatements(currentTenant.id, selectedFund, selectedPeriod.slice(0, 7), user.id);
-      const parts = [`Created ${r.created} statement${r.created === 1 ? '' : 's'} from the final IBKR month.`];
-      if (r.skipped) parts.push(`${r.skipped} already existed.`);
-      if (r.notFinalClasses) parts.push(`${r.notFinalClasses} class${r.notFinalClasses === 1 ? ' is' : 'es are'} not final and approved for this month, so no statements were made for them.`);
-      alert(parts.join(' '));
-      loadStatements();
+      const r = await createStatements(tenantId, fundId, period, user.id);
+      const parts = [`Created ${r.created} statement${r.created === 1 ? '' : 's'}.`];
+      if (r.skipped) parts.push(`${r.skipped} already existed and were left as they are.`);
+      if (r.notFinalClasses) parts.push(`${r.notFinalClasses} class${r.notFinalClasses === 1 ? ' is' : 'es are'} still awaiting IBKR confirmation for this month, so no statements were made for them.`);
+      setMessage({ ok: r.created > 0 || r.skipped > 0, text: parts.join(' ') });
+      load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Could not create the statements.');
+      setMessage({ ok: false, text: (e as Error).message || 'Could not create the statements.' });
     } finally {
-      setGenerating(false);
+      setBusy(null);
     }
   };
 
-  const finalizeStatement = async (statementId: string) => {
-    const { error } = await supabase
-      .from('investor_statements')
-      .update({
-        status: 'finalized',
-        finalized_at: new Date().toISOString(),
-      })
-      .eq('id', statementId);
-
-    if (!error) {
-      loadStatements();
-    }
+  const setStatus = async (id: string, status: 'finalized' | 'ready') => {
+    setBusy(id);
+    setMessage(null);
+    const patch = status === 'finalized' ? { status, finalized_at: new Date().toISOString() } : { status };
+    const { error } = await supabase.from('investor_statements').update(patch).eq('id', id);
+    if (error) setMessage({ ok: false, text: 'Could not update the statement. Please try again.' });
+    else load();
+    setBusy(null);
   };
 
-  const sendStatement = async (statementId: string) => {
-    const { error } = await supabase
-      .from('investor_statements')
-      .update({
-        status: 'sent',
-        sent_at: new Date().toISOString(),
-      })
-      .eq('id', statementId);
+  if (state === 'loading') return <PanelLoader />;
+  if (state !== 'ready') return <TenantNotice state={state} retry={retry} />;
 
-    if (!error) {
-      loadStatements();
-      alert('Statement sent to investor');
-    }
-  };
-
-  const calculateStats = () => {
-    return statements.reduce((acc, stmt) => {
-      if (stmt.status === 'draft') acc.draft++;
-      if (stmt.status === 'finalized') acc.finalized++;
-      if (stmt.status === 'sent') acc.sent++;
-      return acc;
-    }, { draft: 0, finalized: 0, sent: 0 });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
-      </div>
-    );
-  }
-
-  const stats = calculateStats();
-  const selectedFundData = funds.find(f => f.id === selectedFund);
-
-  const getDefaultPeriod = () => {
-    const today = new Date();
-    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    return lastMonth.toISOString().slice(0, 7);
-  };
+  const counts = statements.reduce<Record<string, number>>((acc, s) => ({ ...acc, [s.status]: (acc[s.status] ?? 0) + 1 }), {});
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-white">Investor Statements</h2>
-          <p className="text-slate-400 mt-1">Generate and manage investor statements</p>
+      <PageHeader title="Investor" strong="Statements"
+        intro="Monthly statements for each investor, made only from month-end prices IBKR has confirmed as final. Check each one, then mark it ready. Nothing is emailed from here.">
+        <FundSelect funds={funds} value={fundId} onChange={setFundId} />
+      </PageHeader>
+
+      {fundsError && <p className="text-sm text-red-300">{fundsError}</p>}
+      {message && (
+        <div className={`rounded-lg border px-4 py-3 text-sm ${message.ok ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-200' : 'border-amber-500/30 bg-amber-500/5 text-amber-200'}`}>{message.text}</div>
+      )}
+
+      <Section title="Create statements" hint={latest === undefined ? 'Checking the latest confirmed month...' : latest ? `The latest month IBKR has confirmed is ${monthName(`${latest}-01`)}.` : 'No month has been confirmed by IBKR yet. Statements can be made once a month is marked final in Fund Value.'}>
+        <div className="px-5 pb-5 flex flex-col sm:flex-row sm:items-end gap-3">
+          <label className="block sm:w-56">
+            <span className="block text-xs font-medium text-slate-300 mb-1.5">Month</span>
+            <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} className={input} />
+          </label>
+          <Button onClick={generate} loading={busy === 'generate'} disabled={!period || !fundId}>
+            <FileText className="w-3.5 h-3.5" />Create statements
+          </Button>
         </div>
-        <div className="flex space-x-3">
-          <select
-            value={selectedFund}
-            onChange={(e) => setSelectedFund(e.target.value)}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
-          >
-            {funds.map(fund => (
-              <option key={fund.id} value={fund.id}>
-                {fund.fund_code} - {fund.fund_name}
-              </option>
-            ))}
+      </Section>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {(['draft', 'finalized', 'ready', 'sent'] as const).map((s) => (
+          <div key={s} className={`${card} p-4`}>
+            <p className="text-xs uppercase tracking-wider text-slate-500">{STATUS[s].label}</p>
+            <p className="text-2xl text-white font-light tabular-nums mt-1">{counts[s] ?? 0}</p>
+          </div>
+        ))}
+      </div>
+
+      <Section title={`Statements (${statements.length})`}
+        action={
+          <select value={filter} onChange={(e) => setFilter(e.target.value)} className={`${input} sm:w-44`}>
+            <option value="all">All</option>
+            {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-xl p-6 border border-cyan-500/30">
-        <h3 className="text-lg font-semibold text-white mb-4">Generate Statements</h3>
-        <div className="flex items-center space-x-4">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Select Period
-            </label>
-            <input
-              type="month"
-              value={selectedPeriod}
-              defaultValue={getDefaultPeriod()}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
-            />
-          </div>
-          <div className="pt-7">
-            <button
-              onClick={generateStatements}
-              disabled={generating}
-              className="px-6 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
-            >
-              <FileText className="w-4 h-4" />
-              <span>{generating ? 'Generating...' : 'Generate Statements'}</span>
-            </button>
-          </div>
-        </div>
-        <p className="text-slate-400 text-sm mt-3">
-          This will create statements for all active investors for the selected period
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Draft</span>
-            <FileText className="w-5 h-5 text-yellow-500" />
-          </div>
-          <div className="text-2xl font-bold text-white">{stats.draft}</div>
-        </div>
-
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Finalized</span>
-            <Calendar className="w-5 h-5 text-green-500" />
-          </div>
-          <div className="text-2xl font-bold text-white">{stats.finalized}</div>
-        </div>
-
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Sent</span>
-            <Send className="w-5 h-5 text-cyan-500" />
-          </div>
-          <div className="text-2xl font-bold text-white">{stats.sent}</div>
-        </div>
-      </div>
-
-      <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-semibold text-white">Statements ({statements.length})</h3>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500"
-          >
-            <option value="all">All Status</option>
-            <option value="draft">Draft</option>
-            <option value="finalized">Finalized</option>
-            <option value="sent">Sent</option>
-          </select>
-        </div>
-
-        {statements.length > 0 ? (
-          <div className="space-y-3">
-            {statements.map((stmt) => (
-              <div
-                key={stmt.id}
-                className="bg-slate-800/80 rounded-lg p-4 hover:bg-slate-700/50 transition-colors"
-              >
-                <div className="grid grid-cols-7 gap-4 items-start">
-                  <div className="col-span-2">
-                    <div className="font-medium text-white">{stmt.capital_account.investor.full_name}</div>
-                    <div className="text-xs text-slate-400 mt-1">{stmt.capital_account.account_number}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Period</div>
-                    <div className="text-white text-sm">
-                      {new Date(stmt.period_end).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Beginning</div>
-                    <div className="text-white text-sm">
-                      {selectedFundData?.base_currency} {(stmt.beginning_balance / 1000).toFixed(0)}K
-                    </div>
-                    <div className="text-xs text-slate-400">{stmt.shares_beginning.toFixed(2)} shares</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Ending</div>
-                    <div className="text-white text-sm">
-                      {selectedFundData?.base_currency} {(stmt.ending_balance / 1000).toFixed(0)}K
-                    </div>
-                    <div className="text-xs text-slate-400">{stmt.shares_ending.toFixed(2)} shares</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Return</div>
-                    <div className={`text-sm font-semibold ${stmt.return_percent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {stmt.return_percent >= 0 ? '+' : ''}{stmt.return_percent.toFixed(2)}%
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      {selectedFundData?.base_currency} {(stmt.return_amount / 1000).toFixed(1)}K
-                    </div>
-                  </div>
-                  <div>
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                      stmt.status === 'sent'
-                        ? 'bg-green-500/20 text-green-400'
-                        : stmt.status === 'finalized'
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : 'bg-yellow-500/20 text-yellow-400'
-                    }`}>
-                      {stmt.status}
-                    </span>
-                    <div className="flex items-center space-x-2 mt-2">
-                      {stmt.status === 'draft' && (
-                        <button
-                          onClick={() => finalizeStatement(stmt.id)}
-                          className="text-xs text-cyan-400 hover:text-cyan-300"
-                        >
-                          Finalize
-                        </button>
-                      )}
-                      {stmt.status === 'finalized' && (
-                        <button
-                          onClick={() => sendStatement(stmt.id)}
-                          className="text-xs text-green-400 hover:text-green-300 flex items-center space-x-1"
-                        >
-                          <Send className="w-3 h-3" />
-                          <span>Send</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 pt-3 border-t border-slate-700">
-                  <div className="grid grid-cols-4 gap-4 text-xs">
-                    <div>
-                      <span className="text-slate-400">Contributions: </span>
-                      <span className="text-green-400">
-                        {selectedFundData?.base_currency} {(stmt.contributions / 1000).toFixed(1)}K
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400">Distributions: </span>
-                      <span className="text-blue-400">
-                        {selectedFundData?.base_currency} {(stmt.distributions / 1000).toFixed(1)}K
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400">Fees: </span>
-                      <span className="text-yellow-400">
-                        {selectedFundData?.base_currency} {(stmt.fees / 1000).toFixed(1)}K
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400">NAV/Share: </span>
-                      <span className="text-white">{stmt.nav_per_share.toFixed(4)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+        }>
+        {loading ? (
+          <div className="flex items-center justify-center py-10 text-slate-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading</div>
+        ) : !statements.length ? (
+          <Empty>No statements yet. Pick a confirmed month above and create them.</Empty>
         ) : (
-          <div className="text-center py-12">
-            <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-            <p className="text-slate-400 text-lg">No statements generated yet</p>
-            <p className="text-slate-500 text-sm mt-2">Select a period and generate statements for all investors</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wider text-slate-500 border-y border-slate-800">
+                  <th className="px-5 py-2 font-medium">Investor</th>
+                  <th className="px-5 py-2 font-medium">Month</th>
+                  <th className="px-5 py-2 font-medium text-right">Start value</th>
+                  <th className="px-5 py-2 font-medium text-right">In / out</th>
+                  <th className="px-5 py-2 font-medium text-right">Fees</th>
+                  <th className="px-5 py-2 font-medium text-right">End value</th>
+                  <th className="px-5 py-2 font-medium text-right">Return</th>
+                  <th className="px-5 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {statements.map((s) => {
+                  const inv = s.capital_account?.investor;
+                  const st = STATUS[s.status] ?? { label: s.status, tone: 'slate' as const };
+                  const ret = s.return_percent == null ? null : Number(s.return_percent);
+                  return (
+                    <tr key={s.id} className="hover:bg-slate-800/40 transition-colors align-top">
+                      <td className="px-5 py-3">
+                        <p className="text-slate-200">{inv?.full_name || inv?.email || 'Unnamed investor'}</p>
+                        <p className="text-xs text-slate-500">{s.capital_account?.account_number || '—'}</p>
+                      </td>
+                      <td className="px-5 py-3 text-slate-300">{monthName(s.period_end)}</td>
+                      <td className="px-5 py-3 text-right tabular-nums text-slate-300">
+                        {money(s.beginning_balance)}
+                        <p className="text-xs text-slate-500">{formatNumber(s.shares_beginning, 4)} units</p>
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-slate-300">
+                        <span className="text-emerald-300">{money(s.contributions)}</span>
+                        <p className="text-xs text-slate-400">{money(s.distributions)} out</p>
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-slate-300">{money(s.fees)}</td>
+                      <td className="px-5 py-3 text-right tabular-nums text-white">
+                        {money(s.ending_balance)}
+                        <p className="text-xs text-slate-500">{formatNumber(s.shares_ending, 4)} units at {formatNumber(s.nav_per_share, 4)}</p>
+                      </td>
+                      <td className={`px-5 py-3 text-right tabular-nums ${ret == null ? 'text-slate-400' : ret >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                        {ret == null ? '—' : `${ret >= 0 ? '+' : ''}${ret.toFixed(2)}%`}
+                        <p className="text-xs text-slate-500">{money(s.return_amount)}</p>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex flex-col items-start gap-2">
+                          <Pill tone={st.tone}>{st.label}</Pill>
+                          {s.status === 'draft' && <Button tone="quiet" loading={busy === s.id} onClick={() => setStatus(s.id, 'finalized')}>Mark checked</Button>}
+                          {s.status === 'finalized' && <Button loading={busy === s.id} onClick={() => setStatus(s.id, 'ready')}><CheckCircle2 className="w-3.5 h-3.5" />Mark as ready</Button>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
+      </Section>
     </div>
   );
 }

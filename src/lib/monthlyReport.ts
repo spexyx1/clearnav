@@ -122,7 +122,8 @@ export function emptyNarrative(): Pick<ReportContent, 'commentary' | 'market_ins
 }
 
 export async function loadInvestors(fundId: string, content: ReportContent): Promise<InvestorLine[]> {
-  const { data: accts, error } = await supabase.from('capital_accounts').select('investor_id, share_class_id, shares_owned, cost_basis').eq('fund_id', fundId);
+  const { data: accts, error } = await supabase.from('capital_accounts').select('investor_id, share_class_id, shares_owned, cost_basis')
+    .eq('fund_id', fundId).eq('status', 'active').gt('shares_owned', 0);
   if (error) throw new Error(error.message);
   const ids = [...new Set((accts ?? []).map((a) => a.investor_id).filter(Boolean))];
   if (!ids.length) return [];

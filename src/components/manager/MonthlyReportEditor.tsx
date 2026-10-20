@@ -13,8 +13,8 @@ export interface ReportRecord {
 const area = 'w-full bg-slate-800/80 border border-slate-700 rounded-lg px-4 py-3 text-sm leading-relaxed text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition resize-y';
 const btn = 'inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed';
 
-export default function MonthlyReportEditor({ report, onBack }: { report: ReportRecord; onBack: () => void }) {
-  const { currentTenant, user } = useAuth();
+export default function MonthlyReportEditor({ tenantId, report, onBack }: { tenantId: string; report: ReportRecord; onBack: () => void }) {
+  const { user } = useAuth();
   const [content, setContent] = useState<ReportContent>(report.report_content);
   const [status, setStatus] = useState(report.status);
   const [tab, setTab] = useState<'write' | 'preview'>('write');
@@ -26,7 +26,7 @@ export default function MonthlyReportEditor({ report, onBack }: { report: Report
   const [accountId, setAccountId] = useState('');
   const [investors, setInvestors] = useState<InvestorLine[]>([]);
 
-  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 5000); return () => clearTimeout(t); }, [toast]);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), toast.ok ? 5000 : 15000); return () => clearTimeout(t); }, [toast]);
 
   const patch = (p: Partial<ReportContent>) => { setContent((c) => ({ ...c, ...p })); setDirty(true); };
   const setClassNote = (code: string, v: string) => patch({ class_notes: { ...content.class_notes, [code]: v } });
@@ -54,18 +54,16 @@ export default function MonthlyReportEditor({ report, onBack }: { report: Report
   });
   const pdf = () => run('pdf', async () => { await downloadReportPdf(content); return 'PDF downloaded.'; });
   const publish = () => run('publish', async () => {
-    if (!currentTenant?.id) return '';
     if (dirty) await persist(content);
-    await publishReport(currentTenant.id, report.id, report.report_name, content);
+    await publishReport(tenantId, report.id, report.report_name, content);
     setStatus('published');
     return 'Published to the investor vault.';
   });
 
   async function openSend() {
-    if (!currentTenant?.id) return;
     setSendOpen(true);
     try {
-      const [acc, inv] = await Promise.all([loadSenderAccounts(currentTenant.id), loadInvestors(report.fund_id, content)]);
+      const [acc, inv] = await Promise.all([loadSenderAccounts(tenantId), loadInvestors(report.fund_id, content)]);
       setAccounts(acc);
       setAccountId((cur) => cur || acc.find((a) => a.email_address.startsWith('hello@'))?.id || acc[0]?.id || '');
       setInvestors(inv);
@@ -83,11 +81,15 @@ export default function MonthlyReportEditor({ report, onBack }: { report: Report
     if (!list.length || !list[0].to) throw new Error('There is nobody to send to.');
     const r = await emailReport(accountId, content, list);
     if (!test && r.sent) {
-      await supabase.from('reports').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', report.id);
+      const { error: sErr } = await supabase.from('reports').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', report.id);
+      if (sErr) throw new Error(`Emails went out to ${r.sent}, but the report could not be marked as sent. Please refresh before sending again.`);
       setStatus('sent');
-      setSendOpen(false);
+      if (!r.failed.length) setSendOpen(false);
     }
-    if (r.failed.length) throw new Error(`Sent ${r.sent}; could not send to ${r.failed.join(', ')}.`);
+    if (r.failed.length) {
+      const detail = r.failed.slice(0, 3).map((f) => `${f.to} (${f.reason})`).join('; ');
+      throw new Error(`Sent ${r.sent}; could not send to ${r.failed.length}: ${detail}${r.failed.length > 3 ? '; and more' : ''}.`);
+    }
     return test ? `Test email sent to ${list[0].to}.` : `Sent to ${r.sent} investor${r.sent === 1 ? '' : 's'}.`;
   });
 
@@ -195,7 +197,7 @@ export default function MonthlyReportEditor({ report, onBack }: { report: Report
                 {investors.map((i) => (
                   <li key={i.email} className="flex justify-between px-3 py-2 text-sm"><span className="text-slate-200">{i.name}<span className="text-slate-500"> · {i.email}</span></span><span className="text-slate-400 tabular-nums">${i.total.toLocaleString()}</span></li>
                 ))}
-                {!investors.length && <li className="px-3 py-2 text-sm text-slate-500">No investors with an email address in this fund.</li>}
+                {!investors.length && <li className="px-3 py-2 text-sm text-slate-500">No open investor accounts with units and an email address in this fund.</li>}
               </ul>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">

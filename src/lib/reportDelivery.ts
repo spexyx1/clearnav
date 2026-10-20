@@ -41,8 +41,9 @@ export async function publishReport(tenantId: string, reportId: string, reportNa
     const { error } = await supabase.from('investor_vault_documents').update(doc).eq('id', existing.id);
     if (error) throw new Error(error.message);
   } else {
-    const { data: last } = await supabase.from('investor_vault_documents').select('sort_order')
+    const { data: last, error: lastErr } = await supabase.from('investor_vault_documents').select('sort_order')
       .eq('tenant_id', tenantId).order('sort_order', { ascending: false }).limit(1).maybeSingle();
+    if (lastErr) throw new Error(lastErr.message);
     const { error } = await supabase.from('investor_vault_documents')
       .insert({ ...doc, tenant_id: tenantId, storage_path: path, sort_order: (last?.sort_order ?? 0) + 1 });
     if (error) throw new Error(error.message);
@@ -61,9 +62,26 @@ export async function loadSenderAccounts(tenantId: string): Promise<EmailAccount
   return data ?? [];
 }
 
+async function reasonOf(error: unknown, data: unknown): Promise<string | null> {
+  const body = data as { success?: boolean; error?: string; message?: string } | null;
+  if (!error) {
+    if (!body) return 'No reply from the email service';
+    if (body.success === false || body.error) return body.error || body.message || 'The email service refused the message';
+    return null;
+  }
+  const ctx = (error as { context?: Response }).context;
+  if (ctx && typeof ctx.json === 'function') {
+    try {
+      const j = await ctx.clone().json() as { error?: string; message?: string };
+      if (j.error || j.message) return j.error || j.message || null;
+    } catch { /* body was not JSON */ }
+  }
+  return (error as Error).message || 'The email service could not be reached';
+}
+
 export async function emailReport(accountId: string, c: ReportContent, recipients: { to: string; investor: InvestorLine | null }[]) {
   const pdf = toBase64(await renderReportPdf(c));
-  const failed: string[] = [];
+  const failed: { to: string; reason: string }[] = [];
   const send = async (r: { to: string; investor: InvestorLine | null }) => {
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
@@ -75,7 +93,8 @@ export async function emailReport(accountId: string, c: ReportContent, recipient
         attachments: [{ filename: reportFileName(c), content: pdf, content_type: 'application/pdf' }],
       },
     });
-    if (error || !data || data.success === false || data.error) failed.push(r.to);
+    const reason = await reasonOf(error, data);
+    if (reason) failed.push({ to: r.to, reason });
   };
   // Small batches keep mail-provider rate limits happy while avoiding one-by-one sends.
   for (let i = 0; i < recipients.length; i += 3) {

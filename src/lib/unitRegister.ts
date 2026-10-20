@@ -203,7 +203,7 @@ export async function createStatements(tenantId: string, fundId: string, month: 
   const register = await loadUnitRegister(fundId);
   if (!register.accounts.length) throw new Error('There are no official investor accounts yet, so there is nothing to put on a statement.');
   const { data: existing, error } = await supabase.from('investor_statements').select('capital_account_id, period_end')
-    .eq('fund_id', fundId).gte('period_end', `${month}-01`).lte('period_end', `${month}-31`);
+    .eq('fund_id', fundId).gte('period_end', `${month}-01`).lte('period_end', lastDayOf(month));
   if (error) throw new Error(`Could not check existing statements: ${error.message}`);
   const done = new Set((existing ?? []).map((s) => s.capital_account_id));
   const rows = [];
@@ -228,6 +228,20 @@ export async function createStatements(tenantId: string, fundId: string, month: 
     if (iErr) throw new Error(`Could not create the statements: ${iErr.message}`);
   }
   return { created: rows.length, skipped, notFinalClasses: notFinal.size };
+}
+
+function lastDayOf(month: string) {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+
+export async function latestFinalMonth(fundId: string): Promise<string | null> {
+  const { data, error } = await supabase.from('nav_calculations').select('nav_date, calculation_data')
+    .eq('fund_id', fundId).eq('status', 'approved').eq('calculation_method', 'broker_statement')
+    .eq('calculation_data->>final', 'true').order('nav_date', { ascending: false }).limit(20);
+  if (error) throw new Error('Could not check which months IBKR has confirmed.');
+  const row = (data ?? []).find((r) => (r.calculation_data as { track_record?: boolean } | null)?.track_record !== true);
+  return row ? row.nav_date.slice(0, 7) : null;
 }
 
 function nextDay(date: string) {

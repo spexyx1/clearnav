@@ -1,480 +1,302 @@
-import { useState, useEffect } from 'react';
-import { FileText, Plus, Calendar, Send, CheckCircle, Filter } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, CheckCircle2, FilePlus2, Loader2, PencilLine } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { fetchAllIn } from '../../lib/fetchAll';
+import { useTenantId } from '../../lib/useTenantId';
+import { formatNumber } from '../../lib/format';
+import {
+  DOC_LABEL, TAX_FIELDS, breakdownComplete, createTaxDocuments, loadHolders, periodFor, saveBreakdown,
+  type Holder, type RegisterFacts, type TaxDocType,
+} from '../../lib/taxDocuments';
+import type { UnitRegister } from '../../lib/unitRegister';
+import TenantNotice from './TenantNotice';
+import { PanelLoader } from '../shared/Spinner';
+import { FundSelect, PageHeader, useFunds } from './history/useFunds';
+import { Button, Empty, Field, Modal, Pill, Section, input, usd } from './onboarding/ui';
 
-interface Fund {
-  id: string;
-  fund_code: string;
-  fund_name: string;
-}
-
-interface TaxDocument {
+interface TaxDocRow {
   id: string;
   document_type: string;
   tax_year: number;
   document_status: string;
-  generation_date: string | null;
   finalized_date: string | null;
-  sent_date: string | null;
-  ordinary_income: number | null;
-  qualified_dividends: number | null;
-  capital_gains_short: number | null;
-  capital_gains_long: number | null;
-  interest_income: number | null;
-  other_income: number | null;
-  capital_account: {
-    account_number: string;
-    investor: { full_name: string; email: string };
-  };
+  notes: string | null;
+  tax_breakdown: Record<string, number>;
+  register_facts: Partial<RegisterFacts>;
+  capital_account: { account_number: string | null; investor: { full_name: string | null; email: string | null } | null } | null;
 }
 
+const STATUS: Record<string, { label: string; tone: 'amber' | 'cyan' | 'green' | 'slate' }> = {
+  draft: { label: 'Draft', tone: 'amber' },
+  review: { label: 'In review', tone: 'amber' },
+  finalized: { label: 'Finalised', tone: 'cyan' },
+  ready: { label: 'Ready', tone: 'green' },
+  sent: { label: 'Sent', tone: 'green' },
+  filed: { label: 'Filed', tone: 'green' },
+};
+
+const money = (v: number | null | undefined) => (v == null ? '—' : usd(Number(v)));
+const thisYear = new Date().getFullYear();
+
 export default function TaxDocumentManager() {
-  const { currentTenant, user } = useAuth();
-  const [funds, setFunds] = useState<Fund[]>([]);
-  const [taxDocuments, setTaxDocuments] = useState<TaxDocument[]>([]);
-  const [selectedFund, setSelectedFund] = useState('');
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear() - 1);
-  const [filterType, setFilterType] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({
-    capital_account_id: '',
-    document_type: 'k1',
-    ordinary_income: 0,
-    qualified_dividends: 0,
-    capital_gains_short: 0,
-    capital_gains_long: 0,
-    interest_income: 0,
-    other_income: 0,
-    notes: '',
-  });
+  const { user } = useAuth();
+  const { tenantId, state, retry } = useTenantId();
+  const { funds, fundId, setFundId, error: fundsError } = useFunds(tenantId);
+  const [type, setType] = useState<TaxDocType>('annual_statement');
+  const [year, setYear] = useState(new Date().getMonth() >= 6 ? thisYear + 1 : thisYear);
+  const [docs, setDocs] = useState<TaxDocRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [editing, setEditing] = useState<TaxDocRow | null>(null);
+  const [picker, setPicker] = useState<{ register: UnitRegister; holders: Holder[] } | null>(null);
 
-  useEffect(() => {
-    loadFunds();
-  }, [currentTenant]);
+  const period = periodFor(type, year);
 
-  useEffect(() => {
-    if (selectedFund) {
-      loadTaxDocuments();
-    }
-  }, [selectedFund, selectedYear, filterType, filterStatus]);
-
-  const loadFunds = async () => {
+  const load = useCallback(async () => {
+    if (!fundId) return;
     setLoading(true);
-    const { data } = await supabase
-      .from('funds')
-      .select('id, fund_code, fund_name')
-      .eq('tenant_id', currentTenant?.id)
-      .eq('status', 'active')
-      .order('fund_name');
-
-    if (data) {
-      setFunds(data);
-      if (data.length > 0 && !selectedFund) {
-        setSelectedFund(data[0].id);
-      }
-    }
+    const { data, error } = await supabase.from('tax_documents')
+      .select('id, document_type, tax_year, document_status, finalized_date, notes, tax_breakdown, register_facts, capital_account:capital_accounts!capital_account_id(account_number, investor:client_profiles!investor_id(full_name, email))')
+      .eq('fund_id', fundId).eq('tax_year', year).eq('document_type', type).order('created_at', { ascending: false });
+    if (error) setMessage({ ok: false, text: 'Could not load the tax documents. Please try again.' });
+    else setDocs((data ?? []) as unknown as TaxDocRow[]);
     setLoading(false);
-  };
+  }, [fundId, year, type]);
 
-  const loadTaxDocuments = async () => {
-    let query = supabase
-      .from('tax_documents')
-      .select(`
-        *,
-        capital_account:capital_accounts!capital_account_id(
-          account_number,
-          investor:client_profiles!investor_id(full_name, email)
-        )
-      `)
-      .eq('fund_id', selectedFund)
-      .eq('tax_year', selectedYear)
-      .order('created_at', { ascending: false });
+  useEffect(() => { load(); }, [load]);
 
-    if (filterType !== 'all') {
-      query = query.eq('document_type', filterType);
-    }
-
-    if (filterStatus !== 'all') {
-      query = query.eq('document_status', filterStatus);
-    }
-
-    const { data } = await query;
-
-    if (data) {
-      setTaxDocuments(data as any);
-    }
-  };
-
-  const generateK1s = async () => {
-    setGenerating(true);
-
-    const { data: accounts } = await supabase
-      .from('capital_accounts')
-      .select('id, account_number')
-      .eq('fund_id', selectedFund)
-      .eq('status', 'active');
-
-    if (!accounts || accounts.length === 0) {
-      alert('No active capital accounts found');
-      setGenerating(false);
-      return;
-    }
-
-    const { data: performanceMetrics } = await supabase
-      .from('performance_metrics')
-      .select('*')
-      .eq('fund_id', selectedFund)
-      .eq('period_type', 'yearly')
-      .gte('metric_date', `${selectedYear}-01-01`)
-      .lte('metric_date', `${selectedYear}-12-31`)
-      .maybeSingle();
-
-    let distributions: { capital_account_id: string; amount: number }[];
+  const create = async (accountIds?: string[], preloaded?: UnitRegister) => {
+    if (!tenantId || !user || !fundId) return;
+    setBusy('create');
+    setMessage(null);
     try {
-      distributions = await fetchAllIn(accounts.map(a => a.id), (ids) => supabase
-        .from('capital_transactions')
-        .select('id, capital_account_id, amount')
-        .in('capital_account_id', ids)
-        .eq('transaction_type', 'distribution')
-        .gte('transaction_date', `${selectedYear}-01-01`)
-        .lte('transaction_date', `${selectedYear}-12-31`)
-        .order('id'));
+      let register = preloaded;
+      let ids = accountIds;
+      if (!register || !ids) {
+        const loaded = await loadHolders(fundId, type, year);
+        if (type === 'k1') { setPicker(loaded); return; }
+        register = loaded.register;
+        ids = loaded.holders.filter((h) => h.held).map((h) => h.id);
+      }
+      if (!ids.length) { setMessage({ ok: false, text: `No investor held units during ${period.label}.` }); return; }
+      const r = await createTaxDocuments({ tenantId, fundId, userId: user.id, type, year, accountIds: ids, register });
+      setMessage({ ok: true, text: `Created ${r.created} document${r.created === 1 ? '' : 's'}.${r.skipped ? ` ${r.skipped} already existed.` : ''} Enter the tax figures for each one before finalising.` });
+      setPicker(null);
+      load();
     } catch (e) {
-      setGenerating(false);
-      alert(`Could not load transactions: ${(e as Error).message}`);
-      return;
-    }
-
-    const totals = new Map<string, number>();
-    for (const t of distributions) {
-      totals.set(t.capital_account_id, (totals.get(t.capital_account_id) ?? 0) + Number(t.amount));
-    }
-    const today = new Date().toISOString().split('T')[0];
-
-    const documents = accounts.map((account) => {
-      const totalDistributions = totals.get(account.id) ?? 0;
-
-      const ordinaryIncome = totalDistributions * 0.3;
-      const qualifiedDividends = totalDistributions * 0.2;
-      const capitalGainsLong = totalDistributions * 0.4;
-      const capitalGainsShort = totalDistributions * 0.1;
-
-      return {
-        tenant_id: currentTenant?.id,
-        capital_account_id: account.id,
-        fund_id: selectedFund,
-        document_type: 'k1',
-        tax_year: selectedYear,
-        document_status: 'draft',
-        generation_date: today,
-        ordinary_income: ordinaryIncome,
-        qualified_dividends: qualifiedDividends,
-        capital_gains_short: capitalGainsShort,
-        capital_gains_long: capitalGainsLong,
-        interest_income: 0,
-        other_income: 0,
-        created_by: user?.id,
-      };
-    });
-
-    const { error: insertError } = await supabase.from('tax_documents').insert(documents);
-    setGenerating(false);
-    if (insertError) {
-      alert(`Could not generate documents: ${insertError.message}`);
-      return;
-    }
-    loadTaxDocuments();
-    alert(`Generated ${accounts.length} K-1 documents`);
-  };
-
-  const finalizeDocument = async (documentId: string) => {
-    const { error } = await supabase
-      .from('tax_documents')
-      .update({
-        document_status: 'finalized',
-        finalized_date: new Date().toISOString().split('T')[0],
-      })
-      .eq('id', documentId);
-
-    if (!error) {
-      loadTaxDocuments();
+      setMessage({ ok: false, text: (e as Error).message || 'Could not create the documents.' });
+    } finally {
+      setBusy(null);
     }
   };
 
-  const sendDocument = async (documentId: string) => {
-    const { error } = await supabase
-      .from('tax_documents')
-      .update({
-        document_status: 'sent',
-        sent_date: new Date().toISOString().split('T')[0],
-      })
-      .eq('id', documentId);
-
-    if (!error) {
-      loadTaxDocuments();
-      alert('Document sent to investor');
-    }
+  const setStatus = async (doc: TaxDocRow, status: 'finalized' | 'ready') => {
+    setBusy(doc.id);
+    setMessage(null);
+    const patch = status === 'finalized' ? { document_status: status, finalized_date: new Date().toISOString().slice(0, 10) } : { document_status: status };
+    const { error } = await supabase.from('tax_documents').update(patch).eq('id', doc.id);
+    if (error) setMessage({ ok: false, text: 'Could not update the document. Please try again.' });
+    else load();
+    setBusy(null);
   };
 
-  const calculateStats = () => {
-    return taxDocuments.reduce((acc, doc) => {
-      if (doc.document_status === 'draft') acc.draft++;
-      if (doc.document_status === 'finalized') acc.finalized++;
-      if (doc.document_status === 'sent') acc.sent++;
-      if (doc.document_type === 'k1') acc.k1s++;
-      return acc;
-    }, { draft: 0, finalized: 0, sent: 0, k1s: 0 });
-  };
-
-  const getDocumentTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      'k1': 'Schedule K-1',
-      '1099_div': 'Form 1099-DIV',
-      '1099_int': 'Form 1099-INT',
-      '1099_b': 'Form 1099-B',
-      '5498': 'Form 5498',
-      'annual_statement': 'Annual Statement',
-      'other': 'Other'
-    };
-    return labels[type] || type;
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
-      </div>
-    );
-  }
-
-  const stats = calculateStats();
+  if (state === 'loading') return <PanelLoader />;
+  if (state !== 'ready') return <TenantNotice state={state} retry={retry} />;
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-white">Tax Document Manager</h2>
-          <p className="text-slate-400 mt-1">Generate and manage K-1s, 1099s, and other tax documents</p>
-        </div>
-        <div className="flex space-x-3">
-          <select
-            value={selectedFund}
-            onChange={(e) => setSelectedFund(e.target.value)}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
-          >
-            {funds.map(fund => (
-              <option key={fund.id} value={fund.id}>
-                {fund.fund_code} - {fund.fund_name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
-          >
-            {[...Array(5)].map((_, i) => {
-              const year = new Date().getFullYear() - i;
-              return (
-                <option key={year} value={year}>
-                  Tax Year {year}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-      </div>
+      <PageHeader title="Tax" strong="Documents"
+        intro="Holding facts come straight from the unit register and IBKR-confirmed prices. You enter the tax breakdown from your accountant's figures. A document can only be finalised once every figure is entered.">
+        <FundSelect funds={funds} value={fundId} onChange={setFundId} />
+        <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={`${input} w-auto`}>
+          {Array.from({ length: 5 }, (_, i) => thisYear + 1 - i).map((y) => (
+            <option key={y} value={y}>{type === 'annual_statement' ? `FY${y}` : y}</option>
+          ))}
+        </select>
+      </PageHeader>
 
-      <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-xl p-6 border border-cyan-500/30">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Generate K-1s for {selectedYear}</h3>
-            <p className="text-slate-400 text-sm">
-              Generate Schedule K-1 forms for all active investors
-            </p>
-          </div>
-          <button
-            onClick={generateK1s}
-            disabled={generating}
-            className="px-6 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
-          >
-            <FileText className="w-4 h-4" />
-            <span>{generating ? 'Generating...' : 'Generate K-1s'}</span>
+      {fundsError && <p className="text-sm text-red-300">{fundsError}</p>}
+
+      <div className="flex rounded-lg border border-slate-700 p-0.5 w-fit">
+        {(['annual_statement', 'k1'] as const).map((t) => (
+          <button key={t} onClick={() => setType(t)}
+            className={`px-4 py-1.5 rounded-md text-sm transition-colors ${type === t ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}>
+            {t === 'annual_statement' ? 'Australian annual statements' : 'K-1s (selected investors)'}
           </button>
-        </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">K-1 Forms</span>
-            <FileText className="w-5 h-5 text-cyan-500" />
-          </div>
-          <div className="text-2xl font-bold text-white">{stats.k1s}</div>
-        </div>
+      {message && (
+        <div className={`rounded-lg border px-4 py-3 text-sm ${message.ok ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-200' : 'border-amber-500/30 bg-amber-500/5 text-amber-200'}`}>{message.text}</div>
+      )}
 
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Draft</span>
-            <Calendar className="w-5 h-5 text-yellow-500" />
-          </div>
-          <div className="text-2xl font-bold text-white">{stats.draft}</div>
-        </div>
-
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Finalized</span>
-            <CheckCircle className="w-5 h-5 text-green-500" />
-          </div>
-          <div className="text-2xl font-bold text-white">{stats.finalized}</div>
-        </div>
-
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Sent</span>
-            <Send className="w-5 h-5 text-blue-500" />
-          </div>
-          <div className="text-2xl font-bold text-white">{stats.sent}</div>
-        </div>
-      </div>
-
-      <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-semibold text-white">Tax Documents ({taxDocuments.length})</h3>
-          <div className="flex items-center space-x-3">
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500"
-            >
-              <option value="all">All Types</option>
-              <option value="k1">K-1</option>
-              <option value="1099_div">1099-DIV</option>
-              <option value="1099_int">1099-INT</option>
-              <option value="1099_b">1099-B</option>
-            </select>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500"
-            >
-              <option value="all">All Status</option>
-              <option value="draft">Draft</option>
-              <option value="review">Review</option>
-              <option value="finalized">Finalized</option>
-              <option value="sent">Sent</option>
-            </select>
-          </div>
-        </div>
-
-        {taxDocuments.length > 0 ? (
-          <div className="space-y-3">
-            {taxDocuments.map((doc) => (
-              <div
-                key={doc.id}
-                className="bg-slate-800/80 rounded-lg p-4 hover:bg-slate-700/50 transition-colors"
-              >
-                <div className="grid grid-cols-8 gap-4 items-start">
-                  <div className="col-span-2">
-                    <div className="font-medium text-white">{doc.capital_account.investor.full_name}</div>
-                    <div className="text-xs text-slate-400 mt-1">{doc.capital_account.account_number}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Document Type</div>
-                    <div className="text-white text-sm">{getDocumentTypeLabel(doc.document_type)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Tax Year</div>
-                    <div className="text-white text-sm">{doc.tax_year}</div>
-                  </div>
-                  <div className="col-span-2">
-                    <div className="text-xs text-slate-400 mb-1">Income Breakdown</div>
-                    <div className="space-y-1 text-xs">
-                      {doc.ordinary_income !== null && doc.ordinary_income > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Ordinary:</span>
-                          <span className="text-white">${(doc.ordinary_income / 1000).toFixed(1)}K</span>
-                        </div>
-                      )}
-                      {doc.qualified_dividends !== null && doc.qualified_dividends > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Dividends:</span>
-                          <span className="text-white">${(doc.qualified_dividends / 1000).toFixed(1)}K</span>
-                        </div>
-                      )}
-                      {doc.capital_gains_long !== null && doc.capital_gains_long > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">LT Gains:</span>
-                          <span className="text-green-400">${(doc.capital_gains_long / 1000).toFixed(1)}K</span>
-                        </div>
-                      )}
-                      {doc.capital_gains_short !== null && doc.capital_gains_short > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">ST Gains:</span>
-                          <span className="text-yellow-400">${(doc.capital_gains_short / 1000).toFixed(1)}K</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Generated</div>
-                    <div className="text-white text-sm">
-                      {doc.generation_date ? new Date(doc.generation_date).toLocaleDateString() : '-'}
-                    </div>
-                    {doc.finalized_date && (
-                      <div className="text-xs text-green-400 mt-1">
-                        Finalized: {new Date(doc.finalized_date).toLocaleDateString()}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                      doc.document_status === 'sent'
-                        ? 'bg-green-500/20 text-green-400'
-                        : doc.document_status === 'finalized'
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : doc.document_status === 'review'
-                        ? 'bg-purple-500/20 text-purple-400'
-                        : 'bg-yellow-500/20 text-yellow-400'
-                    }`}>
-                      {doc.document_status}
-                    </span>
-                    <div className="flex items-center space-x-2 mt-2">
-                      {doc.document_status === 'draft' && (
-                        <button
-                          onClick={() => finalizeDocument(doc.id)}
-                          className="text-xs text-cyan-400 hover:text-cyan-300"
-                        >
-                          Finalize
-                        </button>
-                      )}
-                      {doc.document_status === 'finalized' && (
-                        <button
-                          onClick={() => sendDocument(doc.id)}
-                          className="text-xs text-green-400 hover:text-green-300"
-                        >
-                          Send
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+      <Section title={`${DOC_LABEL[type]}s · ${period.label}`}
+        hint={type === 'annual_statement' ? 'One statement for every investor who held units during the year.' : 'Only for the investors you pick, such as US taxpayers.'}
+        action={
+          <Button onClick={() => create()} loading={busy === 'create'} disabled={!fundId}>
+            <FilePlus2 className="w-3.5 h-3.5" />{type === 'annual_statement' ? 'Create for all holders' : 'Choose investors'}
+          </Button>
+        }>
+        {loading ? (
+          <div className="flex items-center justify-center py-10 text-slate-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading</div>
+        ) : !docs.length ? (
+          <Empty>No documents for this year yet.</Empty>
         ) : (
-          <div className="text-center py-12">
-            <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-            <p className="text-slate-400 text-lg">No tax documents for {selectedYear}</p>
-            <p className="text-slate-500 text-sm mt-2">Generate K-1s to get started</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wider text-slate-500 border-y border-slate-800">
+                  <th className="px-5 py-2 font-medium">Investor</th>
+                  <th className="px-5 py-2 font-medium text-right">Units start / end</th>
+                  <th className="px-5 py-2 font-medium text-right">Value at year end</th>
+                  <th className="px-5 py-2 font-medium">Tax figures</th>
+                  <th className="px-5 py-2 font-medium">Status</th>
+                  <th className="px-5 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {docs.map((d) => {
+                  const inv = d.capital_account?.investor;
+                  const f = d.register_facts ?? {};
+                  const complete = breakdownComplete(d.document_type, d.tax_breakdown ?? {});
+                  const confirmed = f.year_end_confirmed === true;
+                  const st = STATUS[d.document_status] ?? { label: d.document_status, tone: 'slate' as const };
+                  const editable = d.document_status === 'draft' || d.document_status === 'review';
+                  return (
+                    <tr key={d.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="px-5 py-3">
+                        <p className="text-slate-200">{inv?.full_name || inv?.email || 'Unnamed investor'}</p>
+                        <p className="text-xs text-slate-500">{d.capital_account?.account_number || '—'}</p>
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-slate-300">{formatNumber(f.units_start, 4)} / {formatNumber(f.units_end, 4)}</td>
+                      <td className="px-5 py-3 text-right tabular-nums text-slate-300">
+                        {money(f.value_end)}
+                        {!confirmed && <p className="text-xs text-amber-300">Year end awaiting IBKR</p>}
+                      </td>
+                      <td className="px-5 py-3">{complete ? <Pill tone="green">Entered</Pill> : <Pill tone="amber">Needed</Pill>}</td>
+                      <td className="px-5 py-3"><Pill tone={st.tone}>{st.label}</Pill></td>
+                      <td className="px-5 py-3">
+                        <div className="flex justify-end gap-2">
+                          {editable && <Button tone="quiet" onClick={() => setEditing(d)}><PencilLine className="w-3.5 h-3.5" />Tax figures</Button>}
+                          {editable && (
+                            <Button onClick={() => setStatus(d, 'finalized')} loading={busy === d.id} disabled={!complete || !confirmed}
+                              title={!complete ? 'Enter every tax figure first' : !confirmed ? 'The year-end price is not yet confirmed by IBKR' : undefined}>Finalise</Button>
+                          )}
+                          {d.document_status === 'finalized' && <Button onClick={() => setStatus(d, 'ready')} loading={busy === d.id}><CheckCircle2 className="w-3.5 h-3.5" />Mark as ready</Button>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
+      </Section>
+
+      {editing && <BreakdownModal doc={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {picker && <HolderPicker holders={picker.holders} busy={busy === 'create'} onClose={() => setPicker(null)} onCreate={(ids) => create(ids, picker.register)} />}
     </div>
+  );
+}
+
+function HolderPicker({ holders, busy, onClose, onCreate }: { holders: Holder[]; busy: boolean; onClose: () => void; onCreate: (ids: string[]) => void }) {
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const toggle = (id: string) => setPicked((cur) => { const n = new Set(cur); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  return (
+    <Modal title="Choose investors for K-1s" onClose={onClose}>
+      {!holders.length ? <p className="text-sm text-slate-400">There are no investor accounts yet.</p> : (
+        <div className="space-y-1 max-h-80 overflow-y-auto">
+          {holders.map((h) => (
+            <label key={h.id} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-slate-800 cursor-pointer">
+              <input type="checkbox" checked={picked.has(h.id)} onChange={() => toggle(h.id)} className="accent-cyan-500" />
+              <span className="flex-1 text-sm text-slate-200">{h.name}<span className="block text-xs text-slate-500">{h.accountNumber || h.email || ''}</span></span>
+              {!h.held && <span className="text-xs text-slate-500">No units this year</span>}
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="flex justify-end gap-2 pt-2">
+        <Button tone="quiet" onClick={onClose}>Cancel</Button>
+        <Button onClick={() => onCreate([...picked])} loading={busy} disabled={!picked.size}>Create {picked.size || ''} K-1{picked.size === 1 ? '' : 's'}</Button>
+      </div>
+    </Modal>
+  );
+}
+
+function BreakdownModal({ doc, onClose, onSaved }: { doc: TaxDocRow; onClose: () => void; onSaved: () => void }) {
+  const type = doc.document_type as TaxDocType;
+  const fields = TAX_FIELDS[type] ?? [];
+  const [values, setValues] = useState<Record<string, string>>(
+    Object.fromEntries(fields.map((f) => [f.key, doc.tax_breakdown?.[f.key] != null ? String(doc.tax_breakdown[f.key]) : ''])),
+  );
+  const [notes, setNotes] = useState(doc.notes ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const f = doc.register_facts ?? {};
+
+  const save = async () => {
+    const parsed: Record<string, number> = {};
+    for (const field of fields) {
+      const raw = values[field.key].trim();
+      if (raw === '') continue;
+      const n = Number(raw.replace(/,/g, ''));
+      if (!Number.isFinite(n)) { setError(`"${field.label}" must be a number.`); return; }
+      parsed[field.key] = n;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await saveBreakdown(doc.id, type, parsed, notes.trim());
+      onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const facts: [string, string][] = [
+    ['Units at start', formatNumber(f.units_start, 4)],
+    ['Units at end', formatNumber(f.units_end, 4)],
+    ['Value at start', money(f.value_start)],
+    ['Value at end', money(f.value_end)],
+    ['Invested', money(f.invested)],
+    ['Redeemed', money(f.redeemed)],
+    ['Fees charged', money(f.fees)],
+    ['Fee rebates', money(f.rebates)],
+  ];
+
+  return (
+    <Modal title={`${DOC_LABEL[type] ?? 'Tax document'} · ${doc.capital_account?.investor?.full_name || 'Investor'}`} onClose={onClose}>
+      <div>
+        <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">From the register</p>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+          {facts.map(([k, v]) => <div key={k} className="flex justify-between gap-2"><dt className="text-slate-400">{k}</dt><dd className="text-slate-200 tabular-nums">{v}</dd></div>)}
+        </dl>
+        {f.year_end_confirmed !== true && (
+          <p className="flex items-start gap-2 text-xs text-amber-300 mt-3"><AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />The year-end price is not yet confirmed by IBKR, so this document cannot be finalised.</p>
+        )}
+      </div>
+      <div className="border-t border-slate-800 pt-4 space-y-3">
+        <p className="text-xs uppercase tracking-wider text-slate-500">Tax breakdown (enter 0 where none)</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {fields.map((field) => (
+            <Field key={field.key} label={field.label} hint={field.hint}>
+              <input inputMode="decimal" value={values[field.key]} onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))} className={input} placeholder="0.00" />
+            </Field>
+          ))}
+        </div>
+        <Field label="Notes">
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={input} />
+        </Field>
+      </div>
+      {error && <p className="text-sm text-red-300">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button tone="quiet" onClick={onClose}>Cancel</Button>
+        <Button onClick={save} loading={saving}>Save figures</Button>
+      </div>
+    </Modal>
   );
 }
