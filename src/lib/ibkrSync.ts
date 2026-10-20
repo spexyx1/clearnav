@@ -17,7 +17,7 @@ export async function callFlex(payload: Record<string, unknown>) {
 
 export async function hasIbkrConnection(fundId: string) {
   const { data, error } = await supabase.from('ibkr_flex_connections').select('fund_id').eq('fund_id', fundId).maybeSingle();
-  if (error) console.error('broker connection check failed', error);
+  if (error) throw new Error('Could not check the Interactive Brokers connection. Please try again.');
   return !!data;
 }
 

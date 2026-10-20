@@ -22,6 +22,7 @@ function relative(iso: string) {
 export default function BrokerConnection({ tenantId, fundId, userId, onSynced }: Props) {
   const [conn, setConn] = useState<Connection | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [setupOpen, setSetupOpen] = useState(false);
@@ -30,8 +31,13 @@ export default function BrokerConnection({ tenantId, fundId, userId, onSynced }:
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('ibkr_flex_connections')
       .select('query_id, token_expires_on, last_sync_at, last_status, last_error, sections_found').eq('fund_id', fundId).maybeSingle();
-    if (error) console.error('broker connection load failed', error);
-    setConn((data as Connection | null) ?? null);
+    if (error) {
+      console.error('broker connection load failed', error);
+      setLoadError(true);
+    } else {
+      setLoadError(false);
+      setConn((data as Connection | null) ?? null);
+    }
     setLoaded(true);
   }, [fundId]);
 
@@ -65,6 +71,17 @@ export default function BrokerConnection({ tenantId, fundId, userId, onSynced }:
   const missingSections = conn?.sections_found
     ? FLEX_SECTIONS.filter((s) => s.required && !s.tags.some((t) => conn.sections_found!.includes(t)))
     : [];
+
+  if (loadError && !conn) {
+    return (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl px-5 py-4">
+        <p className="flex items-center gap-2 text-sm text-amber-200"><AlertTriangle className="w-4 h-4 shrink-0" />Could not check the Interactive Brokers connection. Your saved connection has not been changed.</p>
+        <button onClick={() => { setLoaded(false); load(); }} className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 transition">
+          <RefreshCw className="w-4 h-4" /> Try again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>

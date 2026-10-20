@@ -149,15 +149,13 @@ export default function FundValue() {
   const doRefresh = () => run('prices', async () => {
     if (!data || !tenantId || !user?.id) return '';
     let ibkr = '';
-    if (await hasIbkrConnection(fundId)) {
-      try {
-        ibkr = await pullFromIbkr(tenantId, fundId, user.id);
-      } catch (e) {
-        console.error('ibkr price pull failed', e);
-        ibkr = 'Interactive Brokers could not be reached, so no new official prices were added.';
-      }
-    } else {
-      ibkr = 'Interactive Brokers is not connected, so no official prices could be fetched.';
+    try {
+      ibkr = await hasIbkrConnection(fundId)
+        ? await pullFromIbkr(tenantId, fundId, user.id)
+        : 'Interactive Brokers is not connected, so no official prices could be fetched.';
+    } catch (e) {
+      console.error('ibkr price pull failed', e);
+      ibkr = 'Interactive Brokers could not be reached, so no new official prices were added.';
     }
     const fresh = await loadFundData(fundId);
     const r = await refreshMarketPrices(tenantId, fundId, valueFund(fresh), fresh);
