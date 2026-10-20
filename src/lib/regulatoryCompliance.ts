@@ -39,8 +39,9 @@ export async function runComplianceCheck(
   const warnings: string[] = [];
   const metrics: Record<string, any> = {};
 
-  for (const rule of rules.data) {
-    const ruleResult = await checkIndividualRule(fundId, rule);
+  const results = await Promise.all(rules.data.map((rule) => checkIndividualRule(fundId, rule)));
+  for (const [i, rule] of rules.data.entries()) {
+    const ruleResult = results[i];
 
     metrics[rule.rule_code] = ruleResult.metrics;
 

@@ -64,7 +64,7 @@ export async function loadSenderAccounts(tenantId: string): Promise<EmailAccount
 export async function emailReport(accountId: string, c: ReportContent, recipients: { to: string; investor: InvestorLine | null }[]) {
   const pdf = toBase64(await renderReportPdf(c));
   const failed: string[] = [];
-  for (const r of recipients) {
+  const send = async (r: { to: string; investor: InvestorLine | null }) => {
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
         account_id: accountId,
@@ -76,6 +76,10 @@ export async function emailReport(accountId: string, c: ReportContent, recipient
       },
     });
     if (error || !data || data.success === false || data.error) failed.push(r.to);
+  };
+  // Small batches keep mail-provider rate limits happy while avoiding one-by-one sends.
+  for (let i = 0; i < recipients.length; i += 3) {
+    await Promise.all(recipients.slice(i, i + 3).map(send));
   }
   return { sent: recipients.length - failed.length, failed };
 }
