@@ -432,6 +432,9 @@ export default function InvestorVault({ onBack, onOpenReport, onApply }: Investo
           <p className="text-center text-xs opacity-20 mt-6 max-w-3xl mx-auto leading-relaxed">
             This document contains confidential information prepared exclusively for prospective wholesale investors as defined under the Corporations Act 2001 (Cth). It does not constitute an offer to sell or a solicitation to acquire any financial product. Past performance is not indicative of future results.
           </p>
+          <p className="text-center text-xs opacity-20 mt-3 max-w-3xl mx-auto leading-relaxed">
+            Arkline Trust is the trading name of Alara Funds Management Pty Ltd (AFSL 525624) as trustee. Key13 Ltd is the Investment Manager.
+          </p>
         </div>
       </footer>
     </div>
