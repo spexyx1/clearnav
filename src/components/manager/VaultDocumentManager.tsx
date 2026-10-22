@@ -19,8 +19,10 @@ const DOC_TYPE_OPTIONS = [
   { value: 'term_sheet',      label: 'Term Sheet' },
   { value: 'one_pager',       label: 'One-Pager' },
   { value: 'trade_history',   label: 'Trade History' },
-  { value: 'strategy_report', label: 'Strategy Report' },
-  { value: 'other',           label: 'Other' },
+  { value: 'strategy_report',      label: 'Strategy Report' },
+  { value: 'application_form',      label: 'Application Form' },
+  { value: 'information_memorandum', label: 'Investment Memorandum' },
+  { value: 'other',                 label: 'Other' },
 ];
 
 interface UploadForm {

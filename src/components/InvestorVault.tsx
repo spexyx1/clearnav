@@ -25,8 +25,9 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   one_pager:        'One-Pager',
   trade_history:    'Trade History',
   strategy_report:  'Strategy Report',
-  application_form: 'Application Form',
-  other:            'Document',
+  application_form:        'Application Form',
+  information_memorandum:   'Investment Memorandum',
+  other:                   'Document',
 };
 
 const DOC_TYPE_ICONS: Record<string, string> = {
@@ -35,8 +36,9 @@ const DOC_TYPE_ICONS: Record<string, string> = {
   one_pager:        '📄',
   trade_history:    '📈',
   strategy_report:  '🔬',
-  application_form: '📝',
-  other:            '📎',
+  application_form:         '📝',
+  information_memorandum:    '📑',
+  other:                    '📎',
 };
 
 export default function InvestorVault({ onBack, onOpenReport, onApply }: InvestorVaultProps) {
