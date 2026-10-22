@@ -20,6 +20,47 @@ export interface ApplicationRow {
   amount_class_c: number | null;
   total_committed_capital: number | null;
   reviewer_notes: string | null;
+  created_at: string;
+  contact_title: string | null;
+  contact_phone: string | null;
+  invest_class_a: boolean | null;
+  invest_class_b: boolean | null;
+  invest_class_c: boolean | null;
+  bank_reinvest: boolean | null;
+  prepared_at: string | null;
+  prepared_fields: Record<string, unknown> | null;
+  invite_email: string | null;
+  invite_sent_at: string | null;
+  invite_expires_at: string | null;
+  opened_at: string | null;
+  last_reminder_at: string | null;
+  locked_at: string | null;
+  sign_method: 'electronic' | 'paper' | null;
+  paper_scan_path: string | null;
+  paper_received_at: string | null;
+  paper_checked_at: string | null;
+  signed_pdf_path: string | null;
+  signed_pdf_sha256: string | null;
+  signed_at: string | null;
+  accepted_email_sent_at: string | null;
+  acceptance_payment_details: PaymentDetails | null;
+}
+
+export interface PaymentDetails {
+  bank: string;
+  account_name: string;
+  bsb: string;
+  account_number: string;
+  swift?: string;
+  reference?: string;
+}
+
+export const AWAITING_REVIEW = ['signed', 'paper_received', 'submitted', 'under_review'];
+
+export function readyToApprove(a: ApplicationRow) {
+  if (a.status === 'signed') return !!a.signed_pdf_path;
+  if (a.status === 'paper_received') return !!a.paper_checked_at;
+  return a.status === 'submitted' || a.status === 'under_review';
 }
 
 export type SubscriptionStatus = 'awaiting_funds' | 'money_received' | 'units_issued' | 'cancelled';
@@ -75,7 +116,7 @@ export interface ClassRef {
   class_name: string;
 }
 
-const APP_FIELDS = 'id, tenant_id, status, submitted_at, investor_type, contact_given_names, contact_surname, contact_email, a_given_names, a_surname, c_company_name, d_trust_name, amount_class_a, amount_class_b, amount_class_c, total_committed_capital, reviewer_notes';
+const APP_FIELDS = 'id, tenant_id, status, submitted_at, investor_type, contact_given_names, contact_surname, contact_email, a_given_names, a_surname, c_company_name, d_trust_name, amount_class_a, amount_class_b, amount_class_c, total_committed_capital, reviewer_notes, created_at, contact_title, contact_phone, invest_class_a, invest_class_b, invest_class_c, bank_reinvest, prepared_at, prepared_fields, invite_email, invite_sent_at, invite_expires_at, opened_at, last_reminder_at, locked_at, sign_method, paper_scan_path, paper_received_at, paper_checked_at, signed_pdf_path, signed_pdf_sha256, signed_at, accepted_email_sent_at, acceptance_payment_details';
 const SUB_FIELDS = 'id, share_class_id, application_id, client_id, investor_name, investor_email, kind, expected_amount, status, broker_movement_key, money_received_date, received_amount, dealing_date, created_at';
 
 const fail = (what: string, error: { message: string } | null) => {
@@ -89,6 +130,10 @@ export function applicantName(a: ApplicationRow) {
 
 const CLASS_HINTS: Record<'a' | 'b' | 'c', RegExp> = { a: /opportun/i, b: /quant/i, c: /conviction/i };
 
+export function classForLetter(letter: 'a' | 'b' | 'c', classes: ClassRef[]) {
+  return classes.find((c) => CLASS_HINTS[letter].test(c.class_name));
+}
+
 export function applicationAmounts(a: ApplicationRow, classes: ClassRef[]) {
   return (['a', 'b', 'c'] as const).flatMap((k) => {
     const amount = Number(a[`amount_class_${k}`] ?? 0);
@@ -100,7 +145,7 @@ export function applicationAmounts(a: ApplicationRow, classes: ClassRef[]) {
 
 export async function loadOnboarding(tenantId: string, fundId: string) {
   const [apps, subs, reds, accts, holdings] = await Promise.all([
-    supabase.from('investor_applications').select(APP_FIELDS).eq('tenant_id', tenantId).in('status', ['submitted', 'under_review', 'approved']).order('submitted_at', { ascending: false }),
+    supabase.from('investor_applications').select(APP_FIELDS).eq('tenant_id', tenantId).neq('status', 'cancelled').order('created_at', { ascending: false }),
     supabase.from('unit_subscriptions').select(SUB_FIELDS).eq('fund_id', fundId).order('created_at', { ascending: false }),
     supabase.from('redemption_requests').select('id, capital_account_id, client_id, request_date, redemption_date, shares_requested, amount_requested, status, redemption_type')
       .eq('fund_id', fundId).not('capital_account_id', 'is', null).in('status', ['approved', 'processing', 'completed']).order('redemption_date'),
@@ -157,6 +202,7 @@ export async function approveApplication(app: ApplicationRow, classes: ClassRef[
 }
 
 export async function rejectApplication(app: ApplicationRow, userId: string, notes: string) {
+  if (!notes.trim()) throw new Error('Please give a reason for rejecting the application.');
   const { error } = await supabase.from('investor_applications').update({
     status: 'rejected', review_decision: 'rejected', reviewed_at: new Date().toISOString(), reviewer_id: userId, reviewer_notes: notes || null,
   }).eq('id', app.id);

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { AlertTriangle, Loader2, X } from 'lucide-react';
 import { formatDate } from '../../../lib/format';
 import type { DealingSchedule } from '../../../lib/dealingTerms';
 import type { ClassValuation } from '../../../lib/fundValuation';
@@ -85,6 +85,14 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
         </div>
         <div className="p-6 space-y-4">{children}</div>
       </div>
+    </div>
+  );
+}
+
+export function Warning({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 leading-relaxed">
+      <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-px" /><div>{children}</div>
     </div>
   );
 }

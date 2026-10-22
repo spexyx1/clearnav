@@ -140,3 +140,7 @@ verify_jwt = true
 [functions.ibkr-flex-sync]
 enabled = true
 verify_jwt = true
+
+[functions.application-signing]
+enabled = true
+verify_jwt = false

@@ -28,7 +28,7 @@ export interface Director {
 export interface Trustee { name: string; address: string; suburb: string; state: string; postcode: string; country: string; }
 export interface Beneficiary { name: string; }
 export interface BeneficialOwner {
-  entity_type: 'corporate' | 'trust' | '';
+  entity_type: 'individual' | 'corporate' | 'trust' | '';
   name: string; dob: string;
   address: string; suburb: string; state: string; postcode: string; country: string;
   pep: boolean | null;
@@ -46,13 +46,6 @@ export interface FatcaIndividual {
   address: string; suburb: string; state: string; postcode: string; country: string;
 }
 export interface CrsEntry { country: string; tin: string; no_tin_reason: string; }
-export interface Signature {
-  role: 'director' | 'sole_director_secretary' | 'director_secretary' | 'trustee' | 'individual' | 'attorney' | '';
-  name: string; date: string; title: string;
-  type: 'draw' | 'type'; data: string;
-  is_electronic: boolean;
-  witness_name: string; witness_address: string; witness_date: string; witness_electronic: boolean;
-}
 
 export interface ApplicationFormData {
   // Section 1
@@ -96,7 +89,7 @@ export interface ApplicationFormData {
   b_wealth_other: string;
 
   // Section C
-  c_company_name: string; c_abn_tfn: string; c_acn: string;
+  c_company_name: string; c_abn_tfn: string; c_acn: string; c_arbn: string; c_afsl: string;
   c_aus_tax_resident: boolean | null;
   c_has_tin: boolean | null;
   c_tin_countries: TinEntry[];
@@ -144,10 +137,10 @@ export interface ApplicationFormData {
 
   // Section 8: Declaration
   declaration_agreed: boolean;
+  declaration_ticks: boolean[];
 
-  // Execution
+  // Execution: true when all signatories must act together
   multi_signatory: boolean | null;
-  signatures: Signature[];
 }
 
 export const BLANK_DIRECTOR: Director = {
@@ -161,13 +154,6 @@ export const BLANK_BENEFICIAL_OWNER: BeneficialOwner = {
   entity_type: '', name: '', dob: '',
   address: '', suburb: '', state: '', postcode: '', country: 'Australia',
   pep: null, aus_tax_resident: null, tin_countries: [{ country: '', tin: '' }], no_tin_reason: '',
-};
-
-export const BLANK_SIGNATURE: Signature = {
-  role: '', name: '', date: '', title: '',
-  type: 'type', data: '',
-  is_electronic: true,
-  witness_name: '', witness_address: '', witness_date: '', witness_electronic: false,
 };
 
 export const INITIAL_FORM: ApplicationFormData = {
@@ -196,7 +182,7 @@ export const INITIAL_FORM: ApplicationFormData = {
   b_tin_countries: [{ country: '', tin: '' }], b_no_tin_reason: '',
   b_pep: null, b_wealth_sources: [], b_wealth_other: '',
 
-  c_company_name: '', c_abn_tfn: '', c_acn: '',
+  c_company_name: '', c_abn_tfn: '', c_acn: '', c_arbn: '', c_afsl: '',
   c_aus_tax_resident: null, c_has_tin: null,
   c_tin_countries: [{ country: '', tin: '' }], c_no_tin_reason: '',
   c_registered_address: '', c_suburb: '', c_state: '', c_postcode: '', c_country: 'Australia',
@@ -229,9 +215,9 @@ export const INITIAL_FORM: ApplicationFormData = {
   crs_countries: [{ country: '', tin: '', no_tin_reason: '' }],
 
   declaration_agreed: false,
+  declaration_ticks: Array(14).fill(false),
 
   multi_signatory: null,
-  signatures: [{ ...BLANK_SIGNATURE }],
 };
 
 export const WEALTH_SOURCE_LABELS: Record<WealthSource, string> = {

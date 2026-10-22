@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowDownToLine, BookOpen, CheckCircle, ClipboardList, L
 import { useAuth } from '../../../lib/auth';
 import { scheduleFrom, type DealingTerms } from '../../../lib/dealingTerms';
 import { loadFundData, valueFund, type ClassValuation } from '../../../lib/fundValuation';
-import { loadOnboarding, unmatchedMoneyIn, type ClassRef } from '../../../lib/onboarding';
+import { AWAITING_REVIEW, loadOnboarding, unmatchedMoneyIn, type ClassRef } from '../../../lib/onboarding';
 import ApplicationsPanel from './ApplicationsPanel';
 import MoneyInPanel from './MoneyInPanel';
 import DealingPanel from './DealingPanel';
@@ -72,7 +72,7 @@ export default function InvestorOnboarding({ tenantId, funds, initialView = 'app
     if (!data) return {} as Partial<Record<View, number>>;
     const official = new Set(data.brokerAccounts.filter((a) => a.account_role === 'official').map((a) => a.share_class_id));
     return {
-      applications: data.applications.filter((a) => a.status === 'submitted' || a.status === 'under_review').length,
+      applications: data.applications.filter((a) => AWAITING_REVIEW.includes(a.status)).length,
       money: unmatchedMoneyIn(valuations, data.subscriptions, official).length,
       dealing: data.subscriptions.filter((s) => s.status === 'money_received').length
         + data.redemptions.filter((r) => r.status === 'approved' || r.status === 'processing').length,

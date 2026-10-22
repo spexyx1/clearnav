@@ -1,0 +1,121 @@
+{
+  "projectId": "62081220",
+  "functions": {
+    "admin-update-password": {
+      "hasChanged": false,
+      "hash": "734ddb009b4320260e649a0d628d1a6e3c1669c66e38e04060a7b31e77b8372588b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "ai-compose-email": {
+      "hasChanged": false,
+      "hash": "cfb8228072a382cb128e21e52e9fd394c55c2250c3b88f78d1d2c4b78ead7bec88b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "ai-help-chat": {
+      "hasChanged": false,
+      "hash": "f1098ac33895b88715db53d68a185002c6b36de16c872bf9adeca71ce25a991e88b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "ai-process-lead-queue": {
+      "hasChanged": false,
+      "hash": "93c06af2b0d01e2aeb0f0624f726a2669f2b213e44d9b476ff9f0332ac31d8ce88b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "apollo-proxy": {
+      "hasChanged": false,
+      "hash": "1735e30649f3f9b5770f5bb555495206e7e2f22a0d4d03eeda40fb0be8e8d03688b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "check-email-duplicate": {
+      "hasChanged": false,
+      "hash": "68d9ea418ab6bc002bb223105e9461d118fbf971ac54cbfa1cec2c7a3e49c59388b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "didit-create-session": {
+      "hasChanged": false,
+      "hash": "4f27c19165415f8dd392f31a25078ef7b8651e29d4fa85a3d77723f60b1539d288b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "didit-webhook": {
+      "hasChanged": false,
+      "hash": "a9aac7ef56647e1c64a6a52daf3d6e9302da371b661dc36f4ab8683aa391dcff88b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "evaluate-approval-requirement": {
+      "hasChanged": false,
+      "hash": "eed0af132916cb5a30f2c66e22b2c283ec9b50d85d970912804f8501d80cab8788b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "extract-fund-document": {
+      "hasChanged": false,
+      "hash": "bd6ecfc769f037f73d74f0e65689a220b31e40cb8c7883d7e325fc71dedcac9688b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "get-vault-documents": {
+      "hasChanged": false,
+      "hash": "187f64042baaf2ffa4463a9b45be5c4aefcfc93d74ba9462c735ea0d2f864e0288b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "ibkr-flex-sync": {
+      "hasChanged": false,
+      "hash": "f4ab77f6d0de29ae3df726680500ee4b5c1836ea358f6a9d5d0c101292dad47d88b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "ibkr-scheduled-sync": {
+      "hasChanged": false,
+      "hash": "5c82cd333c4c7f033394ef8a2623a8bf331de771328ed4253514b9ab86f9336388b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "ibkr-sync-portfolio": {
+      "hasChanged": false,
+      "hash": "2a7a6bf87b5468eefbf01f1a43cbe4a1f2ac63c47689f1e84d74295deeda65f188b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "invoice-app-auth": {
+      "hasChanged": false,
+      "hash": "12243e4261cfc9619cefc07722b25f42a1f8a604697ba10eb1dd021f87305f1c88b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "market-prices": {
+      "hasChanged": false,
+      "hash": "5c8e03c18a2606b37fe535fbb11732071f3b3ff5543dfaa644fac8899e82f20088b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "phone-forward-webhook": {
+      "hasChanged": false,
+      "hash": "1ff021f5022d64ac62a1ab747d5bc9829b8d782fc5bd9cf1b848b672fadd4b9588b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "phone-number-provision": {
+      "hasChanged": false,
+      "hash": "293aec3ee439b6354fa84bea8211c691d3f17f9451795f4f7c8a9e0a20a49bbb88b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "resend-inbound": {
+      "hasChanged": false,
+      "hash": "fc89d555f3f54913462b26c889b6ee1568452343ac94a1b7b35a4a99338f132788b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "resend-inbound-setup": {
+      "hasChanged": false,
+      "hash": "01931144f392f1dc868d8aafd0f569b500cb6b92f23a2181b7942d221d69bdd988b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "send-application-notification": {
+      "hasChanged": false,
+      "hash": "86cc89d86aa07dbd76d464ef229ba3ff8b1f5c1b6bedd65107d97d68efcfa8c988b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "send-email": {
+      "hasChanged": false,
+      "hash": "a22f252ac57fe8e76ee50096ef487e130c098bb25ac7c4ffb81e5476dceaad9388b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "send-invitation-email": {
+      "hasChanged": false,
+      "hash": "ce541098b39c3aaf3912d1ac3aadf45d18a418c0af7740d746d5c5168c75dbcd88b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "send-invoice-email": {
+      "hasChanged": false,
+      "hash": "2583ff7ce20907eef88a0a350863046d54ed5f6e86732112716f4b732d9cf81288b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "send-test-welcome-email": {
+      "hasChanged": false,
+      "hash": "f8ebd8132abc9e44dbbb72292daa3b79c262e274cd82f312df5afea405f8aa5e88b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "telnyx-webhook": {
+      "hasChanged": false,
+      "hash": "f2f1211747de0d5923541593ea8c42dc7aa83773416ea7aa64cced9c39435b4488b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "vercel-domain-manager": {
+      "hasChanged": false,
+      "hash": "f48f60434622915e9b2994383f35879e70afe50f9cc0039eea047085605b9fd388b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "verify-tenant-email": {
+      "hasChanged": false,
+      "hash": "cf8e553f87173a957854e242a4cad1c9328a559cfb74e6c4221aecd24bac6d9688b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    },
+    "application-signing": {
+      "hasChanged": false,
+      "hash": "d14db04a12a6804d5d4501e5cf45cb29985e20851eaf6bb025ec99443d4192d688b8e3b95c3615bae8a3875bd8de75a9f182a31a7fa0285d5ab9a6cb22d2c813"
+    }
+  }
+}

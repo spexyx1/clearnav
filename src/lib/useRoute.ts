@@ -15,6 +15,7 @@ export type AppRoute =
   | 'vault'
   | 'investor-report'
   | 'vault-apply'
+  | 'vault-sign'
   | 'invoice-public'
   | 'mail'
   | 'reset-password';
@@ -36,6 +37,7 @@ function detectRoute(): AppRoute {
   if (path === '/vault')            return 'vault';
   if (path === '/vault/report')    return 'investor-report';
   if (path === '/vault/apply')     return 'vault-apply';
+  if (path === '/vault/sign')      return 'vault-sign';
   if (path === '/mail' || path === '/mail/') return 'mail';
   if (path === '/reset-password')   return 'reset-password';
   if (path.startsWith('/invoice/')) return 'invoice-public';

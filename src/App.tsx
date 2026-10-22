@@ -53,6 +53,7 @@ const ContactPage = lazyWithReload(() => import('./components/ContactPage'));
 const InvestorVault = lazyWithReload(() => import('./components/InvestorVault'));
 const InvestorReport = lazyWithReload(() => import('./components/InvestorReport'));
 const InvestorApplicationForm = lazyWithReload(() => import('./components/vault/InvestorApplicationForm'));
+const SignApplicationPage = lazyWithReload(() => import('./components/vault/SignApplicationPage'));
 const InvoicePublicView = lazyWithReload(() => import('./components/manager/invoicing/InvoicePublicView'));
 const MailApp = lazyWithReload(() => import('./components/mail/MailApp'));
 const ResetPassword = lazyWithReload(() => import('./components/ResetPassword'));
@@ -200,7 +201,17 @@ function AppContent() {
     return (
       <ErrorBoundary>
         <Suspense fallback={<Fallback />}>
-          <InvestorApplicationForm onBack={() => navigate('/vault')} />
+          <InvestorApplicationForm onBack={() => navigate('/vault')} onSign={token => navigate(`/vault/sign?t=${token}`)} />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  if (route === 'vault-sign') {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<Fallback />}>
+          <SignApplicationPage />
         </Suspense>
       </ErrorBoundary>
     );
@@ -279,7 +290,7 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const tenantParam = params.get('tenant');
     const path = window.location.pathname;
-    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/vault', '/vault/report', '/vault/apply', '/investor-signup', '/mail'];
+    const specialPaths = ['/debug', '/signup', '/terms', '/privacy', '/investors', '/vault', '/vault/report', '/vault/apply', '/vault/sign', '/investor-signup', '/mail'];
 
     if (!specialPaths.includes(path) && !path.startsWith('/invoice/') && !path.startsWith('/phone') && !tenantParam) {      const defaultTenant = import.meta.env.VITE_DEFAULT_DEV_TENANT || 'arkline';
       window.location.replace(
