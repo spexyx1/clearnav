@@ -179,6 +179,7 @@ export interface MonthResult {
   unitsRedeemed: number;
   cash: number;
   unitemisedCash: number;
+  cashByCurrency: Array<{ currency: string; amount: number; usd: number }>;
   holdings: HoldingValue[];
   holdingsValue: number;
   accountValue: number;
@@ -298,7 +299,7 @@ export function valueClass(
       classId: cls.id,
       notes,
       months: months.map((m) => ({
-        month: m, date: monthEnd(+m.slice(0, 4), +m.slice(5, 7)), openingValue: capital, flows: 0, internalFlows: 0, cash: capital, unitemisedCash: 0,
+        month: m, date: monthEnd(+m.slice(0, 4), +m.slice(5, 7)), openingValue: capital, flows: 0, internalFlows: 0, cash: capital, unitemisedCash: 0, cashByCurrency: [],
         movements: [], charges: { ...NO_CHARGES }, dividends: 0, interest: 0, investmentGain: 0, unitsStart: cls.units, unitsIssued: 0, unitsRedeemed: 0,
         holdings: [], holdingsValue: 0, accountValue: capital, computedValue: capital, brokerValue: null, income: 0, fees: 0,
         tradeCount: 0, monthReturn: 0, unitPrice: cls.startPrice, units: cls.units, classNav: round(capital), missingPrices: [], unofficialPrices: [], missingFx: [], unexplained: 0, tradeFx: {},
@@ -603,6 +604,9 @@ export function valueClass(
     }
     const brokerValue = closing?.nav ?? null;
     const accountValue = brokerValue ?? computedValue;
+    const cashByCurrency = Object.entries(closing?.cash_by_currency ?? {})
+      .filter(([, amount]) => Math.abs(amount) >= 0.005)
+      .map(([currency, amount]) => ({ currency, amount: round(amount), usd: round(amount * fxFor(currency, date, stmtRates)) }));
     const denom = prevValue + flows;
     const monthReturn = denom > 0.01 ? (accountValue - prevValue - flows) / denom : 0;
 
@@ -735,7 +739,7 @@ export function valueClass(
       finalReasons.push(...dealingReasons);
       if (unpricedDays.length) finalReasons.push(`No IBKR daily value for ${unpricedDays.join(', ')}, so units moved that day could not be priced at the day's close. Make sure the IBKR report's NAV section is daily.`);
       results.push({
-        month: mk, date, openingValue: round(prevValue), flows: round(flows), internalFlows: round(internalFlows), cash: round(cash), unitemisedCash: round(unitemisedCash), holdings, holdingsValue,
+        month: mk, date, openingValue: round(prevValue), flows: round(flows), internalFlows: round(internalFlows), cash: round(cash), unitemisedCash: round(unitemisedCash), cashByCurrency, holdings, holdingsValue,
         movements, charges, dividends: round(dividends), interest: round(interest),
         investmentGain: round(accountValue - prevValue - flows - income + fees + manualPaid),
         unitsStart: round(unitsStart, 4), unitsIssued: round(issued, 4), unitsRedeemed: round(redeemed, 4),

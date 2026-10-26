@@ -68,6 +68,10 @@ export function reconcileMonth(classId: string, r: MonthResult): Reconciliation 
   clues.forEach(([label, ours, ibkr]) => {
     if (ibkr != null) checks.push({ label, ours: cents(ours), ibkr, difference: diffOf(ours, ibkr), gating: false });
   });
+  if (r.cashByCurrency.length && r.brokerValue != null) {
+    const ibkrCash = cents(r.cashByCurrency.reduce((s, c) => s + c.usd, 0));
+    checks.push({ label: 'Cash across all currencies (in USD)', ours: cents(r.cash), ibkr: ibkrCash, difference: diffOf(r.cash, ibkrCash), gating: false });
+  }
 
   const gating = checks.filter((c) => c.gating);
   const difference = gating.some((c) => c.difference == null)
@@ -95,6 +99,8 @@ function suggest(r: MonthResult, checks: ReconCheck[], unconfirmed: number, diff
     if (mv) out.push({ title: 'Likely a missing or doubled movement', detail: `The gap of ${usd(gap)} equals "${mv.description}" on ${mv.date} (${usd(mv.amount)}). Check it is counted exactly once.` });
     const h = r.holdings.find((x) => near(x.marketValue, gap));
     if (h) out.push({ title: `Check ${h.symbol}`, detail: `The gap equals the value of ${h.symbol} (${usd(h.marketValue)}). A trade, transfer or corporate action for it may be missing.` });
+    const c = r.cashByCurrency.find((x) => x.currency !== 'USD' && near(x.usd, gap));
+    if (c) out.push({ title: `Check ${c.currency} cash`, detail: `The gap equals the ${c.currency} cash balance (${c.amount.toLocaleString('en-US')} ${c.currency}, ${usd(c.usd)}). That currency's cash or exchange rate may be missing.` });
     checks.filter((c) => !c.gating && c.difference != null && Math.abs(c.difference) >= EXACT).forEach((c) => {
       out.push({
         title: `${c.label} differ from IBKR`,
