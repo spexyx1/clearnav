@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { cents } from './money';
 import type { ClassValuation, MonthResult } from './fundValuation';
 
 export type ReconStatus = 'matched' | 'within_tolerance' | 'not_matched';
@@ -31,7 +32,6 @@ export interface Reconciliation {
 export const EXACT = 0.005;
 export const TOLERANCE = 1;
 
-const cents = (v: number) => Math.round(v * 100) / 100;
 const diffOf = (ours: number | null, ibkr: number | null) => (ours == null || ibkr == null ? null : cents(ibkr - ours));
 const usd = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
 const near = (a: number, b: number) => Math.abs(Math.abs(a) - Math.abs(b)) < 0.01;

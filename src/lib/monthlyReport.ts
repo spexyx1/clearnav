@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { cents as r2 } from './money';
 import { loadFundData, valueFund } from './fundValuation';
 import { monthEnd } from './statementParser';
 
@@ -25,6 +26,7 @@ export interface ReportClass {
   fees?: number;
   month_gain?: number;
   status: 'approved' | 'draft' | 'unsaved';
+  exception_reason?: string;
   holdings: ReportHolding[];
   trades: ReportTrade[];
   history: { month: string; unit_price: number }[];
@@ -51,14 +53,13 @@ export interface InvestorLine {
   total_gain: number;
 }
 
-const r2 = (v: number) => Math.round(v * 100) / 100;
 
 export async function buildReportNumbers(fundId: string, fundName: string, year: number, month: number) {
   const mk = `${year}-${String(month).padStart(2, '0')}`;
   const data = await loadFundData(fundId);
   const valuations = valueFund(data);
   const { data: navs, error } = await supabase.from('nav_calculations')
-    .select('share_class_id, nav_date, status').eq('fund_id', fundId).neq('calculation_method', 'opening');
+    .select('share_class_id, nav_date, status, exceptions:calculation_data->approved_with_exceptions, reason:calculation_data->>approval_reason').eq('fund_id', fundId).neq('calculation_method', 'opening');
   if (error) throw new Error(error.message);
 
   const classes: ReportClass[] = [];
@@ -72,6 +73,7 @@ export async function buildReportNumbers(fundId: string, fundName: string, year:
     const ytdBase = yearStart?.unitPrice ?? cls.startPrice;
     const rows = (navs ?? []).filter((n) => n.share_class_id === cls.id && n.nav_date === cur.date);
     const status = rows.some((n) => n.status === 'approved') ? 'approved' : rows.length ? 'draft' : 'unsaved';
+    const exc = rows.find((n) => n.status === 'approved' && n.exceptions);
     const uploadIds = data.uploads.filter((u) => u.share_class_id === cls.id && u.upload_year === year && u.upload_month === month).map((u) => u.id);
     const trades: ReportTrade[] = data.items
       .filter((i) => uploadIds.includes(i.upload_id))
@@ -104,6 +106,7 @@ export async function buildReportNumbers(fundId: string, fundName: string, year:
       fees: cur.fees,
       month_gain: r2(cur.accountValue - cur.openingValue - cur.flows),
       status,
+      ...(exc ? { exception_reason: (exc.reason as string | null) || 'Approved within the $1 allowance' } : {}),
       holdings: cur.holdings.map((h) => ({ symbol: h.symbol, quantity: h.quantity, price: h.price, value: h.marketValue, weight: h.marketValue / total, currency: h.currency })),
       trades,
       history: hist.map((m) => ({ month: m.month, unit_price: m.unitPrice })),

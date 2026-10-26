@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { cents as r2 } from './money';
 import { finalMonthsFor, loadUnitRegister, unitsAt, type RegisterAccount, type UnitRegister } from './unitRegister';
 
 export type TaxDocType = 'annual_statement' | 'k1';
@@ -58,7 +59,6 @@ export function periodFor(type: TaxDocType, year: number) {
     : { start: `${year}-01-01`, end: `${year}-12-31`, label: `Calendar year ${year}` };
 }
 
-const r2 = (v: number) => Math.round(v * 100) / 100;
 
 function factsFor(register: UnitRegister, account: RegisterAccount, start: string, end: string): RegisterFacts {
   const finals = [...finalMonthsFor(register, account.classId)].sort((a, b) => a.date.localeCompare(b.date));

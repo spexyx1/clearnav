@@ -20,7 +20,7 @@ import ReconcileDialog, { ReconBadge } from './ReconcileDialog';
 interface SavedRecon { share_class_id: string; month_end: string; status: string; difference: number; run_at: string }
 
 interface Fund { id: string; fund_name: string }
-interface SavedNav { share_class_id: string; nav_date: string; status: string; nav_per_share: number; net_asset_value: number; total_shares: number; previous: PreviousFigures | null }
+interface SavedNav { share_class_id: string; nav_date: string; status: string; nav_per_share: number; net_asset_value: number; total_shares: number; previous: PreviousFigures | null; exceptions: boolean | null; reason: string | null }
 
 const LINE_COLORS = ['#38bdf8', '#34d399', '#fbbf24', '#f87171'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -105,7 +105,7 @@ export default function FundValue() {
     setError('');
     try {
       const [d, { data: navs, error: nErr }, { data: rc, error: rcErr }] = await Promise.all([loadFundData(fundId), supabase.from('nav_calculations')
-        .select('share_class_id, nav_date, status, nav_per_share, net_asset_value, total_shares, previous:calculation_data->previous').eq('fund_id', fundId).neq('calculation_method', 'opening').neq('status', 'superseded'),
+        .select('share_class_id, nav_date, status, nav_per_share, net_asset_value, total_shares, previous:calculation_data->previous, exceptions:calculation_data->approved_with_exceptions, reason:calculation_data->>approval_reason').eq('fund_id', fundId).neq('calculation_method', 'opening').neq('status', 'superseded'),
         supabase.from('fund_reconciliations').select('share_class_id, month_end, status, difference, run_at').eq('fund_id', fundId)]);
       if (nErr) throw nErr;
       if (rcErr) throw rcErr;
@@ -198,7 +198,7 @@ export default function FundValue() {
     if (!tenantId || !user?.id) return '';
     let pulled = '';
     try {
-      if (await hasIbkrConnection(fundId)) { await pullFromIbkr(tenantId, fundId, user.id); pulled = 'Fresh data pulled from Interactive Brokers. '; }
+      if (await hasIbkrConnection(fundId)) pulled = `${await pullFromIbkr(tenantId, fundId, user.id)} `;
       else pulled = 'Interactive Brokers is not connected, so the last saved statements were used. ';
     } catch (e) {
       console.error('reconcile ibkr pull failed', e);
@@ -356,9 +356,16 @@ export default function FundValue() {
                           </span>
                           <span className="tabular-nums text-slate-300">{usd(r!.classNav)}</span>
                           <span className="text-right">
-                            <span className={`text-xs px-2 py-0.5 rounded-full border ${st === 'approved' ? 'border-emerald-500/30 text-emerald-300' : st ? 'border-sky-500/30 text-sky-300' : 'border-slate-700 text-slate-500'}`}>
-                              {st === 'approved' ? 'Approved' : st ? 'Draft' : 'Not saved'}
-                            </span>
+                            {(() => {
+                              const row = savedRow(v.classId, r!.date);
+                              const exc = st === 'approved' && !!row?.exceptions;
+                              return (
+                                <span title={exc && row?.reason ? `Reason: ${row.reason}` : undefined}
+                                  className={`text-xs px-2 py-0.5 rounded-full border ${exc ? 'border-amber-500/30 text-amber-300' : st === 'approved' ? 'border-emerald-500/30 text-emerald-300' : st ? 'border-sky-500/30 text-sky-300' : 'border-slate-700 text-slate-500'}`}>
+                                  {exc ? 'Approved with exceptions' : st === 'approved' ? 'Approved' : st ? 'Draft' : 'Not saved'}
+                                </span>
+                              );
+                            })()}
                             {(() => {
                               const rec = recs[key];
                               if (!rec) return null;

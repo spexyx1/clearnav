@@ -35,5 +35,11 @@ export async function pullFromIbkr(tenantId: string, fundId: string, userId: str
   const saved = await saveStatementBatches({ tenantId, fundId, userId, filename, sourcePath, statement, batches, accountToClass });
   const automation = describeResult(await runFundAutomation(tenantId, fundId, userId));
   const warnings = statement.warnings.length ? ` ${statement.warnings.join(' ')}` : '';
-  return `Pulled the latest figures from Interactive Brokers (${saved} month${saved === 1 ? '' : 's'} updated). ${automation}${warnings}`.trim();
+  const unusable = statement.skipped.filter((s) => !s.reason.startsWith('Currency conversion'));
+  const groups = new Map<string, number>();
+  unusable.forEach((s) => groups.set(`${s.section}: ${s.reason.toLowerCase()}`, (groups.get(`${s.section}: ${s.reason.toLowerCase()}`) ?? 0) + 1));
+  const skippedText = unusable.length
+    ? ` ${unusable.length} line${unusable.length === 1 ? '' : 's'} in the report could not be used (${[...groups].map(([k, n]) => `${k} x${n}`).join('; ')}). Check these in Interactive Brokers if a month does not reconcile.`
+    : '';
+  return `Pulled the latest figures from Interactive Brokers (${saved} month${saved === 1 ? '' : 's'} updated). ${automation}${warnings}${skippedText}`.trim();
 }

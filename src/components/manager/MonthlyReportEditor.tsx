@@ -131,6 +131,14 @@ export default function MonthlyReportEditor({ tenantId, report, onBack }: { tena
           Some figures for this month are not yet approved in Fund Value. They are marked as provisional in the report.
         </p>
       )}
+      {content.classes.some((c) => c.exception_reason) && (
+        <div className="text-sm text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+          <p className="font-medium">Approved with exceptions (shown to managers only)</p>
+          <ul className="mt-1 space-y-0.5 text-amber-200/80">
+            {content.classes.filter((c) => c.exception_reason).map((c) => <li key={c.name}>{c.name}: {c.exception_reason}</li>)}
+          </ul>
+        </div>
+      )}
       {!content.classes.length && (
         <p className="text-sm text-slate-300 bg-slate-800/60 border border-slate-700 rounded-lg px-4 py-3">
           No fund values exist for this month yet. Upload the broker statement, then use Refresh figures.

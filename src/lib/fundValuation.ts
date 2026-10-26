@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { roundTo as round } from './money';
 import { monthEnd, monthsBetween, type CashEvent, type ChangeInNav } from './statementParser';
 import type { StatementMonthData } from './statementImport';
 import { loadDealingTerms, numberOf, type DealingTerms } from './dealingTerms';
@@ -213,7 +214,6 @@ export interface ClassValuation {
   notes: string[];
 }
 
-const round = (v: number, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
 const markKey = (symbol: string, date: string) => `${symbol}|${date}`;
 
 export function isMarketPriceable(assetCategory: string) {
@@ -339,7 +339,10 @@ export function valueClass(
     const series = fxSeries.get(ccy);
     if (!series?.length) { missingFx.add(ccy); return 0; }
     const target = Date.parse(date);
-    return series.reduce((best, cur) => (Math.abs(Date.parse(cur[0]) - target) < Math.abs(Date.parse(best[0]) - target) ? cur : best))[1];
+    const nearest = series.reduce((best, cur) => (Math.abs(Date.parse(cur[0]) - target) < Math.abs(Date.parse(best[0]) - target) ? cur : best));
+    // A rate more than a week away is only an estimate, so the month stays in review.
+    if (Math.abs(Date.parse(nearest[0]) - target) > 7 * 86400000) missingFx.add(ccy);
+    return nearest[1];
   };
 
   const first = byMonth.get(keys[0])!.statement_data;

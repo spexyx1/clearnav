@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { cents as r2 } from './money';
 import { monthEnd } from './statementParser';
 import { MOVEMENT_LABELS, isIbkrPrice, loadFundData, refreshMarketPrices, saveDrafts, setManualPrice, setMovementLabel, valueFund, type ClassValuation, type FundData, type HoldingValue, type MonthResult, type MovementLabel } from './fundValuation';
 import { MONTH_NAMES, buildReportNumbers, emptyNarrative, type ReportContent } from './monthlyReport';
@@ -339,7 +340,6 @@ async function updateCapitalAccounts(fundId: string, navs: NavRow[], className: 
   const { data: accts, error } = await supabase.from('capital_accounts')
     .select('id, share_class_id, shares_owned, cost_basis, metadata').eq('fund_id', fundId);
   if (error) fail('load investor accounts', error);
-  const r2 = (v: number) => Math.round(v * 100) / 100;
   // Official investor units come only from the unit register; the investor portal values them from final months itself.
   const legacy = (accts ?? []).filter((a) => ((a.metadata ?? {}) as Record<string, unknown>).official !== true);
   for (const a of legacy) {

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { cents as r2 } from './money';
 import type { Dealt } from './fundValuation';
 import { fetchAll, fetchAllIn } from './fetchAll';
 
@@ -187,7 +188,6 @@ export function statementFor(register: UnitRegister, account: RegisterAccount, m
   const rebates = feeLines.filter((f) => f.kind === 'rebate').reduce((s, f) => s + f.amount, 0);
   const unitsEnd = unitsAt(account, end.date);
   const priceStart = prev?.price ?? end.price;
-  const r2 = (v: number) => Math.round(v * 100) / 100;
   const valueStart = r2(unitsStart * priceStart);
   const valueEnd = r2(unitsEnd * end.price);
   const gain = r2(valueEnd - valueStart - contributions + withdrawals + fees - rebates);
