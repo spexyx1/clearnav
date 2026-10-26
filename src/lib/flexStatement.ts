@@ -63,6 +63,10 @@ export function parseFlexXml(xml: string): ParsedStatement {
     const info = st.querySelector('AccountInformation');
     if (info?.getAttribute('name')) s.name = info.getAttribute('name')!;
     const attr = (el: Element, ...names: string[]) => names.map((n) => el.getAttribute(n)).find((v) => v != null && v !== '') ?? '';
+    const skip = (section: string, reason: string, el: Element) => out.skipped.push({
+      line: 0, section, reason,
+      text: [acct, attr(el, 'tradeDate', 'dateTime', 'reportDate', 'date'), attr(el, 'symbol', 'type'), attr(el, 'description'), attr(el, 'quantity', 'amount', 'proceeds')].filter(Boolean).join(' | '),
+    });
 
     const navByDate: Record<string, number> = {};
     const cashByDate: Record<string, number> = {};
@@ -84,9 +88,13 @@ export function parseFlexXml(xml: string): ParsedStatement {
     }
 
     st.querySelectorAll('CashReportCurrency').forEach((c) => {
-      if (!/BASE_SUMMARY/i.test(c.getAttribute('currency') || '')) return;
-      const a = num(c.getAttribute('startingCash'));
+      const ccy = c.getAttribute('currency') || '';
       const b = num(c.getAttribute('endingCash'));
+      if (!/BASE_SUMMARY/i.test(ccy)) {
+        if (/^[A-Z]{3}$/.test(ccy) && !Number.isNaN(b)) (s.cashByCurrency ??= {})[ccy] = b;
+        return;
+      }
+      const a = num(c.getAttribute('startingCash'));
       if (!Number.isNaN(a)) s.startingCash = a;
       if (!Number.isNaN(b)) s.endingCash = b;
     });
@@ -136,11 +144,11 @@ export function parseFlexXml(xml: string): ParsedStatement {
     const level = ['ORDER', 'EXECUTION'].find((l) => trades.some((t) => t.getAttribute('levelOfDetail') === l));
     trades.filter((t) => !level || t.getAttribute('levelOfDetail') === level).forEach((t) => {
       const assetCategory = t.getAttribute('assetCategory') || '';
-      if (/^cash$|forex/i.test(assetCategory)) return;
+      if (/^cash$|forex/i.test(assetCategory)) { skip('Trades', 'Currency conversion - reflected in cash balances, not a holding', t); return; }
       const qty = num(t.getAttribute('quantity'));
       const date = day(attr(t, 'tradeDate', 'dateTime'));
       const symbol = t.getAttribute('symbol') || '';
-      if (!date || !symbol || Number.isNaN(qty) || qty === 0) return;
+      if (!date || !symbol || Number.isNaN(qty) || qty === 0) { skip('Trades', !date ? 'No trade date' : !symbol ? 'No symbol' : 'Zero or unreadable quantity', t); return; }
       const price = num(t.getAttribute('tradePrice')) || 0;
       const mult = num(t.getAttribute('multiplier')) || 1;
       const proceeds = num(t.getAttribute('proceeds'));
@@ -162,7 +170,7 @@ export function parseFlexXml(xml: string): ParsedStatement {
     cashTx.filter((c) => !hasDetail || c.getAttribute('levelOfDetail') === 'DETAIL').forEach((c) => {
       const amount = num(c.getAttribute('amount'));
       const date = day(attr(c, 'dateTime', 'reportDate', 'settleDate'));
-      if (Number.isNaN(amount) || !date || amount === 0) return;
+      if (Number.isNaN(amount) || !date || amount === 0) { skip('Cash transactions', !date ? 'No date' : 'Zero or unreadable amount', c); return; }
       const currency = c.getAttribute('currency') || 'USD';
       if (currency !== 'USD') nonBase.add(currency);
       out.cashEvents.push({ account: acct, date, type: cashType(c.getAttribute('type') || '', amount), description: c.getAttribute('description') || c.getAttribute('type') || 'Cash', currency, amount });
@@ -170,7 +178,7 @@ export function parseFlexXml(xml: string): ParsedStatement {
 
     st.querySelectorAll('Transfer').forEach((t) => {
       const date = day(attr(t, 'date', 'reportDate', 'dateTime'));
-      if (!date) return;
+      if (!date) { skip('Transfers', 'No date', t); return; }
       const outgoing = /out/i.test(t.getAttribute('direction') || '');
       const internal = /internal/i.test(t.getAttribute('type') || '');
       const assetCategory = t.getAttribute('assetCategory') || '';
@@ -180,16 +188,17 @@ export function parseFlexXml(xml: string): ParsedStatement {
       if (symbol && symbol !== '--' && !/^cash$/i.test(assetCategory) && !Number.isNaN(qty) && qty !== 0) {
         const tp = num(t.getAttribute('transferPrice'));
         const amt = num(t.getAttribute('positionAmount'));
+        const tm = num(t.getAttribute('multiplier'));
         out.trades.push({
           account: acct, date, symbol, assetCategory: assetCategory || 'STK', currency,
           direction: outgoing || qty < 0 ? 'sell' : 'buy', quantity: Math.abs(qty),
           price: tp > 0 ? tp : !Number.isNaN(amt) ? Math.abs(amt / qty) : 0, proceeds: 0, fees: 0, realizedPl: 0,
-          multiplier: /opt/i.test(assetCategory) ? 100 : 1, action: 'transfer',
+          multiplier: tm > 0 ? tm : /opt/i.test(assetCategory) ? 100 : 1, action: 'transfer',
         });
         return;
       }
       const amount = num(attr(t, 'cashTransfer', 'positionAmount', 'quantity'));
-      if (Number.isNaN(amount) || amount === 0) return;
+      if (Number.isNaN(amount) || amount === 0) { skip('Transfers', 'Zero or unreadable amount', t); return; }
       const signed = outgoing ? -Math.abs(amount) : amount;
       out.cashEvents.push({ account: acct, date, type: signed >= 0 ? 'deposit' : 'withdrawal', description: `${internal ? 'Internal transfer' : 'Transfer'} ${t.getAttribute('account') || ''}`.trim(), currency, amount: signed, internal });
     });
@@ -198,13 +207,14 @@ export function parseFlexXml(xml: string): ParsedStatement {
       const symbol = c.getAttribute('symbol') || '';
       const qty = num(c.getAttribute('quantity'));
       const date = day(attr(c, 'reportDate', 'dateTime'));
-      if (!symbol || !date || Number.isNaN(qty)) return;
+      if (!symbol || !date || Number.isNaN(qty)) { skip('Corporate actions', !symbol ? 'No symbol' : !date ? 'No date' : 'Unreadable quantity', c); return; }
       const value = num(c.getAttribute('value'));
       const proceeds = num(c.getAttribute('proceeds'));
+      const cm = num(c.getAttribute('multiplier'));
       out.trades.push({
         account: acct, date, symbol, assetCategory: c.getAttribute('assetCategory') || 'STK', currency: c.getAttribute('currency') || 'USD',
         direction: qty >= 0 ? 'buy' : 'sell', quantity: Math.abs(qty), price: qty && !Number.isNaN(value) ? Math.abs(value / qty) : 0,
-        proceeds: Number.isNaN(proceeds) ? 0 : proceeds, fees: 0, realizedPl: 0, multiplier: 1, action: 'corporate_action',
+        proceeds: Number.isNaN(proceeds) ? 0 : proceeds, fees: 0, realizedPl: 0, multiplier: cm > 0 ? cm : 1, action: 'corporate_action',
       });
     });
 
@@ -214,6 +224,7 @@ export function parseFlexXml(xml: string): ParsedStatement {
       const rate = num(r.getAttribute('rate'));
       const d = day(r.getAttribute('reportDate')) || '';
       if (to !== 'USD' || !/^[A-Z]{3}$/.test(from) || !(rate > 0)) return;
+      if (d) ((out.fxRatesByDate ??= {})[d] ??= {})[from] = rate;
       if (!fxDates[from] || d >= fxDates[from]) { fxDates[from] = d; out.fxRates[from] = rate; }
     });
   });

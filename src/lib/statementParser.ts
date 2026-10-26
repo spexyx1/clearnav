@@ -61,6 +61,7 @@ export interface AccountSummary {
   navBreakdown?: Record<string, number>;
   navByDate?: Record<string, number>;
   cashByDate?: Record<string, number>;
+  cashByCurrency?: Record<string, number>;
   pricesByDate?: Record<string, Record<string, number>>;
   changeInNav?: ChangeInNav;
 }
@@ -90,6 +91,7 @@ export interface ParsedStatement {
   positions: PositionRow[];
   summaries: Record<string, AccountSummary>;
   fxRates: Record<string, number>;
+  fxRatesByDate?: Record<string, Record<string, number>>;
   skipped: SkippedRow[];
   warnings: string[];
   sectionsFound?: string[];

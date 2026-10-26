@@ -1043,11 +1043,23 @@ export async function saveDrafts(fundId: string, userId: string, valuations: Cla
   return { saved, skippedApproved };
 }
 
-export async function approveClassMonth(fundId: string, classId: string, date: string, userId: string) {
-  const { data, error } = await supabase.from('nav_calculations')
-    .update({ status: 'approved', approved_by: userId, approved_at: new Date().toISOString() })
-    .eq('fund_id', fundId).eq('share_class_id', classId).eq('nav_date', date).in('status', ['draft', 'pending_approval'])
-    .eq('calculation_data->>final', 'true').select('id');
-  if (error) throw new Error(error.message);
-  return data?.length ?? 0;
+export interface ApprovalEvidence { status: 'matched' | 'within_tolerance' | 'not_matched'; difference: number; reason: string }
+
+export async function approveClassMonth(fundId: string, classId: string, date: string, userId: string, evidence: ApprovalEvidence) {
+  const { data: rows, error: rErr } = await supabase.from('nav_calculations')
+    .select('id, calculation_data').eq('fund_id', fundId).eq('share_class_id', classId).eq('nav_date', date).in('status', ['draft', 'pending_approval']);
+  if (rErr) throw new Error(rErr.message);
+  const reason = evidence.reason.trim();
+  for (const row of rows ?? []) {
+    const cd: Record<string, unknown> = { ...((row.calculation_data as Record<string, unknown>) ?? {}), reconciliation_status: evidence.status };
+    if (evidence.status !== 'not_matched') cd.reconciliation_difference = evidence.difference;
+    else delete cd.reconciliation_difference;
+    if (reason) cd.approval_reason = reason;
+    const { error } = await supabase.from('nav_calculations')
+      .update({ status: 'approved', approved_by: userId, approved_at: new Date().toISOString(), calculation_data: cd })
+      .eq('id', row.id);
+    if (error) throw new Error(error.message);
+  }
+  return rows?.length ?? 0;
 }
+

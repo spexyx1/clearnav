@@ -15,7 +15,7 @@ export interface StatementMonthData {
   month: string;
   cash_events: CashEvent[];
   opening?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[] };
-  closing?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[]; has_positions?: boolean; nav_breakdown?: Record<string, number> };
+  closing?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[]; has_positions?: boolean; nav_breakdown?: Record<string, number>; cash_by_currency?: Record<string, number> };
   period: { start: string; end: string };
   fx_rates?: Record<string, number>;
   ibkr_prices?: { as_of: string; prices: Record<string, number> };
@@ -51,6 +51,13 @@ function deriveOpening(trades: ParsedTrade[], closing: PositionRow[]): PositionS
     map.set(t.symbol, cur);
   });
   return [...map.values()].filter((p) => Math.abs(p.quantity) > 1e-9);
+}
+
+function monthFxRates(st: ParsedStatement, mk: string): Record<string, number> {
+  const rates: Record<string, number> = {};
+  Object.keys(st.fxRatesByDate ?? {}).filter((d) => d.startsWith(mk)).sort()
+    .forEach((d) => Object.assign(rates, st.fxRatesByDate![d]));
+  return rates;
 }
 
 export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<string, string>): MonthlyBatch[] {
@@ -93,12 +100,15 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
           nav: summary.currentNav ?? null,
           positions: snapshot(positions),
           ...(summary.navBreakdown ? { nav_breakdown: summary.navBreakdown } : {}),
+          ...(summary.cashByCurrency ? { cash_by_currency: summary.cashByCurrency } : {}),
         };
         if (Object.keys(st.fxRates).length) data.fx_rates = st.fxRates;
       } else {
         const last = navDates.filter((d) => d.startsWith(mk)).pop();
         if (last) data.closing = { as_of: last, nav: summary.navByDate![last], cash: summary.cashByDate?.[last] ?? null, positions: [], has_positions: false };
       }
+      const monthRates = monthFxRates(st, mk);
+      if (Object.keys(monthRates).length) data.fx_rates = { ...(data.fx_rates ?? {}), ...monthRates };
       const priceDay = priceDates.filter((d) => d.startsWith(mk)).pop();
       if (priceDay) data.ibkr_prices = { as_of: priceDay, prices: summary.pricesByDate![priceDay] };
       if (summary.changeInNav?.to.startsWith(mk)) data.change_in_nav = summary.changeInNav;

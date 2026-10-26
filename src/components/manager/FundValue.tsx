@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, ChevronDown, DownloadCloud, Loader2, RefreshCw, Save, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, DownloadCloud, Loader2, RefreshCw, Save, Scale, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { useTenantId } from '../../lib/useTenantId';
@@ -14,6 +14,10 @@ import FundValueHoldings from './FundValueHoldings';
 import FundValueBreakdown, { type PreviousFigures } from './FundValueBreakdown';
 import BrokerConnection from './BrokerConnection';
 import { hasIbkrConnection, pullFromIbkr } from '../../lib/ibkrSync';
+import { reconcileFund, saveReconciliations, type Reconciliation } from '../../lib/reconciliation';
+import ReconcileDialog, { ReconBadge } from './ReconcileDialog';
+
+interface SavedRecon { share_class_id: string; month_end: string; status: string; difference: number; run_at: string }
 
 interface Fund { id: string; fund_name: string }
 interface SavedNav { share_class_id: string; nav_date: string; status: string; nav_per_share: number; net_asset_value: number; total_shares: number; previous: PreviousFigures | null }
@@ -82,6 +86,8 @@ export default function FundValue() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  const [recOpen, setRecOpen] = useState<string | null>(null);
+  const [savedRecs, setSavedRecs] = useState<SavedRecon[]>([]);
 
   useEffect(() => {
     if (!tenantId) return;
@@ -98,11 +104,14 @@ export default function FundValue() {
     setLoading(true);
     setError('');
     try {
-      const [d, { data: navs, error: nErr }] = await Promise.all([loadFundData(fundId), supabase.from('nav_calculations')
-        .select('share_class_id, nav_date, status, nav_per_share, net_asset_value, total_shares, previous:calculation_data->previous').eq('fund_id', fundId).neq('calculation_method', 'opening').neq('status', 'superseded')]);
+      const [d, { data: navs, error: nErr }, { data: rc, error: rcErr }] = await Promise.all([loadFundData(fundId), supabase.from('nav_calculations')
+        .select('share_class_id, nav_date, status, nav_per_share, net_asset_value, total_shares, previous:calculation_data->previous').eq('fund_id', fundId).neq('calculation_method', 'opening').neq('status', 'superseded'),
+        supabase.from('fund_reconciliations').select('share_class_id, month_end, status, difference, run_at').eq('fund_id', fundId)]);
       if (nErr) throw nErr;
+      if (rcErr) throw rcErr;
       setData(d);
       setSaved((navs ?? []) as SavedNav[]);
+      setSavedRecs((rc ?? []) as SavedRecon[]);
     } catch (e) {
       console.error('fund value load failed', e);
       setError('Could not load the fund value. Please try again.');
@@ -114,6 +123,22 @@ export default function FundValue() {
   useEffect(() => { reload(); }, [reload]);
 
   const valuations = useMemo(() => (data ? valueFund(data) : []), [data]);
+  const recs = useMemo(() => Object.fromEntries(reconcileFund(valuations).map((r) => [`${r.classId}-${r.month}`, r])) as Record<string, Reconciliation>, [valuations]);
+  const lastReconciled = useMemo(() => savedRecs.reduce((m, r) => (r.run_at > m ? r.run_at : m), ''), [savedRecs]);
+
+  useEffect(() => {
+    if (!tenantId || !fundId || loading) return;
+    const stored = new Map(savedRecs.map((s) => [`${s.share_class_id}-${s.month_end.slice(0, 7)}`, s]));
+    const changed = Object.values(recs).filter((r) => {
+      const s = stored.get(`${r.classId}-${r.month}`);
+      return !r.provisional && (!s || s.status !== r.status || Number(s.difference) !== r.difference);
+    });
+    if (!changed.length) return;
+    saveReconciliations(tenantId, fundId, changed)
+      .then(() => setSavedRecs((cur) => [...cur.filter((s) => !changed.some((c) => c.classId === s.share_class_id && s.month_end.startsWith(c.month))),
+        ...changed.map((c) => ({ share_class_id: c.classId, month_end: `${c.month}-01`, status: c.status, difference: c.difference, run_at: new Date().toISOString() }))]))
+      .catch((e) => console.error('auto reconciliation save failed', e));
+  }, [recs, savedRecs, tenantId, fundId, loading]);
   const names = useMemo(() => Object.fromEntries((data?.classes ?? []).map((c) => [c.id, c.class_name])), [data]);
   const months = useMemo(() => [...new Set(valuations.flatMap((v) => v.months.map((m) => m.month)))].sort(), [valuations]);
   const statusOf = (classId: string, date: string) => savedRow(classId, date)?.status ?? null;
@@ -169,10 +194,28 @@ export default function FundValue() {
     const r = await saveDrafts(fundId, user.id, valuations);
     return `Saved ${r.saved} monthly values as drafts${r.skippedApproved ? `; ${r.skippedApproved} already approved and left unchanged` : ''}.`;
   });
-  const doApprove = (classId: string, month: string, date: string) => run(`approve-${classId}-${month}`, async () => {
+  const doReconcile = () => run('reconcile', async () => {
+    if (!tenantId || !user?.id) return '';
+    let pulled = '';
+    try {
+      if (await hasIbkrConnection(fundId)) { await pullFromIbkr(tenantId, fundId, user.id); pulled = 'Fresh data pulled from Interactive Brokers. '; }
+      else pulled = 'Interactive Brokers is not connected, so the last saved statements were used. ';
+    } catch (e) {
+      console.error('reconcile ibkr pull failed', e);
+      pulled = 'Interactive Brokers could not be reached, so the last saved statements were used. ';
+    }
+    setReviewKey((k) => k + 1);
+    const list = reconcileFund(valueFund(await loadFundData(fundId)));
+    await saveReconciliations(tenantId, fundId, list);
+    const n = (s: string) => list.filter((r) => r.status === s).length;
+    return `${pulled}Reconciled ${list.length} class-month${list.length === 1 ? '' : 's'}: ${n('matched')} match to the cent, ${n('within_tolerance')} within $1, ${n('not_matched')} need attention.`;
+  });
+  const doApprove = (classId: string, month: string, date: string, reason = '') => run(`approve-${classId}-${month}`, async () => {
     if (!user?.id) return '';
-    const n = await approveClassMonth(fundId, classId, date, user.id);
-    return n ? `Approved ${names[classId]} for ${monthLabel(month)}.` : 'Nothing to approve. Save drafts first.';
+    const rec = recs[`${classId}-${month}`];
+    const n = await approveClassMonth(fundId, classId, date, user.id, { status: rec.status, difference: rec.difference, reason });
+    setRecOpen(null);
+    return n ? `Approved ${names[classId]} for ${monthLabel(month)}${rec.status === 'matched' ? '' : ' with exceptions recorded'}.` : 'Nothing to approve. Save drafts first.';
   });
   async function automate() {
     if (!tenantId || !user?.id || !fundId) return '';
@@ -216,6 +259,11 @@ export default function FundValue() {
           <button onClick={doRefresh} disabled={!!busy || !months.length} className={`${btn} bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700`}>
             {busy === 'prices' ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
             Fetch missing prices{missingCount ? ` (${missingCount})` : ''}
+          </button>
+          <button onClick={doReconcile} disabled={!!busy || !months.length} title={lastReconciled ? `Last reconciled ${new Date(lastReconciled).toLocaleString()}` : 'Check every month against Interactive Brokers'}
+            className={`${btn} bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700`}>
+            {busy === 'reconcile' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Scale className="w-4 h-4" />}
+            Reconcile
           </button>
           <button onClick={doSave} disabled={!!busy || !months.length} className={`${btn} bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-600/20`}>
             {busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -311,22 +359,23 @@ export default function FundValue() {
                             <span className={`text-xs px-2 py-0.5 rounded-full border ${st === 'approved' ? 'border-emerald-500/30 text-emerald-300' : st ? 'border-sky-500/30 text-sky-300' : 'border-slate-700 text-slate-500'}`}>
                               {st === 'approved' ? 'Approved' : st ? 'Draft' : 'Not saved'}
                             </span>
-                            {r!.final ? (
-                              <span title="Matches IBKR to the cent and every price is from IBKR" className="ml-2 text-xs px-2 py-0.5 rounded-full border border-emerald-500/30 text-emerald-300">
-                                Final - ties to IBKR
-                              </span>
-                            ) : (
-                              <span title={r!.finalReasons.join('\n')} className="ml-2 text-xs px-2 py-0.5 rounded-full border border-amber-500/30 text-amber-300">
-                                {r!.unofficialPrices.length > 0 ? 'Not final - waiting for IBKR price' : 'Not final'}
-                              </span>
-                            )}
-                            {st && st !== 'approved' && r!.final && (
-                              <button onClick={(e) => { e.stopPropagation(); doApprove(v.classId, m, r!.date); }} disabled={!!busy}
-                                className="ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-600/15 text-emerald-300 hover:bg-emerald-600/25 border border-emerald-500/30 transition disabled:opacity-50">
-                                {busy === `approve-${v.classId}-${m}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
-                                Approve
-                              </button>
-                            )}
+                            {(() => {
+                              const rec = recs[key];
+                              if (!rec) return null;
+                              const direct = rec.status === 'matched' && r!.final;
+                              return (
+                                <>
+                                  <ReconBadge rec={rec} onClick={() => setRecOpen(key)} />
+                                  {st && st !== 'approved' && !rec.provisional && (
+                                    <button onClick={(e) => { e.stopPropagation(); if (direct) doApprove(v.classId, m, r!.date); else setRecOpen(key); }} disabled={!!busy}
+                                      className="ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-600/15 text-emerald-300 hover:bg-emerald-600/25 border border-emerald-500/30 transition disabled:opacity-50">
+                                      {busy === `approve-${v.classId}-${m}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
+                                      Approve
+                                    </button>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </span>
                         </div>
                         {open === key && (
@@ -344,6 +393,18 @@ export default function FundValue() {
           </div>
         </>
       )}
+
+      {recOpen && recs[recOpen] && (() => {
+        const rec = recs[recOpen];
+        const st = statusOf(rec.classId, rec.date);
+        return (
+          <ReconcileDialog rec={rec} title={`${names[rec.classId]} - ${monthLabel(rec.month)}`}
+            canApprove={!!st && st !== 'approved' && !rec.provisional}
+            approving={busy === `approve-${rec.classId}-${rec.month}`}
+            onApprove={(reason) => doApprove(rec.classId, rec.month, rec.date, reason)}
+            onClose={() => setRecOpen(null)} />
+        );
+      })()}
     </div>
   );
 }
