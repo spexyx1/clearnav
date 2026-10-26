@@ -154,6 +154,14 @@ export default function FundValue() {
     }
     return row.previous;
   };
+  const drift = useMemo(() => valuations.flatMap((v) => v.months.flatMap((m) => {
+    const row = saved.find((s) => s.share_class_id === v.classId && s.nav_date === m.date && s.status === 'approved');
+    if (!row) return [];
+    const was = { unitPrice: Number(row.nav_per_share), classNav: Number(row.net_asset_value), units: Number(row.total_shares) };
+    const changed = Math.abs(was.unitPrice - m.unitPrice) >= 0.00005 || Math.abs(was.classNav - m.classNav) >= 0.005 || Math.abs(was.units - m.units) >= 0.00005;
+    return changed ? [{ key: `${v.classId}-${m.month}`, classId: v.classId, month: m.month, was, now: { unitPrice: m.unitPrice, classNav: m.classNav, units: m.units } }] : [];
+  })), [valuations, saved]);
+  const driftOf = (key: string) => drift.find((d) => d.key === key);
   const missingCount = valuations.reduce((s, v) => s + v.months.reduce((t, m) => t + m.unofficialPrices.length, 0), 0);
 
   async function run(key: string, fn: () => Promise<string>) {
@@ -192,7 +200,7 @@ export default function FundValue() {
   const doSave = () => run('save', async () => {
     if (!user?.id) return '';
     const r = await saveDrafts(fundId, user.id, valuations);
-    return `Saved ${r.saved} monthly values as drafts${r.skippedApproved ? `; ${r.skippedApproved} already approved and left unchanged` : ''}.`;
+    return `Saved ${r.saved} monthly values as drafts${r.skippedApproved ? `; ${r.skippedApproved} already approved and left unchanged` : ''}.${drift.length ? ` ${drift.length} approved month${drift.length === 1 ? ' now differs' : 's now differ'} from the latest figures; see the notice above the chart.` : ''}`;
   });
   const doReconcile = () => run('reconcile', async () => {
     if (!tenantId || !user?.id) return '';
@@ -322,6 +330,23 @@ export default function FundValue() {
             })}
           </div>
 
+          {drift.length > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 sm:p-5">
+              <p className="text-amber-200 font-medium flex items-center gap-2"><AlertCircle className="w-4 h-4" />{drift.length} approved month{drift.length === 1 ? ' has' : 's have'} changed since approval</p>
+              <p className="text-sm text-amber-100/80 mt-1">New or corrected IBKR data has changed figures that were already approved. Approved figures stay as they are until a manager reviews them; investors still see the approved figures.</p>
+              <ul className="mt-3 space-y-1.5 text-sm">
+                {drift.map((d) => (
+                  <li key={d.key} className="flex flex-wrap gap-x-4 gap-y-1 text-slate-200">
+                    <span className="font-medium min-w-40">{monthLabel(d.month)} - {names[d.classId]}</span>
+                    <span className="tabular-nums text-slate-300">Unit price ${d.was.unitPrice.toFixed(4)} to ${d.now.unitPrice.toFixed(4)}</span>
+                    <span className="tabular-nums text-slate-300">Class value {usd(d.was.classNav)} to {usd(d.now.classNav)}</span>
+                    {Math.abs(d.was.units - d.now.units) >= 0.00005 && <span className="tabular-nums text-slate-300">Units {d.was.units.toFixed(4)} to {d.now.units.toFixed(4)}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <UnitPriceChart valuations={valuations} names={names} />
 
           <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
@@ -359,11 +384,18 @@ export default function FundValue() {
                             {(() => {
                               const row = savedRow(v.classId, r!.date);
                               const exc = st === 'approved' && !!row?.exceptions;
+                              const dr = driftOf(key);
                               return (
+                                <>
+                                {dr && (
+                                  <span title={`Approved at ${dr.was.unitPrice.toFixed(4)}, latest figures give ${dr.now.unitPrice.toFixed(4)}`}
+                                    className="mr-2 text-xs px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-300">Changed since approval</span>
+                                )}
                                 <span title={exc && row?.reason ? `Reason: ${row.reason}` : undefined}
                                   className={`text-xs px-2 py-0.5 rounded-full border ${exc ? 'border-amber-500/30 text-amber-300' : st === 'approved' ? 'border-emerald-500/30 text-emerald-300' : st ? 'border-sky-500/30 text-sky-300' : 'border-slate-700 text-slate-500'}`}>
                                   {exc ? 'Approved with exceptions' : st === 'approved' ? 'Approved' : st ? 'Draft' : 'Not saved'}
                                 </span>
+                                </>
                               );
                             })()}
                             {(() => {
