@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, Download, Eye, FileEdit, Loader2, RefreshCw, Save, Send, Upload, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { buildReportNumbers, loadInvestors, type InvestorLine, type ReportContent } from '../../lib/monthlyReport';
+import { buildReportNumbers, editionLabel, loadInvestors, type InvestorLine, type ReportContent } from '../../lib/monthlyReport';
 import { downloadReportPdf, emailReport, loadSenderAccounts, publishReport, type EmailAccount } from '../../lib/reportDelivery';
 import MonthlyReportPreview from './MonthlyReportPreview';
+import PublishChecklist from './PublishChecklist';
 
 export interface ReportRecord {
   id: string; report_name: string; fund_id: string; status: string; report_content: ReportContent; sent_at: string | null;
@@ -22,6 +23,7 @@ export default function MonthlyReportEditor({ tenantId, report, onBack }: { tena
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
+  const [checkOpen, setCheckOpen] = useState(false);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [accountId, setAccountId] = useState('');
   const [investors, setInvestors] = useState<InvestorLine[]>([]);
@@ -54,10 +56,13 @@ export default function MonthlyReportEditor({ tenantId, report, onBack }: { tena
   });
   const pdf = () => run('pdf', async () => { await downloadReportPdf(content); return 'PDF downloaded.'; });
   const publish = () => run('publish', async () => {
-    if (dirty) await persist(content);
-    await publishReport(tenantId, report.id, report.report_name, content);
+    const next: ReportContent = { ...content, edition: { number: (content.edition?.number ?? 0) + 1, published_at: new Date().toISOString() } };
+    await publishReport(tenantId, report.id, report.report_name, next);
+    await persist(next);
+    setContent(next);
     setStatus('published');
-    return 'Published to the investor vault.';
+    setCheckOpen(false);
+    return `Edition ${next.edition!.number} published to the investor vault.`;
   });
 
   async function openSend() {
@@ -107,7 +112,7 @@ export default function MonthlyReportEditor({ tenantId, report, onBack }: { tena
         <div>
           <button onClick={onBack} className="flex items-center gap-1 text-slate-400 hover:text-white text-sm mb-2 transition-colors"><ArrowLeft className="w-4 h-4" />All reports</button>
           <h2 className="text-xl font-semibold text-white">{content.period.label} update</h2>
-          <p className="text-sm text-slate-400">{content.fund_name} · <span className="capitalize">{status}</span>{dirty && ' · unsaved changes'}</p>
+          <p className="text-sm text-slate-400">{content.fund_name} · <span className="capitalize">{status}</span>{content.edition && ` · ${editionLabel(content)}`}{dirty && ' · unsaved changes'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={refresh} disabled={!!busy} className={`${btn} text-slate-300 hover:text-white hover:bg-slate-800`}>
@@ -119,7 +124,7 @@ export default function MonthlyReportEditor({ tenantId, report, onBack }: { tena
           <button onClick={pdf} disabled={!!busy} className={`${btn} bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700`}>
             {busy === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}PDF
           </button>
-          <button onClick={publish} disabled={!!busy} className={`${btn} bg-emerald-600 text-white hover:bg-emerald-500`}>
+          <button onClick={() => setCheckOpen(true)} disabled={!!busy} className={`${btn} bg-emerald-600 text-white hover:bg-emerald-500`}>
             {busy === 'publish' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}{status === 'draft' ? 'Publish to vault' : 'Republish'}
           </button>
           <button onClick={openSend} disabled={!!busy} className={`${btn} bg-sky-600 text-white hover:bg-sky-500`}><Send className="w-4 h-4" />Email</button>
@@ -184,6 +189,10 @@ export default function MonthlyReportEditor({ tenantId, report, onBack }: { tena
             ))}
           </div>
         </div>
+      )}
+
+      {checkOpen && (
+        <PublishChecklist fundId={report.fund_id} content={content} busy={busy === 'publish'} onPublish={publish} onClose={() => setCheckOpen(false)} />
       )}
 
       {sendOpen && (

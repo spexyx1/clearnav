@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
-import type { ReportContent } from './monthlyReport';
+import { editionLabel, type ReportContent } from './monthlyReport';
 
 const GREEN = rgb(0.102, 0.235, 0.165);
 const GOLD = rgb(0.788, 0.659, 0.298);
@@ -190,8 +190,9 @@ export async function renderReportPdf(c: ReportContent): Promise<Uint8Array> {
   paragraph(DISCLAIMER, 7.5, sans, MUTED);
 
   const pages = doc.getPages();
+  const stamp = [`Arkline Trust`, c.period.label, editionLabel(c)].filter(Boolean).join('  |  ');
   pages.forEach((p, i) => {
-    p.drawText(clean(`Arkline Trust  |  ${c.period.label}`), { x: M, y: 24, size: 7.5, font: sans, color: MUTED });
+    p.drawText(clean(stamp), { x: M, y: 24, size: 7.5, font: sans, color: MUTED });
     const label = `${i + 1} / ${pages.length}`;
     p.drawText(label, { x: W - M - sans.widthOfTextAtSize(label, 7.5), y: 24, size: 7.5, font: sans, color: MUTED });
   });

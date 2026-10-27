@@ -42,7 +42,10 @@ export interface ReportContent {
   market_insights: string;
   class_notes: Record<string, string>;
   position_notes: Record<string, Record<string, string>>;
+  edition?: { number: number; published_at: string };
 }
+
+export interface PublishCheck { label: string; ok: boolean; detail?: string; blocking?: boolean }
 
 export interface InvestorLine {
   name: string;
@@ -59,7 +62,7 @@ export async function buildReportNumbers(fundId: string, fundName: string, year:
   const data = await loadFundData(fundId);
   const valuations = valueFund(data);
   const { data: navs, error } = await supabase.from('nav_calculations')
-    .select('share_class_id, nav_date, status, exceptions:calculation_data->approved_with_exceptions, reason:calculation_data->>approval_reason').eq('fund_id', fundId).neq('calculation_method', 'opening');
+    .select('share_class_id, nav_date, status, exceptions:calculation_data->approved_with_exceptions, reason:calculation_data->>approval_reason').eq('fund_id', fundId).neq('calculation_method', 'opening').neq('status', 'superseded');
   if (error) throw new Error(error.message);
 
   const classes: ReportClass[] = [];
@@ -118,6 +121,76 @@ export async function buildReportNumbers(fundId: string, fundName: string, year:
     generated_at: new Date().toISOString(),
     classes,
   };
+}
+
+export function editionLabel(c: ReportContent) {
+  if (!c.edition) return '';
+  const d = new Date(c.edition.published_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `Edition ${c.edition.number} · ${d}`;
+}
+
+export async function prePublishChecks(fundId: string, c: ReportContent): Promise<PublishCheck[]> {
+  const { start, end, year, month } = c.period;
+  const [{ data: navs, error: nErr }, { data: recs, error: rErr }, fresh] = await Promise.all([
+    supabase.from('nav_calculations').select('share_class_id, nav_per_share, net_asset_value, total_shares')
+      .eq('fund_id', fundId).eq('status', 'approved').neq('calculation_method', 'opening').gte('nav_date', start).lte('nav_date', end),
+    supabase.from('fund_reconciliations').select('share_class_id, status, difference')
+      .eq('fund_id', fundId).gte('month_end', start).lte('month_end', end),
+    buildReportNumbers(fundId, c.fund_name, year, month),
+  ]);
+  if (nErr) throw new Error(nErr.message);
+  if (rErr) throw new Error(rErr.message);
+
+  const checks: PublishCheck[] = [];
+  if (!c.classes.length) {
+    checks.push({ label: 'The report has fund figures', ok: false, blocking: true, detail: 'No fund values exist for this month. Upload the broker statement, then use Refresh figures.' });
+    return checks;
+  }
+
+  const unapproved = c.classes.filter((k) => k.status !== 'approved');
+  checks.push({
+    label: 'Every class is approved for the month',
+    ok: !unapproved.length,
+    detail: unapproved.length ? `${unapproved.map((k) => k.name).join(', ')} not yet approved. These figures will be marked provisional.` : undefined,
+  });
+
+  const mismatched = c.classes.filter((k) => {
+    const a = (navs ?? []).find((n) => n.share_class_id === k.class_id);
+    return a && (Math.abs(Number(a.nav_per_share) - k.unit_price) > 0.00005 || Math.abs(Number(a.net_asset_value) - k.nav) > 0.005);
+  });
+  checks.push({
+    label: 'Report figures match the approved figures',
+    ok: !mismatched.length,
+    detail: mismatched.length ? `${mismatched.map((k) => k.name).join(', ')} differ from what was approved. Review the month in Fund Value before publishing.` : undefined,
+  });
+
+  const stale = c.classes.filter((k) => {
+    const f = fresh.classes.find((x) => x.class_id === k.class_id);
+    return !f || Math.abs(f.unit_price - k.unit_price) > 0.00005 || Math.abs(f.nav - k.nav) > 0.005;
+  });
+  const added = fresh.classes.filter((f) => !c.classes.some((k) => k.class_id === f.class_id));
+  checks.push({
+    label: 'Figures are up to date',
+    ok: !stale.length && !added.length,
+    detail: stale.length || added.length ? 'Fund values have changed since these figures were pulled. Use Refresh figures.' : undefined,
+  });
+
+  const unreconciled = c.classes.filter((k) => {
+    const r = (recs ?? []).find((x) => x.share_class_id === k.class_id);
+    return !r || r.status === 'not_matched';
+  });
+  checks.push({
+    label: 'Every class ties to Interactive Brokers',
+    ok: !unreconciled.length,
+    detail: unreconciled.length ? `${unreconciled.map((k) => k.name).join(', ')} not matched or not yet checked. Open Fund Value to run the check.` : undefined,
+  });
+
+  checks.push({
+    label: 'Letter from the manager is written',
+    ok: !!c.commentary.trim(),
+    detail: c.commentary.trim() ? undefined : 'Investors will receive the report without a personal note.',
+  });
+  return checks;
 }
 
 export function emptyNarrative(): Pick<ReportContent, 'commentary' | 'market_insights' | 'class_notes' | 'position_notes'> {
