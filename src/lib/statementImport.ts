@@ -18,7 +18,7 @@ export interface StatementMonthData {
   closing?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[]; has_positions?: boolean; nav_breakdown?: Record<string, number>; cash_by_currency?: Record<string, number> };
   period: { start: string; end: string };
   fx_rates?: Record<string, number>;
-  ibkr_prices?: { as_of: string; prices: Record<string, number> };
+  ibkr_prices?: { as_of: string; prices: Record<string, number>; dates?: Record<string, string> };
   change_in_nav?: ChangeInNav;
   daily_nav?: Record<string, number>;
 }
@@ -109,8 +109,15 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
       }
       const monthRates = monthFxRates(st, mk);
       if (Object.keys(monthRates).length) data.fx_rates = { ...(data.fx_rates ?? {}), ...monthRates };
-      const priceDay = priceDates.filter((d) => d.startsWith(mk)).pop();
-      if (priceDay) data.ibkr_prices = { as_of: priceDay, prices: summary.pricesByDate![priceDay] };
+      const monthPriceDays = priceDates.filter((d) => d.startsWith(mk));
+      if (monthPriceDays.length) {
+        const asOf = monthPriceDays[monthPriceDays.length - 1];
+        const prices: Record<string, number> = {};
+        const dates: Record<string, string> = {};
+        monthPriceDays.forEach((d) => Object.entries(summary.pricesByDate![d]).forEach(([sym, px]) => { prices[sym] = px; dates[sym] = d; }));
+        Object.keys(dates).forEach((sym) => { if (dates[sym] === asOf) delete dates[sym]; });
+        data.ibkr_prices = { as_of: asOf, prices, ...(Object.keys(dates).length ? { dates } : {}) };
+      }
       if (summary.changeInNav?.to.startsWith(mk)) data.change_in_nav = summary.changeInNav;
       const monthNavs = navDates.filter((d) => d.startsWith(mk));
       if (monthNavs.length) data.daily_nav = Object.fromEntries(monthNavs.map((d) => [d, summary.navByDate![d]]));

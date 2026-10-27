@@ -58,6 +58,7 @@ export interface HoldingValue {
   fxRate: number;
   price: number;
   priceSource: PriceSource;
+  priceDate?: string;
   marketValue: number;
 }
 
@@ -363,17 +364,17 @@ export function valueClass(
     return (before ?? [...list].sort((a, b) => a[0].localeCompare(b[0]))[0])[1];
   };
 
-  const ibkrDaily = new Map<string, Map<string, number>>();
+  const ibkrDaily = new Map<string, { prices: Map<string, number>; dates: Record<string, string> }>();
   own.forEach((u) => {
     const p = u.statement_data.ibkr_prices;
-    if (p) ibkrDaily.set(p.as_of.slice(0, 7), new Map(Object.entries(p.prices)));
+    if (p) ibkrDaily.set(p.as_of.slice(0, 7), { prices: new Map(Object.entries(p.prices)), dates: p.dates ?? {} });
   });
 
-  const priceFor = (symbol: string, assetCategory: string, date: string, statementPrices: Map<string, number> | null): [number, PriceSource] => {
+  const priceFor = (symbol: string, assetCategory: string, date: string, statementPrices: Map<string, number> | null): [number, PriceSource, string?] => {
     const k = markKey(symbol, date);
     if (statementPrices?.has(symbol)) return [statementPrices.get(symbol)!, 'statement'];
     const daily = ibkrDaily.get(date.slice(0, 7));
-    if (daily?.has(symbol)) return [daily.get(symbol)!, 'ibkr'];
+    if (daily?.prices.has(symbol)) return [daily.prices.get(symbol)!, 'ibkr', daily.dates[symbol]];
     const expiry = isOption(assetCategory, symbol) ? optionExpiry(symbol) : null;
     if (expiry && expiry < date) return [0, 'expired'];
     if (manual.has(k)) return [manual.get(k)!, 'manual'];
@@ -388,12 +389,12 @@ export function valueClass(
     const holdings: HoldingValue[] = [];
     positions.forEach((p, symbol) => {
       if (Math.abs(p.quantity) < 1e-9) return;
-      const [price, priceSource] = priceFor(symbol, p.assetCategory, date, statementPrices);
+      const [price, priceSource, priceDate] = priceFor(symbol, p.assetCategory, date, statementPrices);
       const currency = ccyOf(symbol);
       const fxRate = fxFor(currency, date, stmtRates);
       holdings.push({
         symbol, quantity: p.quantity, multiplier: p.multiplier, assetCategory: p.assetCategory, currency, fxRate,
-        price, priceSource, marketValue: round(p.quantity * p.multiplier * price * fxRate),
+        price, priceSource, ...(priceDate ? { priceDate } : {}), marketValue: round(p.quantity * p.multiplier * price * fxRate),
       });
     });
     holdings.sort((a, b) => Math.abs(b.marketValue) - Math.abs(a.marketValue));

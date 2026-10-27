@@ -70,6 +70,7 @@ export default function FundValueHoldings({ month }: { month: MonthResult }) {
                     <td className="py-2 pr-4 text-right tabular-nums text-slate-200">{h.price ? localPrice(h.price, h.currency) : '—'}</td>
                     <td className="py-2 pr-4">
                       <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full border ${s.cls}`}>{s.label}</span>
+                      {h.priceDate && <p className="text-[11px] text-amber-300/80 mt-1" title="IBKR had no price for this holding on the month-end date, so its latest IBKR price from earlier in the month is used.">IBKR price of {new Date(`${h.priceDate}T00:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}</p>}
                     </td>
                     <td className="py-2 text-right tabular-nums text-white">{usd(h.marketValue)}</td>
                   </tr>
