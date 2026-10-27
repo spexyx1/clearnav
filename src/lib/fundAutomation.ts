@@ -27,6 +27,7 @@ export interface ReviewItem {
 export interface AutomationResult {
   approvedMonths: string[];
   heldMonths: string[];
+  notFinalMonths: string[];
   partialMonths: string[];
   openItems: number;
   reportsDrafted: number;
@@ -59,7 +60,7 @@ const APPROVE_OR_HOLD = (approveLabel: string): ReviewOption[] => [
 
 function fail(step: string, cause: unknown): never {
   console.error(`fund automation failed: ${step}`, cause);
-  throw new Error('The fund figures could not be updated. Please try again.');
+  throw new Error(`The fund figures could not be updated (stopped at: ${step}). Please try again.`);
 }
 
 function coverageEnd(d: FundData) {
@@ -391,12 +392,16 @@ export async function runFundAutomation(tenantId: string, fundId: string, userId
   const toApprove: string[] = [];
   const approvedMonths = new Set<string>();
   const heldMonths = new Set<string>();
+  const notFinalMonths = new Set<string>();
   fullVals.forEach((v) => {
     let stopped = false;
     v.months.forEach((m) => {
       const row = navs.find((n) => n.share_class_id === v.classId && n.nav_date === m.date);
       if (!row) return;
       if (stopped || blocked.has(`${v.classId}|${m.month}`)) { stopped = true; heldMonths.add(m.month); return; }
+      if (row.status === 'approved') return;
+      // Months that don't tie to IBKR need a written reason, given on the Reconcile screen.
+      if (!m.final) { stopped = true; notFinalMonths.add(m.month); return; }
       if (row.status !== 'approved') { toApprove.push(row.id); approvedMonths.add(m.month); }
     });
   });
@@ -417,6 +422,7 @@ export async function runFundAutomation(tenantId: string, fundId: string, userId
   return {
     approvedMonths: [...approvedMonths].sort(),
     heldMonths: [...heldMonths].sort(),
+    notFinalMonths: [...notFinalMonths].filter((mk) => !heldMonths.has(mk)).sort(),
     partialMonths: partialMonths.sort(),
     openItems: items.filter((i) => i.status === 'open').length,
     reportsDrafted,
@@ -431,10 +437,11 @@ export async function runTenantAutomation(tenantId: string, userId: string) {
   return results.reduce<AutomationResult>((acc, r) => ({
     approvedMonths: [...new Set([...acc.approvedMonths, ...r.approvedMonths])].sort(),
     heldMonths: [...new Set([...acc.heldMonths, ...r.heldMonths])].sort(),
+    notFinalMonths: [...new Set([...acc.notFinalMonths, ...r.notFinalMonths])].sort(),
     partialMonths: [...new Set([...acc.partialMonths, ...r.partialMonths])].sort(),
     openItems: acc.openItems + r.openItems,
     reportsDrafted: acc.reportsDrafted + r.reportsDrafted,
-  }), { approvedMonths: [], heldMonths: [], partialMonths: [], openItems: 0, reportsDrafted: 0 });
+  }), { approvedMonths: [], heldMonths: [], notFinalMonths: [], partialMonths: [], openItems: 0, reportsDrafted: 0 });
 }
 
 export async function loadOpenReviewItems(tenantId: string): Promise<ReviewItem[]> {
@@ -467,6 +474,7 @@ export function describeResult(r: AutomationResult) {
   const range = (ms: string[]) => (ms.length === 1 ? monthLabel(ms[0]) : `${monthLabel(ms[0])} to ${monthLabel(ms[ms.length - 1])}`);
   parts.push(r.approvedMonths.length ? `${range(r.approvedMonths)} approved and published to investors.` : 'No new months needed approving.');
   if (r.heldMonths.length) parts.push(`${r.heldMonths.length} month${r.heldMonths.length === 1 ? ' is' : 's are'} waiting on your decision.`);
+  if (r.notFinalMonths.length) parts.push(`${r.notFinalMonths.map(monthLabel).join(', ')} not approved yet because ${r.notFinalMonths.length === 1 ? 'it does' : 'they do'} not tie to IBKR. Open Reconcile on the Fund Value screen to see why, or approve with a written reason.`);
   if (r.partialMonths.length) parts.push(`${r.partialMonths.map(monthLabel).join(', ')} left out until IBKR reports the full month.`);
   if (r.reportsDrafted) parts.push(`${r.reportsDrafted} draft monthly report${r.reportsDrafted === 1 ? '' : 's'} created.`);
   return parts.join(' ');
