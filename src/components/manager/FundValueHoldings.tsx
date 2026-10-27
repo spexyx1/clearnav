@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { Check, Loader2, Pencil, X } from 'lucide-react';
 import type { MonthResult, PriceSource } from '../../lib/fundValuation';
 
 const usd = (v: number, d = 2) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
@@ -18,27 +16,7 @@ const SOURCE_STYLE: Record<PriceSource, { label: string; cls: string }> = {
 const localPrice = (v: number, ccy: string) =>
   ccy === 'USD' ? usd(v, 4) : `${v.toLocaleString('en-US', { maximumFractionDigits: 4 })} ${ccy}`;
 
-interface Props {
-  month: MonthResult;
-  locked: boolean;
-  onSetPrice: (symbol: string, date: string, price: number | null) => Promise<void>;
-}
-
-export default function FundValueHoldings({ month, locked, onSetPrice }: Props) {
-  const [editing, setEditing] = useState<string | null>(null);
-  const [value, setValue] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  async function save(symbol: string, price: number | null) {
-    setBusy(true);
-    try {
-      await onSetPrice(symbol, month.date, price);
-      setEditing(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-
+export default function FundValueHoldings({ month }: { month: MonthResult }) {
   return (
     <div className="bg-slate-950/60 border-t border-slate-800 px-4 sm:px-6 py-5 space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
@@ -57,12 +35,12 @@ export default function FundValueHoldings({ month, locked, onSetPrice }: Props) 
       </div>
       {month.brokerValue != null && Math.abs(month.brokerValue - month.computedValue) > 1 && (
         <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-          Broker reported {usd(month.brokerValue)}; our rebuild gives {usd(month.computedValue)}. The broker figure is used.
+          IBKR reported {usd(month.brokerValue)}; the rebuild from IBKR's activity gives {usd(month.computedValue)}. IBKR's figure is used.
         </p>
       )}
       {Math.abs(month.unitemisedCash) > 1 && (
         <p className="text-xs text-sky-300 bg-sky-500/10 border border-sky-500/20 rounded-lg px-3 py-2">
-          Cash includes {usd(month.unitemisedCash)} the broker counts in the account value but the file does not itemise (usually cash in other currencies). It is kept in the balance instead of being counted as a gain or loss.
+          Cash includes {usd(month.unitemisedCash)} that IBKR counts in the account value but does not itemise (usually cash in other currencies). It is kept in the balance instead of being counted as a gain or loss.
         </p>
       )}
       {month.holdings.length === 0 ? (
@@ -89,38 +67,9 @@ export default function FundValueHoldings({ month, locked, onSetPrice }: Props) 
                       <p className="text-xs text-slate-500">{h.assetCategory || 'Stocks'}{h.multiplier !== 1 ? ` · x${h.multiplier}` : ''}{h.currency !== 'USD' ? ` · ${h.currency} @ ${h.fxRate ? h.fxRate.toFixed(4) : 'no rate'}` : ''}</p>
                     </td>
                     <td className="py-2 pr-4 text-right tabular-nums text-slate-300">{h.quantity.toLocaleString()}</td>
-                    <td className="py-2 pr-4 text-right">
-                      {editing === h.symbol ? (
-                        <div className="flex items-center justify-end gap-1">
-                          <input
-                            autoFocus type="number" step="any" value={value} onChange={(e) => setValue(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter' && Number(value) > 0) save(h.symbol, Number(value)); if (e.key === 'Escape') setEditing(null); }}
-                            className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-right text-white text-sm focus:outline-none focus:border-blue-500"
-                          />
-                          <button disabled={busy || !(Number(value) > 0)} onClick={() => save(h.symbol, Number(value))} className="p-1 text-emerald-400 hover:text-emerald-300 disabled:opacity-40">
-                            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                          </button>
-                          <button onClick={() => setEditing(null)} className="p-1 text-slate-500 hover:text-slate-300"><X className="w-4 h-4" /></button>
-                        </div>
-                      ) : (
-                        <button
-                          disabled={locked}
-                          onClick={() => { setEditing(h.symbol); setValue(h.price ? String(h.price) : ''); }}
-                          className="group inline-flex items-center gap-1.5 tabular-nums text-slate-200 hover:text-white disabled:cursor-default"
-                          title={locked ? 'Approved months are locked' : 'Set a manual price'}
-                        >
-                          {h.price ? localPrice(h.price, h.currency) : '—'}
-                          {!locked && <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-slate-500" />}
-                        </button>
-                      )}
-                    </td>
+                    <td className="py-2 pr-4 text-right tabular-nums text-slate-200">{h.price ? localPrice(h.price, h.currency) : '—'}</td>
                     <td className="py-2 pr-4">
-                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${s.cls}`}>
-                        {s.label}
-                        {h.priceSource === 'manual' && !locked && (
-                          <button onClick={() => save(h.symbol, null)} title="Remove manual price" className="hover:text-white"><X className="w-3 h-3" /></button>
-                        )}
-                      </span>
+                      <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full border ${s.cls}`}>{s.label}</span>
                     </td>
                     <td className="py-2 text-right tabular-nums text-white">{usd(h.marketValue)}</td>
                   </tr>

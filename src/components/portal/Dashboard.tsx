@@ -72,24 +72,7 @@ export default function Dashboard({ profile }: DashboardProps) {
 
   const handleManualSync = async () => {
     setSyncing(true);
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ibkr-sync-portfolio`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (response.ok) {
-        await loadData();
-      }
-    } catch (error) {
-      console.error('Sync failed:', error);
-    }
+    await loadData();
     setSyncing(false);
   };
 
@@ -140,7 +123,7 @@ export default function Dashboard({ profile }: DashboardProps) {
           className="flex items-center space-x-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-          <span>{syncing ? 'Syncing...' : 'Refresh Data'}</span>
+          <span>{syncing ? 'Refreshing...' : 'Refresh Data'}</span>
         </button>
       </div>
 

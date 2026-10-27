@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Eye, AlertCircle, FileText, ArrowLeft, Plus, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
+import { Eye, AlertCircle, FileText, ArrowLeft, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { useTenantId } from '../../lib/useTenantId';
 import { describeResult, runTenantAutomation } from '../../lib/fundAutomation';
-import StatementImport from './StatementImport';
 import FundReviewQueue from './FundReviewQueue';
 import type { CashEvent } from '../../lib/statementParser';
 
@@ -50,7 +49,7 @@ export default function TradeUpload() {
   const { tenantId, state: tenantState, retry } = useTenantId();
   const [processing, setProcessing] = useState(false);
   const [queueKey, setQueueKey] = useState(0);
-  const [view, setView] = useState<'history' | 'upload' | 'detail'>('history');
+  const [view, setView] = useState<'history' | 'detail'>('history');
   const [uploads, setUploads] = useState<TradeUploadRecord[]>([]);
   const [classNames, setClassNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -93,7 +92,7 @@ export default function TradeUpload() {
       .order('created_at', { ascending: false });
     if (err) {
       console.error('load uploads failed', err);
-      setError('Could not load your uploads. Please try again.');
+      setError('Could not load the IBKR records. Please try again.');
     } else {
       const rows = (data || []).map((u: any) => ({ ...u, item_count: u.trade_upload_items?.[0]?.count ?? 0 }));
       setUploads(rows);
@@ -114,25 +113,12 @@ export default function TradeUpload() {
     setDetailItems(data || []);
   }
 
-  if (view === 'upload') {
-    return (
-      <StatementImport
-        onCancel={() => setView('history')}
-        onDone={(saved) => {
-          setView('history');
-          loadUploads();
-          processUploads(`${saved} month record${saved === 1 ? '' : 's'} saved. `);
-        }}
-      />
-    );
-  }
-
   if (view === 'detail' && selected) {
     const cash = selected.statement_data?.cash_events ?? [];
     return (
       <div className="space-y-6">
         <button onClick={() => setView('history')} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm">
-          <ArrowLeft className="w-4 h-4" /> Back to uploads
+          <ArrowLeft className="w-4 h-4" /> Back to IBKR records
         </button>
         <div>
           <h2 className="text-xl font-semibold text-white">{MONTHS[selected.upload_month - 1]} {selected.upload_year} · {classNames[selected.share_class_id ?? ''] ?? 'Unassigned'}</h2>
@@ -196,8 +182,8 @@ export default function TradeUpload() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-white">Trade Uploads</h2>
-          <p className="text-sm text-slate-400 mt-1">Broker statements split into monthly records for each share class.</p>
+          <h2 className="text-xl font-semibold text-white">IBKR Records</h2>
+          <p className="text-sm text-slate-400 mt-1">Every month received from the official Interactive Brokers report, split by share class. Statement files cannot be uploaded, so IBKR's report is the only source.</p>
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
@@ -206,9 +192,6 @@ export default function TradeUpload() {
           </label>
           <button onClick={() => processUploads('')} disabled={processing || !tenantId} className="flex items-center gap-2 border border-slate-700 hover:border-slate-500 text-slate-200 px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 ${processing ? 'animate-spin' : ''}`} /> Update figures
-          </button>
-          <button onClick={() => { setNotice(''); setError(''); setView('upload'); }} disabled={processing} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50">
-            <Plus className="w-4 h-4" /> {uploads.length ? 'Upload another statement' : 'Upload statement'}
           </button>
         </div>
       </div>
@@ -241,11 +224,11 @@ export default function TradeUpload() {
 
       <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-slate-400">Loading uploads…</div>
+          <div className="p-8 text-center text-slate-400">Loading IBKR records…</div>
         ) : visible.length === 0 ? (
           <div className="p-10 text-center text-slate-400">
             <FileText className="w-10 h-10 mx-auto mb-3 text-slate-600" />
-            <p>No statements uploaded yet.</p>
+            <p>Nothing received from Interactive Brokers yet. Connect it on the Fund Value screen.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -253,7 +236,7 @@ export default function TradeUpload() {
               <thead>
                 <tr className="border-b border-slate-800 text-left text-xs text-slate-400 uppercase tracking-wider">
                   <th className="px-6 py-3">Month</th><th className="px-6 py-3">Share class</th><th className="px-6 py-3">Account</th>
-                  <th className="px-6 py-3">File</th><th className="px-6 py-3">Trades</th><th className="px-6 py-3">Status</th><th className="px-6 py-3"></th>
+                  <th className="px-6 py-3">Source</th><th className="px-6 py-3">Trades</th><th className="px-6 py-3">Status</th><th className="px-6 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">

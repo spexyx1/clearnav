@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Link2, Loader2, PlugZap, RefreshCw, Settings2, X } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, Link2, Loader2, PlugZap, RefreshCw, Settings2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { callFlex, pullFromIbkr } from '../../lib/ibkrSync';
 import { FLEX_SECTIONS } from '../../lib/flexStatement';
 
 interface Connection { query_id: string; token_expires_on: string | null; last_sync_at: string | null; last_status: string | null; last_error: string | null; sections_found: string[] | null }
+interface Coverage { account: string; className: string; first: string | null; last: string | null }
 interface Props { tenantId: string; fundId: string; userId: string; onSynced: (message: string) => void }
 
 const DAY = 86_400_000;
 const fieldCls = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition';
 const SECTIONS = FLEX_SECTIONS.map((s) => s.name);
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthText = (k: number) => `${MONTHS[(k % 100) - 1]} ${Math.floor(k / 100)}`;
 
 function relative(iso: string) {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -26,6 +29,8 @@ export default function BrokerConnection({ tenantId, fundId, userId, onSynced }:
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [setupOpen, setSetupOpen] = useState(false);
+  const [healthOpen, setHealthOpen] = useState(false);
+  const [coverage, setCoverage] = useState<Coverage[]>([]);
   const autoRan = useRef('');
 
   const load = useCallback(async () => {
@@ -37,6 +42,23 @@ export default function BrokerConnection({ tenantId, fundId, userId, onSynced }:
     } else {
       setLoadError(false);
       setConn((data as Connection | null) ?? null);
+    }
+    const [accts, months] = await Promise.all([
+      supabase.from('fund_broker_accounts').select('account_id, share_classes(class_name)').eq('fund_id', fundId).order('account_id'),
+      supabase.from('trade_uploads').select('broker_account, upload_year, upload_month').eq('fund_id', fundId).eq('status', 'confirmed'),
+    ]);
+    if (accts.error || months.error) console.error('broker coverage load failed', accts.error ?? months.error);
+    else {
+      setCoverage((accts.data ?? []).map((a) => {
+        const keys = (months.data ?? []).filter((m) => m.broker_account === a.account_id).map((m) => m.upload_year * 100 + m.upload_month);
+        const sc = a.share_classes as unknown as { class_name: string } | { class_name: string }[] | null;
+        return {
+          account: a.account_id,
+          className: (Array.isArray(sc) ? sc[0]?.class_name : sc?.class_name) ?? 'No class',
+          first: keys.length ? monthText(Math.min(...keys)) : null,
+          last: keys.length ? monthText(Math.max(...keys)) : null,
+        };
+      }));
     }
     setLoaded(true);
   }, [fundId]);
@@ -106,18 +128,52 @@ export default function BrokerConnection({ tenantId, fundId, userId, onSynced }:
                 {syncing && <span className="absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-60 animate-ping" />}
                 <span className={`relative inline-flex w-2.5 h-2.5 rounded-full ${conn.last_status === 'error' ? 'bg-red-400' : 'bg-emerald-400'}`} />
               </span>
-              <span className="text-white font-medium">Interactive Brokers connected</span>
+              <span className="text-white font-medium">Interactive Brokers report {conn.query_id}</span>
               <span className="text-slate-500">{syncing ? 'Pulling latest figures…' : conn.last_sync_at ? `Last update ${relative(conn.last_sync_at)}` : 'Not updated yet'}</span>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={sync} disabled={syncing} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 transition disabled:opacity-50">
                 {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Update now
               </button>
+              <button onClick={() => setHealthOpen((o) => !o)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition">
+                {missingSections.length ? <AlertTriangle className="w-4 h-4 text-amber-300" /> : <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                Report check <ChevronDown className={`w-3.5 h-3.5 transition-transform ${healthOpen ? 'rotate-180' : ''}`} />
+              </button>
               <button onClick={() => setSetupOpen(true)} title="Connection settings" className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
                 <Settings2 className="w-4 h-4" />
               </button>
             </div>
           </div>
+          {healthOpen && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pt-2 border-t border-slate-800 text-xs">
+              <div>
+                <p className="text-slate-400 mb-1.5">Accounts in report {conn.query_id}</p>
+                {coverage.length === 0 ? <p className="text-slate-500">No accounts matched to a class yet.</p> : (
+                  <ul className="space-y-1">
+                    {coverage.map((c) => (
+                      <li key={c.account} className="flex flex-wrap items-center justify-between gap-2 bg-slate-800/60 rounded-lg px-3 py-2">
+                        <span><span className="text-white font-medium">{c.className}</span> <span className="text-slate-500">{c.account}</span></span>
+                        <span className="text-slate-300 tabular-nums">{c.first ? (c.first === c.last ? c.first : `${c.first} to ${c.last}`) : 'No months yet'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <p className="text-slate-400 mb-1.5">Sections received in the last update</p>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                  {FLEX_SECTIONS.map((s) => {
+                    const ok = !!conn.sections_found?.length && s.tags.some((t) => conn.sections_found!.includes(t));
+                    return (
+                      <li key={s.name} title={s.why} className={`flex items-center gap-1.5 ${ok ? 'text-slate-200' : s.required ? 'text-amber-300' : 'text-slate-500'}`}>
+                        {ok ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <X className="w-3.5 h-3.5" />}{s.name}{!ok && !s.required ? ' (optional)' : ''}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          )}
           {expiring && (
             <p className="flex items-center gap-2 text-xs text-amber-300">
               <AlertTriangle className="w-3.5 h-3.5" />
@@ -130,7 +186,7 @@ export default function BrokerConnection({ tenantId, fundId, userId, onSynced }:
               <ul className="mt-1.5 space-y-1 pl-5 list-disc">
                 {missingSections.map((s) => <li key={s.name}><span className="text-white">{s.name}</span> - {s.why}</li>)}
               </ul>
-              <p className="mt-1.5 text-slate-400">In IBKR go to Performance &amp; Reports, Flex Queries, edit your Activity Flex Query, tick these sections (all fields), save, then press Update now.</p>
+              <p className="mt-1.5 text-slate-400">In IBKR go to Performance &amp; Reports, Flex Queries, edit report {conn.query_id}, tick these sections with Select All for the fields, save, then press Update now.</p>
             </div>
           )}
           {(syncError || (conn.last_status === 'error' && conn.last_error)) && (
@@ -194,10 +250,15 @@ function ConnectModal({ fundId, existing, onClose, onSaved }: { fundId: string; 
             <li className="flex gap-3">
               <span className="w-6 h-6 shrink-0 rounded-full bg-sky-500/15 text-sky-300 text-xs flex items-center justify-center font-medium">1</span>
               <div className="text-slate-300">
-                In Interactive Brokers, open <span className="text-white">Performance &amp; Reports → Flex Queries</span> and create a new <span className="text-white">Activity Flex Query</span>.
-                Include both fund accounts (Opportunistic and Quant Value) and tick these sections:
+                In Interactive Brokers, open <span className="text-white">Performance &amp; Reports → Flex Queries</span> and create (or edit) an <span className="text-white">Activity Flex Query</span>. Tick each of these sections and press <span className="text-white">Select All</span> for its fields:
                 <div className="flex flex-wrap gap-1.5 mt-2">{SECTIONS.map((s) => <span key={s} className="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">{s}</span>)}</div>
-                <p className="mt-2 text-slate-400">Set the format to <span className="text-white">XML</span> and the period to <span className="text-white">Year to Date</span>. Save it and note the <span className="text-white">Query ID</span> number.</p>
+                <ul className="mt-2 space-y-0.5 text-slate-400 list-disc pl-5">
+                  <li>Accounts: tick <span className="text-white">both fund accounts</span> (Opportunistic and Quant Value)</li>
+                  <li>Period: <span className="text-white">Last 365 Calendar Days</span></li>
+                  <li>Format: <span className="text-white">XML</span></li>
+                  <li>Include Currency Rates: <span className="text-white">Yes</span>; Include Canceled Trades: <span className="text-white">No</span></li>
+                </ul>
+                <p className="mt-2 text-slate-400">Save it and note the <span className="text-white">Query ID</span> number shown next to its name.</p>
               </div>
             </li>
             <li className="flex gap-3">

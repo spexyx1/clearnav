@@ -3,18 +3,17 @@ import { AlertCircle, CheckCircle2, ChevronDown, DownloadCloud, Loader2, Refresh
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { useTenantId } from '../../lib/useTenantId';
-import { describeResult, runFundAutomation } from '../../lib/fundAutomation';
 import FundReviewQueue from './FundReviewQueue';
 import TenantNotice from './TenantNotice';
 import {
-  approveClassMonth, loadFundData, refreshMarketPrices, saveDrafts, setManualPrice, valueFund,
+  approveClassMonth, loadFundData, refreshMarketPrices, saveDrafts, valueFund,
   type ClassValuation, type FundData,
 } from '../../lib/fundValuation';
 import FundValueHoldings from './FundValueHoldings';
 import FundValueBreakdown, { type PreviousFigures } from './FundValueBreakdown';
 import BrokerConnection from './BrokerConnection';
 import { hasIbkrConnection, pullFromIbkr } from '../../lib/ibkrSync';
-import { reconcileFund, saveReconciliations, type Reconciliation } from '../../lib/reconciliation';
+import { hasIbkrData, reconcileFund, saveReconciliations, type Reconciliation } from '../../lib/reconciliation';
 import ReconcileDialog, { ReconBadge } from './ReconcileDialog';
 
 interface SavedRecon { share_class_id: string; month_end: string; status: string; difference: number; run_at: string }
@@ -122,7 +121,9 @@ export default function FundValue() {
 
   useEffect(() => { reload(); }, [reload]);
 
-  const valuations = useMemo(() => (data ? valueFund(data) : []), [data]);
+  const allValuations = useMemo(() => (data ? valueFund(data) : []), [data]);
+  const valuations = useMemo(() => allValuations.filter(hasIbkrData), [allValuations]);
+  const notStarted = useMemo(() => allValuations.filter((v) => !hasIbkrData(v)).map((v) => v.classId), [allValuations]);
   const recs = useMemo(() => Object.fromEntries(reconcileFund(valuations).map((r) => [`${r.classId}-${r.month}`, r])) as Record<string, Reconciliation>, [valuations]);
   const lastReconciled = useMemo(() => savedRecs.reduce((m, r) => (r.run_at > m ? r.run_at : m), ''), [savedRecs]);
 
@@ -225,30 +226,6 @@ export default function FundValue() {
     setRecOpen(null);
     return n ? `Approved ${names[classId]} for ${monthLabel(month)}${rec.status === 'matched' ? '' : ' with exceptions recorded'}.` : 'Nothing to approve. Save drafts first.';
   });
-  async function automate() {
-    if (!tenantId || !user?.id || !fundId) return '';
-    try {
-      return describeResult(await runFundAutomation(tenantId, fundId, user.id));
-    } catch (e) {
-      console.error('fund automation failed', e);
-      return 'Figures could not be updated automatically; try again shortly.';
-    } finally {
-      setReviewKey((k) => k + 1);
-    }
-  }
-
-  const onSetPrice = async (symbol: string, date: string, price: number | null) => {
-    if (!tenantId) return;
-    try {
-      await setManualPrice(tenantId, fundId, symbol, date, price);
-      setMessage(await automate());
-      await reload();
-    } catch (e) {
-      console.error('manual price save failed', e);
-      setError('Could not save that price. Please try again.');
-    }
-  };
-
   const btn = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed';
 
   return (
@@ -256,7 +233,7 @@ export default function FundValue() {
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold text-white">Fund Value</h2>
-          <p className="text-sm text-slate-400 mt-1">Month-end value and unit price for each share class, built from your broker statements.</p>
+          <p className="text-sm text-slate-400 mt-1">Month-end value and unit price for each share class, built only from the official Interactive Brokers report.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {funds.length > 1 && (
@@ -299,7 +276,7 @@ export default function FundValue() {
       ) : !months.length ? (
         <div className="text-center py-16 bg-slate-900 border border-slate-800 rounded-xl">
           <p className="text-white font-medium">No months to value yet</p>
-          <p className="text-sm text-slate-400 mt-1">Upload a broker statement in Trade Upload and it will appear here.</p>
+          <p className="text-sm text-slate-400 mt-1">Connect Interactive Brokers above and months appear here after the first update.</p>
         </div>
       ) : (
         <>
@@ -328,6 +305,13 @@ export default function FundValue() {
                 </div>
               );
             })}
+            {notStarted.map((id) => (
+              <div key={id} className="bg-slate-900/60 border border-dashed border-slate-700 rounded-xl p-5">
+                <p className="text-sm text-slate-400">{names[id]}</p>
+                <p className="text-lg font-medium text-slate-300 mt-2">Not started</p>
+                <p className="text-xs text-slate-500 mt-1">No IBKR account is linked to this class yet, so it is not valued or checked. It starts automatically once its account appears in the IBKR report.</p>
+              </div>
+            ))}
           </div>
 
           {drift.length > 0 && (
@@ -420,7 +404,7 @@ export default function FundValue() {
                         {open === key && (
                           <>
                             <FundValueBreakdown month={r!} previous={previousOf(v.classId, r!)} />
-                            <FundValueHoldings month={r!} locked={st === 'approved'} onSetPrice={onSetPrice} />
+                            <FundValueHoldings month={r!} />
                           </>
                         )}
                       </Fragment>

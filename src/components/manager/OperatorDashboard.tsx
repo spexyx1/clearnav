@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  DollarSign, TrendingUp, Users, BarChart3, Upload,
+  DollarSign, TrendingUp, Users, BarChart3,
   FileText, Mail, AlertTriangle, Clock, CheckCircle2,
   XCircle, ChevronRight,
 } from 'lucide-react';
@@ -110,9 +110,9 @@ export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: st
   };
 
   const alerts = !data ? [] : [
-    ...(data.openReviewItems ? [{ msg: `${data.openReviewItems} item${data.openReviewItems === 1 ? '' : 's'} from your statements need${data.openReviewItems === 1 ? 's' : ''} your decision`, action: 'Review', tab: 'trade_upload' }] : []),
+    ...(data.openReviewItems ? [{ msg: `${data.openReviewItems} item${data.openReviewItems === 1 ? '' : 's'} from the IBKR report need${data.openReviewItems === 1 ? 's' : ''} your decision`, action: 'Review', tab: 'trade_upload' }] : []),
     ...(data.missingMonthlyReport ? [{ msg: `No report generated for ${monthLabel()}`, action: 'Generate Report', tab: 'reports' }] : []),
-    ...(data.missingTradeUpload ? [{ msg: `Trade upload pending for ${monthLabel()}`, action: 'Upload Trades', tab: 'trade_upload' }] : []),
+    ...(data.missingTradeUpload ? [{ msg: `Nothing received from Interactive Brokers yet for ${monthLabel()}`, action: 'Open Fund Value', tab: 'fund_value' }] : []),
   ];
 
   if (error) {
@@ -206,7 +206,7 @@ export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: st
         <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {([
-            { label: 'Upload Trades', tab: 'trade_upload', icon: Upload, clr: 'text-blue-400' },
+            { label: 'Fund Value', tab: 'fund_value', icon: BarChart3, clr: 'text-blue-400' },
             { label: 'Generate Report', tab: 'reports', icon: FileText, clr: 'text-emerald-400' },
             { label: 'Send Email', tab: 'email', icon: Mail, clr: 'text-violet-400' },
           ] as const).map((qa) => {
@@ -248,13 +248,13 @@ export default function OperatorDashboard({ onNavigate }: { onNavigate: (tab: st
           )}
         </div>
 
-        {/* Trade Uploads */}
+        {/* IBKR records */}
         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Recent Trade Uploads</h2>
+          <h2 className="text-lg font-semibold text-white mb-4">Latest from Interactive Brokers</h2>
           {loading ? (
             <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skel key={i} className="h-4 w-full" />)}</div>
           ) : !data?.recentUploads.length ? (
-            <p className="text-slate-500 text-sm">No uploads yet.</p>
+            <p className="text-slate-500 text-sm">Nothing received from Interactive Brokers yet.</p>
           ) : (
             <ul className="divide-y divide-slate-800">
               {data.recentUploads.map((u) => (
