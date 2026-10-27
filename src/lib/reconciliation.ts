@@ -119,8 +119,10 @@ function suggest(r: MonthResult, checks: ReconCheck[], unconfirmed: number, diff
   return out;
 }
 
+export const hasIbkrData = (v: ClassValuation) => v.months.some((m) => m.brokerValue != null);
+
 export function reconcileFund(valuations: ClassValuation[]): Reconciliation[] {
-  return valuations.flatMap((v) => v.months.map((m) => reconcileMonth(v.classId, m)));
+  return valuations.filter(hasIbkrData).flatMap((v) => v.months.map((m) => reconcileMonth(v.classId, m)));
 }
 
 export async function saveReconciliations(tenantId: string, fundId: string, recs: Reconciliation[]) {

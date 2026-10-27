@@ -470,10 +470,13 @@ export function valueClass(
       const fx = fxFor(t.currency || ccyOf(t.instrument), date, stmtRates);
       if (t.id) tradeFx[t.id] = fx;
       const signed = t.direction === 'buy' ? Number(t.quantity) : -Number(t.quantity);
-      const cur = positions.get(t.instrument) ?? { quantity: 0, multiplier: mult, assetCategory };
+      // IBKR renames the old line to "X.OLD" on a consolidation or ticker change; those shares were held as "X".
+      const renamed = t.instrument.endsWith('.OLD') ? t.instrument.slice(0, -4) : '';
+      const symbol = renamed && !positions.has(t.instrument) && positions.has(renamed) ? renamed : t.instrument;
+      const cur = positions.get(symbol) ?? { quantity: 0, multiplier: mult, assetCategory };
       cur.quantity += signed;
       cur.multiplier = mult;
-      positions.set(t.instrument, cur);
+      positions.set(symbol, cur);
       if (t.notes === 'transfer') {
         const value = signed * Number(t.price) * mult * fx;
         const key = `${cls.id}:shares:${t.trade_date}:${t.instrument}:${t.direction}:${Number(t.quantity)}`;
@@ -953,19 +956,6 @@ export async function refreshMarketPrices(tenantId: string, fundId: string, valu
   }
   const failed = Object.keys(data.errors).filter((k) => !k.startsWith('FX:'));
   return { updated: rows.length, failed, reasons: data.errors };
-}
-
-export async function setManualPrice(tenantId: string, fundId: string, symbol: string, date: string, price: number | null) {
-  if (price == null) {
-    const { error } = await supabase.from('fund_price_marks').delete().eq('fund_id', fundId).eq('symbol', symbol).eq('price_date', date).eq('source', 'manual');
-    if (error) throw new Error(error.message);
-    return;
-  }
-  const { error } = await supabase.from('fund_price_marks').upsert(
-    { tenant_id: tenantId, fund_id: fundId, symbol, price_date: date, price, source: 'manual', updated_at: new Date().toISOString() },
-    { onConflict: 'fund_id,symbol,price_date' },
-  );
-  if (error) throw new Error(error.message);
 }
 
 export async function setMovementLabel(tenantId: string, fundId: string, classId: string | null, key: string, label: MovementLabel, userId: string) {

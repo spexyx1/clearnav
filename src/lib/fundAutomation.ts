@@ -1,7 +1,8 @@
 import { supabase } from './supabase';
 import { cents as r2 } from './money';
 import { monthEnd } from './statementParser';
-import { MOVEMENT_LABELS, isIbkrPrice, loadFundData, refreshMarketPrices, saveDrafts, setManualPrice, setMovementLabel, valueFund, type ClassValuation, type FundData, type HoldingValue, type MonthResult, type MovementLabel } from './fundValuation';
+import { MOVEMENT_LABELS, loadFundData, refreshMarketPrices, saveDrafts, setMovementLabel, valueFund, type ClassValuation, type FundData, type HoldingValue, type MonthResult, type MovementLabel } from './fundValuation';
+import { hasIbkrData } from './reconciliation';
 import { MONTH_NAMES, buildReportNumbers, emptyNarrative, type ReportContent } from './monthlyReport';
 
 export interface ReviewOption { key: string; label: string; description: string }
@@ -68,41 +69,6 @@ function coverageEnd(d: FundData) {
   }, '');
 }
 
-async function detectDuplicateUploads(fundId: string, className: (id: string) => string): Promise<DetectedItem[]> {
-  const { data, error } = await supabase.from('trade_uploads')
-    .select('id, share_class_id, upload_year, upload_month, status, created_at, filename, statement_data, trade_upload_items(count)')
-    .eq('fund_id', fundId).in('status', ['confirmed', 'superseded']).not('share_class_id', 'is', null)
-    .order('created_at', { ascending: false });
-  if (error) fail('load uploads', error);
-  const groups = new Map<string, typeof data>();
-  (data ?? []).forEach((u) => {
-    const k = `${u.share_class_id}|${u.upload_year}-${String(u.upload_month).padStart(2, '0')}`;
-    groups.set(k, [...(groups.get(k) ?? []), u]);
-  });
-  const out: DetectedItem[] = [];
-  groups.forEach((rows, k) => {
-    const current = rows.find((r) => r.status === 'confirmed');
-    const previous = rows.find((r) => r.status === 'superseded');
-    if (!current || !previous) return;
-    const count = (r: typeof current) => (r.trade_upload_items as unknown as { count: number }[])?.[0]?.count ?? 0;
-    const same = count(current) === count(previous) && JSON.stringify(current.statement_data) === JSON.stringify(previous.statement_data);
-    if (same) return;
-    const [classId, month] = k.split('|');
-    out.push({
-      share_class_id: classId, month, kind: 'duplicate_upload', blocking: true,
-      dedupe_key: `duplicate_upload:${current.id}:${previous.id}`,
-      title: `${className(classId)}: ${monthLabel(month)} was uploaded twice with different figures`,
-      detail: `The newer upload has ${count(current)} trades; the earlier one had ${count(previous)}. Only one can count.`,
-      options: [
-        { key: 'keep_new', label: 'Use the newer upload', description: 'Keep the most recent statement for this month.' },
-        { key: 'restore_old', label: 'Go back to the earlier upload', description: 'Ignore the newer statement and use the one uploaded before.' },
-      ],
-      context: { current_id: current.id, previous_id: previous.id },
-    });
-  });
-  return out;
-}
-
 function detectDuplicateTrades(d: FundData, className: (id: string) => string): DetectedItem[] {
   const out: DetectedItem[] = [];
   d.uploads.forEach((u) => {
@@ -143,7 +109,7 @@ function detectClassGaps(v: ClassValuation, className: string): DetectedItem[] {
       share_class_id: v.classId, month: prices.months[0].month, blocking: true, kind: 'missing_prices',
       dedupe_key: `missing_prices:${v.classId}:${n.join(',')}`,
       title: `${className}: ${n.length} holding${n.length === 1 ? '' : 's'} could not be priced`,
-      detail: `${n.slice(0, 10).join(', ')}${n.length > 10 ? '…' : ''} had no broker price, no market price on its home exchange and no recent trade, in ${prices.months.length} month${prices.months.length === 1 ? '' : 's'} from ${monthLabel(prices.months[0].month)}. You can type a price in on the Fund Value screen and the months will approve themselves.`,
+      detail: `${n.slice(0, 10).join(', ')}${n.length > 10 ? '…' : ''} had no IBKR price in ${prices.months.length} month${prices.months.length === 1 ? '' : 's'} from ${monthLabel(prices.months[0].month)}. These months stay not final until IBKR reports a price; the next automatic update checks again.`,
       options: APPROVE_OR_HOLD('Approve, valuing them at zero'),
       context: { symbols: n, months: prices.months.map((m) => m.month) },
     });
@@ -184,22 +150,20 @@ function detectMovements(v: ClassValuation, className: string): DetectedItem[] {
   }));
 }
 
-interface Diagnosis { cause: string; detail: string; options: ReviewOption[]; fixes: Record<string, { symbol: string; date: string; price: number }> }
+interface Diagnosis { cause: string; detail: string }
 
 function diagnoseMove(m: MonthResult, prev: MonthResult | undefined): Diagnosis {
   const before = new Map<string, HoldingValue>((prev?.holdings ?? []).map((h) => [h.symbol, h]));
   const change = m.accountValue - m.openingValue - m.flows;
-  const options: ReviewOption[] = [];
-  const fixes: Diagnosis['fixes'] = {};
   const lines: string[] = [];
   let cause = 'market';
 
   if (Math.abs(m.unexplained) > Math.max(1000, Math.abs(change) * 0.25, Math.abs(m.openingValue) * 0.02)) {
     cause = 'incomplete';
     lines.push(m.unexplained > 0
-      ? `${usd(m.unexplained)} of value shows up at the broker that the uploaded activity does not explain.`
-      : `${usd(-m.unexplained)} of value the uploaded activity expects is not at the broker.`);
-    lines.push('This usually means some activity is missing from the file, such as a takeover paid in cash, a share or cash transfer, or a section of the statement that was not exported. Uploading the full statement again (with all sections ticked) should fix it.');
+      ? `${usd(m.unexplained)} of value shows up at IBKR that the activity in the IBKR report does not explain.`
+      : `${usd(-m.unexplained)} of value the activity in the IBKR report expects is not at IBKR.`);
+    lines.push("IBKR's own month-end value is used either way. The gap usually comes from a corporate action, such as a takeover paid in cash, that the report describes in a way the rebuild does not follow.");
   }
 
   const movers = m.holdings
@@ -207,31 +171,13 @@ function diagnoseMove(m: MonthResult, prev: MonthResult | undefined): Diagnosis 
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 
   for (const { h, p } of movers.slice(0, 5)) {
-    if (!p?.price || !h.price || isIbkrPrice(h.priceSource)) continue;
+    if (!p?.price || !h.price) continue;
     const ratio = h.price / p.price;
-    const units = Math.abs(h.quantity) * h.multiplier;
-    if (units > 1 && Math.abs(h.price / (p.price * units) - 1) < 0.35) {
-      cause = 'aggregate';
-      const perUnit = h.price / units;
-      const key = `fix_price:${h.symbol}`;
-      fixes[key] = { symbol: h.symbol, date: m.date, price: perUnit };
-      options.push({ key, label: `Treat ${h.symbol}'s figure as the position total`, description: `Use ${perUnit.toFixed(4)} ${h.currency} per unit instead of ${h.price} and re-value the month.` });
-      lines.push(`${h.symbol}: the price used (${h.price} ${h.currency}) is about ${units.toLocaleString()} times last month's, which is the size of the whole position. It looks like the total value was recorded as the price.`);
-      continue;
-    }
     const n = ratio >= 1 ? Math.round(ratio) : Math.round(1 / ratio);
     const splitLike = n >= 2 && Math.abs((ratio >= 1 ? ratio : 1 / ratio) - n) < 0.08;
     if (splitLike && Math.abs(h.quantity - p.quantity) < 1e-6) {
       if (cause === 'market') cause = 'split';
-      lines.push(`${h.symbol}: price moved ${ratio >= 1 ? `${n} times up` : `to 1/${n}`} while the share count stayed the same. This often means a share split or reverse split that the statement did not record.`);
-    } else if (Math.abs(ratio - 1) > 0.6) {
-      if (cause === 'market') cause = 'price';
-      lines.push(`${h.symbol}: price went from ${p.price} to ${h.price} ${h.currency} (${h.priceSource === 'trade' ? 'last trade' : 'market lookup'}).`);
-    } else continue;
-    const key = `fix_price:${h.symbol}`;
-    if (!fixes[key]) {
-      fixes[key] = { symbol: h.symbol, date: m.date, price: p.price };
-      options.push({ key, label: `Use last month's price for ${h.symbol}`, description: `Value ${h.symbol} at ${p.price} ${h.currency} for ${monthLabel(m.month)} and re-value the month.` });
+      lines.push(`${h.symbol}: IBKR's price moved ${ratio >= 1 ? `${n} times up` : `to 1/${n}`} while the share count stayed the same, which looks like a split the report did not record.`);
     }
   }
 
@@ -247,14 +193,12 @@ function diagnoseMove(m: MonthResult, prev: MonthResult | undefined): Diagnosis 
     const top = movers.slice(0, 3).filter((x) => Math.abs(x.delta) > 1).map((x) => `${x.h.symbol} ${x.delta >= 0 ? '+' : '−'}${usd(Math.abs(x.delta))}`);
     lines.push(`No data problem was found. The biggest contributors were ${top.join(', ') || 'cash'}, out of a total change of ${usd(change)}.`);
   }
-  return { cause, detail: lines.join(' '), options, fixes };
+  return { cause, detail: lines.join(' ') };
 }
 
 const CAUSE_TITLE: Record<string, string> = {
-  incomplete: 'activity seems to be missing from the upload',
-  aggregate: 'a price looks like a position total',
+  incomplete: 'part of the move is not explained by the IBKR activity',
   split: 'possible unrecorded share split',
-  price: 'a holding has a suspicious price',
   currency: 'large move, partly from exchange rates',
   market: 'large market move',
 };
@@ -269,21 +213,25 @@ function detectMonthIssues(v: ClassValuation, m: MonthResult, prev: MonthResult 
       dedupe_key: `unusual_return:${v.classId}:${m.month}:${m.unitPrice.toFixed(4)}:${d.cause}`,
       title: `${className}, ${monthLabel(m.month)}: ${pct(m.monthReturn)} — ${CAUSE_TITLE[d.cause]}`,
       detail: `Value went from ${usd(m.openingValue)} to ${usd(m.accountValue)}. ${d.detail}`,
-      options: [...d.options, ...APPROVE_OR_HOLD(d.options.length ? 'Approve as it is' : 'Approve, the figure is right')],
-      context: { cause: d.cause, fixes: d.fixes },
-    });
-  }
-  if (m.brokerValue != null && Math.abs(m.computedValue - m.brokerValue) > Math.max(50, Math.abs(m.brokerValue) * 0.01)) {
-    out.push({
-      ...base, kind: 'reconcile',
-      dedupe_key: `reconcile:${v.classId}:${m.month}:${Math.round(m.computedValue)}:${Math.round(m.brokerValue)}`,
-      title: `${className}: our figure and the broker's differ in ${monthLabel(m.month)}`,
-      detail: `Rebuilt from trades: ${usd(m.computedValue)}. Broker reports: ${usd(m.brokerValue)}. The broker figure is used.`,
-      options: APPROVE_OR_HOLD("Approve using the broker's figure"),
-      context: {},
+      options: APPROVE_OR_HOLD('Approve, the figure is right'),
+      context: { cause: d.cause },
     });
   }
   return out;
+}
+
+function detectRebuildGaps(v: ClassValuation, className: string): DetectedItem[] {
+  const gaps = v.months.filter((m) => m.brokerValue != null && Math.abs(m.computedValue - m.brokerValue) > Math.max(50, Math.abs(m.brokerValue) * 0.01));
+  if (!gaps.length) return [];
+  const list = gaps.map((m) => `${monthLabel(m.month)} ${usd(m.brokerValue! - m.computedValue)}`).join(', ');
+  return [{
+    share_class_id: v.classId, month: gaps[0].month, kind: 'reconcile', blocking: false,
+    dedupe_key: `reconcile:${v.classId}:${gaps.map((m) => `${m.month}=${Math.round(m.computedValue - m.brokerValue!)}`).join(',')}`,
+    title: `${className}: IBKR's value differs from the rebuild in ${gaps.length} month${gaps.length === 1 ? '' : 's'}`,
+    detail: `IBKR's own month-end value is always the one used, so the unit price is right. The rebuild from IBKR's trades and cash differs in: ${list}. Open Reconcile on the Fund Value screen to see the cause for each month.`,
+    options: [{ key: 'noted', label: 'Understood', description: "IBKR's figures stay in use; the check runs again after every update." }],
+    context: {},
+  }];
 }
 
 async function syncReviewItems(tenantId: string, fundId: string, detected: DetectedItem[]): Promise<ReviewItem[]> {
@@ -420,15 +368,15 @@ export async function runFundAutomation(tenantId: string, fundId: string, userId
   const className = (id: string | null) => data.classes.find((c) => c.id === id)?.class_name ?? 'Unassigned class';
   const isFull = (m: MonthResult) => !!cutoff && m.date === fullMonthEnd(m.month) && m.date <= cutoff;
 
-  const fullVals = vals.map((v) => ({ ...v, months: v.months.filter(isFull) }));
+  const fullVals = vals.filter(hasIbkrData).map((v) => ({ ...v, months: v.months.filter(isFull) }));
   const partialMonths = [...new Set(vals.flatMap((v) => v.months.filter((m) => !isFull(m)).map((m) => m.month)))];
 
   const detected: DetectedItem[] = [
-    ...(await detectDuplicateUploads(fundId, className)),
     ...detectDuplicateTrades(data, className),
     ...fullVals.flatMap((v) => detectClassGaps(v, className(v.classId))),
     ...fullVals.flatMap((v) => detectMovements(v, className(v.classId))),
     ...fullVals.flatMap((v) => v.months.flatMap((m, i) => detectMonthIssues(v, m, v.months[i - 1], className(v.classId)))),
+    ...fullVals.flatMap((v) => detectRebuildGaps(v, className(v.classId))),
   ];
   const items = await syncReviewItems(tenantId, fundId, detected);
   const blockingKeys = new Set(detected.filter((d) => d.blocking).map((d) => d.dedupe_key));
@@ -498,15 +446,6 @@ export async function loadOpenReviewItems(tenantId: string): Promise<ReviewItem[
 
 export async function resolveReviewItem(item: ReviewItem, optionKey: string, userId: string) {
   if (!item.options.some((o) => o.key === optionKey)) throw new Error('That choice is not available.');
-  if (item.kind === 'duplicate_upload' && optionKey === 'restore_old') {
-    const { current_id, previous_id } = item.context as { current_id: string; previous_id: string };
-    const { error: a } = await supabase.from('trade_uploads').update({ status: 'superseded' }).eq('id', current_id);
-    if (a) fail('restore earlier upload', a);
-    const { error: b } = await supabase.from('trade_uploads').update({ status: 'confirmed' }).eq('id', previous_id);
-    if (b) fail('restore earlier upload', b);
-  }
-  const fix = (item.context.fixes as Record<string, { symbol: string; date: string; price: number }> | undefined)?.[optionKey];
-  if (fix) await setManualPrice(item.tenant_id, item.fund_id, fix.symbol, fix.date, fix.price).catch((e) => fail('save corrected price', e));
   if (item.kind === 'movement' && optionKey.startsWith('label:')) {
     await setMovementLabel(item.tenant_id, item.fund_id, item.share_class_id, String(item.context.movement_key), optionKey.slice(6) as MovementLabel, userId)
       .catch((e) => fail('save movement label', e));
@@ -528,7 +467,7 @@ export function describeResult(r: AutomationResult) {
   const range = (ms: string[]) => (ms.length === 1 ? monthLabel(ms[0]) : `${monthLabel(ms[0])} to ${monthLabel(ms[ms.length - 1])}`);
   parts.push(r.approvedMonths.length ? `${range(r.approvedMonths)} approved and published to investors.` : 'No new months needed approving.');
   if (r.heldMonths.length) parts.push(`${r.heldMonths.length} month${r.heldMonths.length === 1 ? ' is' : 's are'} waiting on your decision.`);
-  if (r.partialMonths.length) parts.push(`${r.partialMonths.map(monthLabel).join(', ')} left out until the full month is uploaded.`);
+  if (r.partialMonths.length) parts.push(`${r.partialMonths.map(monthLabel).join(', ')} left out until IBKR reports the full month.`);
   if (r.reportsDrafted) parts.push(`${r.reportsDrafted} draft monthly report${r.reportsDrafted === 1 ? '' : 's'} created.`);
   return parts.join(' ');
 }

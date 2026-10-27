@@ -127,69 +127,10 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
   return batches;
 }
 
-export function buildNavAnchors(st: ParsedStatement, accountToClass: Record<string, string>): MonthlyBatch[] {
-  if (!st.periodEnd) return [];
-  const out: MonthlyBatch[] = [];
-  const isMonthEnd = (d: string) => monthEndOf(d) === d;
-  st.accounts.forEach((account) => {
-    const shareClassId = accountToClass[account];
-    const s = st.summaries[account];
-    if (!shareClassId || !s) return;
-    const add = (date: string, nav: number) => {
-      const mk = date.slice(0, 7);
-      out.push({
-        account, shareClassId, year: +mk.slice(0, 4), month: +mk.slice(5, 7), trades: [],
-        data: { account, month: mk, cash_events: [], period: { start: st.periodStart ?? date, end: date }, closing: { as_of: date, nav, cash: null, positions: [], has_positions: false } },
-      });
-    };
-    if (s.currentNav != null) add(st.periodEnd!, s.currentNav);
-    if (s.priorNav != null && st.periodStart) {
-      const before = dayBefore(st.periodStart);
-      if (isMonthEnd(before)) add(before, s.priorNav);
-    }
-  });
-  return out;
-}
-
-function monthEndOf(date: string) {
-  const d = new Date(`${date.slice(0, 7)}-01T00:00:00Z`);
-  d.setUTCMonth(d.getUTCMonth() + 1);
-  d.setUTCDate(0);
-  return d.toISOString().slice(0, 10);
-}
-
 const saveFail = (step: string, cause: unknown): never => {
   console.error(`statement save failed: ${step}`, cause);
   throw new Error('The statement could not be saved. Nothing was changed. Please try again.');
 };
-
-/** Adds broker month-end values to the months already on file without touching their trades. */
-export async function saveNavAnchors(tenantId: string, fundId: string, userId: string, filename: string, anchors: MonthlyBatch[], sourcePath: string | null) {
-  let saved = 0;
-  for (const a of anchors) {
-    const { data: cur, error } = await supabase.from('trade_uploads').select('id, statement_data')
-      .eq('fund_id', fundId).eq('share_class_id', a.shareClassId).eq('upload_year', a.year).eq('upload_month', a.month).eq('status', 'confirmed')
-      .order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (error) saveFail('load month', error);
-    const anchor = a.data.closing!;
-    if (cur) {
-      const sd = cur.statement_data as StatementMonthData;
-      const keepPositions = sd.closing && sd.closing.has_positions !== false && sd.closing.as_of === anchor.as_of;
-      const closing = keepPositions ? { ...sd.closing!, nav: anchor.nav } : anchor;
-      const { error: uErr } = await supabase.from('trade_uploads').update({ statement_data: { ...sd, closing } }).eq('id', cur.id);
-      if (uErr) saveFail('add month-end value', uErr);
-    } else {
-      const { error: iErr } = await supabase.from('trade_uploads').insert({
-        tenant_id: tenantId, fund_id: fundId, share_class_id: a.shareClassId, broker_account: a.account, source_format: 'nav_only',
-        period_start: a.data.period.start, period_end: a.data.period.end, upload_month: a.month, upload_year: a.year,
-        status: 'confirmed', confirmed_at: new Date().toISOString(), filename, uploaded_by: userId, statement_data: a.data, source_file_path: sourcePath,
-      });
-      if (iErr) saveFail('save month-end value', iErr);
-    }
-    saved++;
-  }
-  return saved;
-}
 
 export async function storeSourceFile(tenantId: string, file: Blob, filename: string): Promise<string | null> {
   const safe = filename.replace(/[^\w.-]+/g, '_').slice(-120);
