@@ -602,7 +602,8 @@ export function valueClass(
     const computedValue = round(cash + holdingsValue);
     if (closing?.nav != null) {
       const impliedCash = closing.nav - holdingsValue;
-      unexplained += impliedCash - cash;
+      unexplained += impliedCash - cash - (closing.accruals ?? 0);
+      if (Math.abs(closing.accruals ?? 0) >= 0.005) notes.push(`IBKR's value at ${closing.as_of} includes ${usdText(closing.accruals!)} of interest and dividends earned but not yet paid.`);
       cash = impliedCash;
       unitemisedCash = closing.cash != null ? impliedCash - closing.cash : 0;
     }

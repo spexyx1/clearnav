@@ -15,7 +15,7 @@ export interface StatementMonthData {
   month: string;
   cash_events: CashEvent[];
   opening?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[] };
-  closing?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[]; has_positions?: boolean; nav_breakdown?: Record<string, number>; cash_by_currency?: Record<string, number> };
+  closing?: { as_of: string; cash: number | null; nav: number | null; positions: PositionSnapshot[]; has_positions?: boolean; accruals?: number; nav_breakdown?: Record<string, number>; cash_by_currency?: Record<string, number> };
   period: { start: string; end: string };
   fx_rates?: Record<string, number>;
   ibkr_prices?: { as_of: string; prices: Record<string, number>; dates?: Record<string, string> };
@@ -99,13 +99,14 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
           cash: summary.endingCash ?? null,
           nav: summary.currentNav ?? null,
           positions: snapshot(positions),
+          ...(summary.accrualsByDate?.[end] != null ? { accruals: summary.accrualsByDate[end] } : {}),
           ...(summary.navBreakdown ? { nav_breakdown: summary.navBreakdown } : {}),
           ...(summary.cashByCurrency ? { cash_by_currency: summary.cashByCurrency } : {}),
         };
         if (Object.keys(st.fxRates).length) data.fx_rates = st.fxRates;
       } else {
         const last = navDates.filter((d) => d.startsWith(mk)).pop();
-        if (last) data.closing = { as_of: last, nav: summary.navByDate![last], cash: summary.cashByDate?.[last] ?? null, positions: [], has_positions: false };
+        if (last) data.closing = { as_of: last, nav: summary.navByDate![last], cash: summary.cashByDate?.[last] ?? null, positions: [], has_positions: false, ...(summary.accrualsByDate?.[last] != null ? { accruals: summary.accrualsByDate[last] } : {}) };
       }
       const monthRates = monthFxRates(st, mk);
       if (Object.keys(monthRates).length) data.fx_rates = { ...(data.fx_rates ?? {}), ...monthRates };

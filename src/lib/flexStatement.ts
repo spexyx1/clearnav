@@ -68,8 +68,28 @@ export function parseFlexXml(xml: string): ParsedStatement {
       text: [acct, attr(el, 'tradeDate', 'dateTime', 'reportDate', 'date'), attr(el, 'symbol', 'type'), attr(el, 'description'), attr(el, 'quantity', 'amount', 'proceeds')].filter(Boolean).join(' | '),
     });
 
+    // IBKR keeps one conid per security while its symbol changes (ticker change, "X.OLD" on a corporate action, adjusted options);
+    // every row is filed under the security's latest live symbol so its history is one holding.
+    const latest = new Map<string, { date: string; symbol: string }>();
+    st.querySelectorAll('PriorPeriodPosition, OpenPosition, Trade, CorporateAction, Transfer').forEach((el) => {
+      const conid = el.getAttribute('conid');
+      const symbol = el.getAttribute('symbol') || '';
+      if (!conid || !symbol) return;
+      const date = day(attr(el, 'date', 'reportDate', 'tradeDate', 'dateTime')) || to || '';
+      const old = symbol.endsWith('.OLD');
+      const cur = latest.get(conid);
+      const curOld = !!cur && cur.symbol.endsWith('.OLD');
+      if (!cur || (curOld && !old) || (curOld === old && date >= cur.date)) latest.set(conid, { date, symbol });
+    });
+    const sym = (el: Element) => {
+      const raw = el.getAttribute('symbol') || '';
+      const known = latest.get(el.getAttribute('conid') || '')?.symbol;
+      return known ? known.replace(/\.OLD$/, '') : raw;
+    };
+
     const navByDate: Record<string, number> = {};
     const cashByDate: Record<string, number> = {};
+    const accrualsByDate: Record<string, number> = {};
     st.querySelectorAll('EquitySummaryByReportDateInBase').forEach((e) => {
       const d = day(e.getAttribute('reportDate'));
       const total = num(e.getAttribute('total'));
@@ -77,11 +97,14 @@ export function parseFlexXml(xml: string): ParsedStatement {
       navByDate[d] = total;
       const c = num(e.getAttribute('cash'));
       if (!Number.isNaN(c)) cashByDate[d] = c;
+      const acc = ['dividendAccruals', 'interestAccruals'].map((k) => num(e.getAttribute(k))).filter((v) => !Number.isNaN(v));
+      if (acc.length) accrualsByDate[d] = acc.reduce((a, b) => a + b, 0);
     });
     const navDates = Object.keys(navByDate).sort();
     if (navDates.length) {
       s.navByDate = navByDate;
       s.cashByDate = cashByDate;
+      s.accrualsByDate = accrualsByDate;
       const before = navDates.filter((d) => from && d < from).pop();
       if (before) s.priorNav = navByDate[before];
       s.currentNav = navByDate[navDates[navDates.length - 1]];
@@ -105,14 +128,14 @@ export function parseFlexXml(xml: string): ParsedStatement {
       (prices[d] ??= {})[symbol] = price;
     };
     st.querySelectorAll('PriorPeriodPosition').forEach((p) => {
-      addPrice(day(p.getAttribute('date')) || '', p.getAttribute('symbol') || '', num(p.getAttribute('price')));
+      addPrice(day(p.getAttribute('date')) || '', sym(p), num(p.getAttribute('price')));
     });
 
     st.querySelectorAll('OpenPosition').forEach((p) => {
       const lvl = p.getAttribute('levelOfDetail');
       if (lvl && lvl !== 'SUMMARY') return;
       const qty = num(p.getAttribute('position'));
-      const symbol = p.getAttribute('symbol') || '';
+      const symbol = sym(p);
       if (!symbol || Number.isNaN(qty)) return;
       addPrice(day(p.getAttribute('reportDate')) || to || '', symbol, num(p.getAttribute('markPrice')));
       const mult = num(p.getAttribute('multiplier'));
@@ -147,7 +170,7 @@ export function parseFlexXml(xml: string): ParsedStatement {
       if (/^cash$|forex/i.test(assetCategory)) { skip('Trades', 'Currency conversion - reflected in cash balances, not a holding', t); return; }
       const qty = num(t.getAttribute('quantity'));
       const date = day(attr(t, 'tradeDate', 'dateTime'));
-      const symbol = t.getAttribute('symbol') || '';
+      const symbol = sym(t);
       if (!date || !symbol || Number.isNaN(qty) || qty === 0) { skip('Trades', !date ? 'No trade date' : !symbol ? 'No symbol' : 'Zero or unreadable quantity', t); return; }
       const price = num(t.getAttribute('tradePrice')) || 0;
       const mult = num(t.getAttribute('multiplier')) || 1;
@@ -184,7 +207,7 @@ export function parseFlexXml(xml: string): ParsedStatement {
       const assetCategory = t.getAttribute('assetCategory') || '';
       const currency = t.getAttribute('currency') || 'USD';
       const qty = num(t.getAttribute('quantity'));
-      const symbol = t.getAttribute('symbol') || '';
+      const symbol = sym(t);
       if (symbol && symbol !== '--' && !/^cash$/i.test(assetCategory) && !Number.isNaN(qty) && qty !== 0) {
         const tp = num(t.getAttribute('transferPrice'));
         const amt = num(t.getAttribute('positionAmount'));
@@ -204,7 +227,7 @@ export function parseFlexXml(xml: string): ParsedStatement {
     });
 
     st.querySelectorAll('CorporateAction').forEach((c) => {
-      const symbol = c.getAttribute('symbol') || '';
+      const symbol = sym(c);
       const qty = num(c.getAttribute('quantity'));
       const date = day(attr(c, 'reportDate', 'dateTime'));
       if (!symbol || !date || Number.isNaN(qty)) { skip('Corporate actions', !symbol ? 'No symbol' : !date ? 'No date' : 'Unreadable quantity', c); return; }
