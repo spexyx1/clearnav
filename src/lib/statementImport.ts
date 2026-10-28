@@ -20,7 +20,7 @@ export interface StatementMonthData {
   fx_rates?: Record<string, number>;
   ibkr_prices?: { as_of: string; prices: Record<string, number>; dates?: Record<string, string> };
   change_in_nav?: ChangeInNav;
-  daily_nav?: Record<string, number>;
+  fingerprint?: string;
 }
 
 export interface MonthlyBatch {
@@ -120,8 +120,6 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
         data.ibkr_prices = { as_of: asOf, prices, ...(Object.keys(dates).length ? { dates } : {}) };
       }
       if (summary.changeInNav?.to.startsWith(mk)) data.change_in_nav = summary.changeInNav;
-      const monthNavs = navDates.filter((d) => d.startsWith(mk));
-      if (monthNavs.length) data.daily_nav = Object.fromEntries(monthNavs.map((d) => [d, summary.navByDate![d]]));
       batches.push({
         account,
         shareClassId,
@@ -159,18 +157,26 @@ interface SaveArgs {
   accountToClass: Record<string, string>;
 }
 
-async function carryOver(fundId: string, b: MonthlyBatch, first: boolean) {
+function fingerprintOf(b: MonthlyBatch) {
+  const text = JSON.stringify([{ ...b.data, period: undefined, fingerprint: undefined }, b.trades]);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  return `${text.length}-${(h >>> 0).toString(16)}`;
+}
+
+async function carryOver(fundId: string, b: MonthlyBatch, first: boolean): Promise<boolean> {
   const { data: prev } = await supabase.from('trade_uploads').select('statement_data')
     .eq('fund_id', fundId).eq('share_class_id', b.shareClassId).eq('upload_year', b.year).eq('upload_month', b.month).eq('status', 'confirmed')
     .order('created_at', { ascending: false }).limit(1).maybeSingle();
   const old = prev?.statement_data as StatementMonthData | undefined;
-  if (!old) return;
+  if (!old) return false;
   // A new file may cover fewer checkpoints than what is on file; keep the broker values already known.
   if (!b.data.closing && old.closing?.nav != null) b.data.closing = { ...old.closing, positions: [], has_positions: false };
   if (!b.data.ibkr_prices && old.ibkr_prices) b.data.ibkr_prices = old.ibkr_prices;
   if (!b.data.change_in_nav && old.change_in_nav) b.data.change_in_nav = old.change_in_nav;
-  if (old.daily_nav) b.data.daily_nav = { ...old.daily_nav, ...b.data.daily_nav };
   if (first && old.opening?.nav != null && b.data.opening && b.data.opening.nav == null) b.data.opening = { ...b.data.opening, nav: old.opening.nav, cash: b.data.opening.cash ?? old.opening.cash };
+  b.data.fingerprint = fingerprintOf(b);
+  return old.fingerprint === b.data.fingerprint;
 }
 
 export async function saveStatementBatches({ tenantId, fundId, userId, filename, sourcePath = null, statement, batches, accountToClass }: SaveArgs) {
@@ -179,14 +185,19 @@ export async function saveStatementBatches({ tenantId, fundId, userId, filename,
     .filter(([, cls]) => cls)
     .map(([account_id, share_class_id]) => ({ tenant_id: tenantId, fund_id: fundId, broker, account_id, share_class_id }));
   const fail = saveFail;
-  for (const b of batches) await carryOver(fundId, b, !!b.data.opening);
+  const changed: MonthlyBatch[] = [];
+  for (const b of batches) {
+    const same = await carryOver(fundId, b, !!b.data.opening);
+    b.data.fingerprint ??= fingerprintOf(b);
+    if (!same) changed.push(b);
+  }
 
   const created: { id: string; batch: MonthlyBatch }[] = [];
   const undo = async () => {
     if (created.length) await supabase.from('trade_uploads').delete().in('id', created.map((c) => c.id));
   };
 
-  for (const b of batches) {
+  for (const b of changed) {
     const { data: upload, error: upErr } = await supabase
       .from('trade_uploads')
       .insert({

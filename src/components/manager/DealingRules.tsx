@@ -8,6 +8,7 @@ import {
   redemptionDealingDay, saveDealingTerms, scheduleFrom, formatTermValue,
   type DealingTerms, type EffectiveRule, type TermEntry,
 } from '../../lib/dealingTerms';
+import MovementSorting from './MovementSorting';
 
 interface Props {
   tenantId: string;
@@ -158,6 +159,7 @@ export default function DealingRules({ tenantId, funds, onOpenDocuments }: Props
               </ul>
             </section>
           ))}
+          <MovementSorting tenantId={tenantId} fundId={fundId} userId={user?.id ?? null} />
         </>
       )}
 

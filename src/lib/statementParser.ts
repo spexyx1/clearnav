@@ -37,6 +37,7 @@ export interface CashEvent {
   currency: string;
   amount: number;
   internal?: boolean;
+  ibkrType?: string;
 }
 
 export interface PositionRow {

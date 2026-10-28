@@ -26,7 +26,8 @@ export type TermKey =
   | 'hurdle_rate_pct'
   | 'high_water_mark'
   | 'application_money_handling'
-  | 'units_issued_when';
+  | 'units_issued_when'
+  | 'consolidate_series';
 
 export type DealingTerms = Partial<Record<TermKey, TermEntry>>;
 
@@ -55,6 +56,7 @@ export const TERM_FIELDS: TermField[] = [
   { key: 'fee_frequency', label: 'Fees charged', kind: 'select', options: ['monthly', 'quarterly', 'semi-annually', 'annually'], group: 'Fees' },
   { key: 'hurdle_rate_pct', label: 'Hurdle rate', kind: 'number', unit: '% a year', group: 'Fees' },
   { key: 'high_water_mark', label: 'High-water mark', kind: 'boolean', group: 'Fees' },
+  { key: 'consolidate_series', label: 'Merge unit series at year-end', kind: 'boolean', group: 'Fees' },
 ];
 
 export interface DocumentClass {
@@ -106,6 +108,7 @@ export const DEFAULT_TERMS: Partial<Record<TermKey, TermValue>> = {
   units_issued_when: 'At the first final month-end price after the money arrives',
   application_money_handling: 'Uninvested cash, kept out of the class value until units are issued',
   launch_unit_price: 1,
+  consolidate_series: true,
 };
 
 export type RuleSource = 'document' | 'manual' | 'default' | 'missing';

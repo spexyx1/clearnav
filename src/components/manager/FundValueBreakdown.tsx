@@ -76,8 +76,8 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
           <Line label="Issued" value={m.unitsIssued ? `+${units(m.unitsIssued)}` : '—'} tone={m.unitsIssued ? 'up' : 'muted'} />
           <Line label="Redeemed" value={m.unitsRedeemed ? `-${units(m.unitsRedeemed)}` : '—'} tone={m.unitsRedeemed ? 'down' : 'muted'} />
           <Line label="Units at end" value={units(m.units)} strong />
-          <Line label="Unit price" value={`$${m.unitPrice.toFixed(4)}`} />
-          <Line label="Class value (units × price)" value={usd(m.classNav)} />
+          <Line label={m.series.length > 1 ? `Unit price (Series ${m.series[0].n})` : 'Unit price'} value={`${m.unitPrice.toFixed(4)}`} />
+          <Line label={m.series.length > 1 ? 'Class value (sum of series)' : 'Class value (units × price)'} value={usd(m.classNav)} />
           <Line label="Broker reported value" value={m.brokerValue != null ? usd(m.brokerValue) : 'not in statement'} tone={m.brokerValue == null ? 'muted' : undefined} />
           {brokerGap != null && Math.abs(brokerGap) >= 1 && (
             <p className="text-xs text-amber-300 mt-2">Differs from the broker by {usd(Math.abs(brokerGap))}.</p>
@@ -104,6 +104,53 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
           </div>
         )}
       </div>
+
+      {m.series.length > 0 && (
+        <div className="mt-4 bg-slate-900/70 border border-slate-800 rounded-lg overflow-hidden">
+          <div className="px-4 pt-3 pb-2">
+            <h4 className="text-xs uppercase tracking-wider text-slate-500">Unit series</h4>
+            <p className="text-xs text-slate-500 mt-1">Each investment after launch starts its own series at the launch price, so it only shares in gains from that point on.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-slate-500 border-b border-slate-800">
+                  {['Series', 'Started', 'Units', 'Unit price', 'Value', 'Since start', 'High-water mark'].map((h, i) => (
+                    <th key={h} className={`px-4 py-2 font-normal ${i < 2 ? 'text-left' : 'text-right'}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {m.series.map((s) => {
+                  const since = s.startPrice > 0 ? s.price / s.startPrice - 1 : 0;
+                  return (
+                    <tr key={s.n} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="px-4 py-2 text-slate-200">Series {s.n}</td>
+                      <td className="px-4 py-2 text-slate-400 tabular-nums">{s.start}</td>
+                      <td className="px-4 py-2 text-right tabular-nums text-slate-300">{units(s.units)}</td>
+                      <td className="px-4 py-2 text-right tabular-nums text-slate-300">${s.price.toFixed(4)}</td>
+                      <td className="px-4 py-2 text-right tabular-nums text-white">{usd(s.value)}</td>
+                      <td className={`px-4 py-2 text-right tabular-nums ${since >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>{since >= 0 ? '+' : ''}{(since * 100).toFixed(2)}%</td>
+                      <td className="px-4 py-2 text-right tabular-nums text-slate-400">${s.hwm.toFixed(4)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              {m.series.length > 1 && (
+                <tfoot>
+                  <tr className="border-t border-slate-700 text-white">
+                    <td className="px-4 py-2 font-medium" colSpan={2}>Class total</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{units(m.units)}</td>
+                    <td />
+                    <td className="px-4 py-2 text-right tabular-nums font-medium">{usd(m.classNav)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      )}
 
       {m.movements.length > 0 && (
         <div className="mt-4 bg-slate-900/70 border border-slate-800 rounded-lg overflow-hidden">

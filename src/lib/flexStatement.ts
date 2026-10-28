@@ -196,7 +196,8 @@ export function parseFlexXml(xml: string): ParsedStatement {
       if (Number.isNaN(amount) || !date || amount === 0) { skip('Cash transactions', !date ? 'No date' : 'Zero or unreadable amount', c); return; }
       const currency = c.getAttribute('currency') || 'USD';
       if (currency !== 'USD') nonBase.add(currency);
-      out.cashEvents.push({ account: acct, date, type: cashType(c.getAttribute('type') || '', amount), description: c.getAttribute('description') || c.getAttribute('type') || 'Cash', currency, amount });
+      const ibkrType = c.getAttribute('type') || '';
+      out.cashEvents.push({ account: acct, date, type: cashType(ibkrType, amount), description: c.getAttribute('description') || ibkrType || 'Cash', currency, amount, ...(ibkrType ? { ibkrType } : {}) });
     });
 
     st.querySelectorAll('Transfer').forEach((t) => {
@@ -259,7 +260,7 @@ export function parseFlexXml(xml: string): ParsedStatement {
     if ((e.type === 'deposit' || e.type === 'withdrawal') && !e.internal && out.accounts.some((a) => a !== e.account && e.description.includes(a))) e.internal = true;
   });
   if (!out.accounts.some((a) => out.summaries[a]?.navByDate)) {
-    out.warnings.push('The Flex query has no daily account value section, so months are only checked against the broker at the end of the period. Add "Net Asset Value (NAV) in Base" to the query for a check every month.');
+    out.warnings.push('The Flex query has no account value section, so month-end values are only checked against the broker at the end of the period. Add "Net Asset Value (NAV) in Base" to the query for a check every month.');
   }
   if (!out.accounts.some((a) => Object.keys(out.summaries[a]?.pricesByDate ?? {}).length > 1)) {
     out.warnings.push('The Flex query has no daily price section, so only the closing prices of the period come from IBKR. Add "Prior Period Positions" to the query so every month-end is priced by IBKR.');
