@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, Link2, Loader2, PlugZap, RefreshCw, Settings2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { callFlex, pullFromIbkr } from '../../lib/ibkrSync';
+import { callFlex, monthName, pullFromIbkr, type SyncProgress } from '../../lib/ibkrSync';
 import { FLEX_SECTIONS } from '../../lib/flexStatement';
 
-interface Connection { query_id: string; token_expires_on: string | null; last_sync_at: string | null; last_status: string | null; last_error: string | null; sections_found: string[] | null }
+interface Connection { query_id: string; token_expires_on: string | null; last_sync_at: string | null; last_status: string | null; last_error: string | null; sections_found: string[] | null; sync_progress: SyncProgress | null }
 interface Coverage { account: string; className: string; first: string | null; last: string | null }
 interface Props { tenantId: string; fundId: string; userId: string; onSynced: (message: string) => void }
 
@@ -31,11 +31,12 @@ export default function BrokerConnection({ tenantId, fundId, userId, onSynced }:
   const [setupOpen, setSetupOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [coverage, setCoverage] = useState<Coverage[]>([]);
+  const [progress, setProgress] = useState<SyncProgress | null>(null);
   const autoRan = useRef('');
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('ibkr_flex_connections')
-      .select('query_id, token_expires_on, last_sync_at, last_status, last_error, sections_found').eq('fund_id', fundId).maybeSingle();
+      .select('query_id, token_expires_on, last_sync_at, last_status, last_error, sections_found, sync_progress').eq('fund_id', fundId).maybeSingle();
     if (error) {
       console.error('broker connection load failed', error);
       setLoadError(true);
@@ -65,26 +66,39 @@ export default function BrokerConnection({ tenantId, fundId, userId, onSynced }:
 
   useEffect(() => { setLoaded(false); load(); }, [load]);
 
-  const sync = useCallback(async () => {
+  const sync = useCallback(async (onlyMonth?: string) => {
     setSyncing(true);
     setSyncError('');
     try {
-      onSynced(await pullFromIbkr(tenantId, fundId, userId));
+      onSynced(await pullFromIbkr(tenantId, fundId, userId, { onlyMonth, onProgress: setProgress }));
     } catch (e) {
       console.error('ibkr sync failed', e);
       setSyncError(e instanceof Error ? e.message : 'The update from Interactive Brokers failed.');
     } finally {
       setSyncing(false);
+      setProgress(null);
       load();
     }
   }, [fundId, tenantId, userId, onSynced, load]);
+
+  // An update started before leaving the page keeps running; its saved progress is polled until it finishes.
+  const savedProgress = conn?.sync_progress ?? null;
+  const runningElsewhere = !syncing && savedProgress?.status === 'running' && !!savedProgress.updated_at
+    && Date.now() - new Date(savedProgress.updated_at).getTime() < 5 * 60_000;
+  useEffect(() => {
+    if (!runningElsewhere) return;
+    const t = setInterval(load, 4000);
+    return () => clearInterval(t);
+  }, [runningElsewhere, load]);
+  const shown = progress ?? (runningElsewhere ? savedProgress : null);
+  const failedMonth = !syncing && savedProgress?.status === 'failed' ? savedProgress.failed_month : null;
 
   useEffect(() => {
     if (!conn || autoRan.current === fundId) return;
     autoRan.current = fundId;
     const stale = !conn.last_sync_at || Date.now() - new Date(conn.last_sync_at).getTime() > DAY;
-    if (stale) sync();
-  }, [conn, fundId, sync]);
+    if (stale && !runningElsewhere) sync();
+  }, [conn, fundId, sync, runningElsewhere]);
 
   if (!loaded) return null;
 
@@ -125,14 +139,19 @@ export default function BrokerConnection({ tenantId, fundId, userId, onSynced }:
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3 text-sm">
               <span className="relative flex w-2.5 h-2.5">
-                {syncing && <span className="absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-60 animate-ping" />}
+                {(syncing || runningElsewhere) && <span className="absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-60 animate-ping" />}
                 <span className={`relative inline-flex w-2.5 h-2.5 rounded-full ${conn.last_status === 'error' ? 'bg-red-400' : 'bg-emerald-400'}`} />
               </span>
               <span className="text-white font-medium">Interactive Brokers report {conn.query_id}</span>
-              <span className="text-slate-500">{syncing ? 'Pulling latest figures…' : conn.last_sync_at ? `Last update ${relative(conn.last_sync_at)}` : 'Not updated yet'}</span>
+              <span className="text-slate-500">{syncing || runningElsewhere ? 'Pulling month by month…' : conn.last_sync_at ? `Last update ${relative(conn.last_sync_at)}` : 'Not updated yet'}</span>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={sync} disabled={syncing} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 transition disabled:opacity-50">
+              {failedMonth && (
+                <button onClick={() => sync(failedMonth)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-amber-500/15 text-amber-200 hover:bg-amber-500/25 border border-amber-500/30 transition">
+                  <RefreshCw className="w-4 h-4" /> Retry {monthName(failedMonth)}
+                </button>
+              )}
+              <button onClick={() => sync()} disabled={syncing || runningElsewhere} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 transition disabled:opacity-50">
                 {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Update now
               </button>
               <button onClick={() => setHealthOpen((o) => !o)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition">
@@ -187,6 +206,18 @@ export default function BrokerConnection({ tenantId, fundId, userId, onSynced }:
                 {missingSections.map((s) => <li key={s.name}><span className="text-white">{s.name}</span> - {s.why}</li>)}
               </ul>
               <p className="mt-1.5 text-slate-400">In IBKR go to Performance &amp; Reports, Flex Queries, edit report {conn.query_id}, tick these sections with Select All for the fields, save, then press Update now.</p>
+            </div>
+          )}
+          {shown && shown.total > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-300">{shown.month ? `Pulling ${monthName(shown.month)}…` : 'Finishing…'}</span>
+                <span className="text-slate-400 tabular-nums">{shown.done} of {shown.total} month{shown.total === 1 ? '' : 's'} done</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                <div className="h-full bg-sky-500 rounded-full transition-all duration-700" style={{ width: `${Math.max(4, (shown.done / shown.total) * 100)}%` }} />
+              </div>
+              <p className="text-[11px] text-slate-500">You can leave this page; the update carries on and saved months are kept.</p>
             </div>
           )}
           {(syncError || (conn.last_status === 'error' && conn.last_error)) && (

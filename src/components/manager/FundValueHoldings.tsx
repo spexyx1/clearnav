@@ -11,6 +11,7 @@ const SOURCE_STYLE: Record<PriceSource, { label: string; cls: string }> = {
   broker_last: { label: 'Older IBKR price - not final', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
   missing: { label: 'No price', cls: 'bg-red-500/15 text-red-300 border-red-500/30' },
   expired: { label: 'Expired', cls: 'bg-slate-500/10 text-slate-400 border-slate-600/40' },
+  escrow: { label: 'Escrow / old line - nil', cls: 'bg-slate-500/10 text-slate-400 border-slate-600/40' },
 };
 
 const localPrice = (v: number, ccy: string) =>

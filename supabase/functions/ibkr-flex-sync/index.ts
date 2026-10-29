@@ -32,8 +32,9 @@ function friendly(code: string, message: string) {
   return message || "Interactive Brokers could not produce the report.";
 }
 
-async function sendRequest(token: string, queryId: string) {
-  const res = await fetch(`${BASE}/SendRequest?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`, { headers: UA });
+async function sendRequest(token: string, queryId: string, range?: { fd: string; td: string }) {
+  const dates = range ? `&fd=${range.fd}&td=${range.td}` : "";
+  const res = await fetch(`${BASE}/SendRequest?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3${dates}`, { headers: UA });
   const body = await res.text();
   if (tag(body, "Status") !== "Success") throw new Error(friendly(tag(body, "ErrorCode"), tag(body, "ErrorMessage")));
   const ref = tag(body, "ReferenceCode");
@@ -61,6 +62,20 @@ async function getStatement(token: string, ref: string, url: string) {
     throw new Error(friendly(code, tag(body, "ErrorMessage")));
   }
   throw new Error("Interactive Brokers is still preparing the report. Please try again in a minute.");
+}
+
+const MONTH_RE = /^\d{4}-\d{2}$/;
+function cleanProgress(v: unknown) {
+  if (!v || typeof v !== "object") return null;
+  const p = v as Record<string, unknown>;
+  const status = String(p.status ?? "");
+  if (!["running", "done", "failed"].includes(status)) return null;
+  const int = (x: unknown) => Math.max(0, Math.min(240, Math.floor(Number(x) || 0)));
+  const month = (x: unknown) => (typeof x === "string" && MONTH_RE.test(x) ? x : null);
+  return {
+    status, done: int(p.done), total: int(p.total), month: month(p.month), failed_month: month(p.failed_month),
+    message: typeof p.message === "string" ? p.message.slice(0, 500) : null, updated_at: new Date().toISOString(),
+  };
 }
 
 Deno.serve(async (req: Request) => {
@@ -112,14 +127,38 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true });
     }
 
+    if (action === "progress") {
+      const p = cleanProgress(body.progress);
+      if (!p) return json({ error: "Unknown progress." }, 400);
+      const update: Record<string, unknown> = { sync_progress: p, updated_at: new Date().toISOString() };
+      if (p.status === "done") Object.assign(update, { last_sync_at: new Date().toISOString(), last_status: "ok", last_error: null });
+      if (p.status === "failed") Object.assign(update, { last_status: "error", last_error: p.message ?? null });
+      const { error } = await admin.from("ibkr_flex_connections").update(update).eq("fund_id", fundId);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+
     if (action === "fetch") {
       const { data: conn } = await admin.from("ibkr_flex_connections").select("id, token, query_id").eq("fund_id", fundId).maybeSingle();
       if (!conn) return json({ error: "Interactive Brokers is not connected for this fund." }, 404);
+      const from = body.from_date ? String(body.from_date) : "";
+      const to = body.to_date ? String(body.to_date) : "";
+      let range: { fd: string; td: string } | undefined;
+      if (from || to) {
+        if (!DATE_RE.test(from) || !DATE_RE.test(to) || from > to) return json({ error: "Choose a valid date range." }, 400);
+        const days = (Date.parse(to) - Date.parse(from)) / 86400000;
+        if (days > 365) return json({ error: "Interactive Brokers allows at most one year per request." }, 400);
+        range = { fd: from.replace(/-/g, ""), td: to.replace(/-/g, "") };
+      }
       try {
-        const { ref, url } = await sendRequest(conn.token, conn.query_id);
+        const { ref, url } = await sendRequest(conn.token, conn.query_id, range);
         const xml = await getStatement(conn.token, ref, url);
         const sections_found = SECTION_TAGS.filter((t) => xml.includes(`<${t} `) || xml.includes(`<${t}>`) || xml.includes(`<${t}/`));
-        await admin.from("ibkr_flex_connections").update({ last_sync_at: new Date().toISOString(), last_status: "ok", last_error: null, sections_found, updated_at: new Date().toISOString() }).eq("id", conn.id);
+        const progress = cleanProgress(body.progress);
+        await admin.from("ibkr_flex_connections").update({
+          ...(range ? {} : { last_sync_at: new Date().toISOString() }), ...(progress ? { sync_progress: progress } : {}),
+          last_status: "ok", last_error: null, sections_found, updated_at: new Date().toISOString(),
+        }).eq("id", conn.id);
         return json({ xml });
       } catch (e) {
         const message = (e as Error).message;

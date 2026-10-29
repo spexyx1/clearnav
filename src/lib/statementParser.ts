@@ -50,6 +50,25 @@ export interface PositionRow {
   closePrice: number;
   value: number;
   costBasis: number;
+  date?: string;
+  conid?: string;
+}
+
+export interface CorporateActionRow {
+  account: string;
+  date: string;
+  symbol: string;
+  rawSymbol: string;
+  conid: string;
+  cusip: string;
+  type: string;
+  actionId: string;
+  description: string;
+  assetCategory: string;
+  quantity: number;
+  value: number;
+  proceeds: number;
+  multiplier: number;
 }
 
 export interface AccountSummary {
@@ -97,6 +116,7 @@ export interface ParsedStatement {
   skipped: SkippedRow[];
   warnings: string[];
   sectionsFound?: string[];
+  corporateActions?: CorporateActionRow[];
 }
 
 export type GenericField =

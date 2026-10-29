@@ -79,6 +79,12 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
           <Line label={m.series.length > 1 ? `Unit price (Series ${m.series[0].n})` : 'Unit price'} value={`${m.unitPrice.toFixed(4)}`} />
           <Line label={m.series.length > 1 ? 'Class value (sum of series)' : 'Class value (units × price)'} value={usd(m.classNav)} />
           <Line label="Broker reported value" value={m.brokerValue != null ? usd(m.brokerValue) : 'not in statement'} tone={m.brokerValue == null ? 'muted' : undefined} />
+          {Math.abs(m.corporateAdjustment) >= 0.01 && (
+            <Line label="Held back: corporate actions not approved" value={signed(-m.corporateAdjustment)} tone={m.corporateAdjustment <= 0 ? 'up' : 'down'} />
+          )}
+          {m.corporate.filter((c) => c.status === 'approved' && c.date.slice(0, 7) === m.month).map((c) => (
+            <p key={c.key} className="text-xs text-slate-400 mt-1">Approved: {c.description}</p>
+          ))}
           {brokerGap != null && Math.abs(brokerGap) >= 1 && (
             <p className="text-xs text-amber-300 mt-2">Differs from the broker by {usd(Math.abs(brokerGap))}.</p>
           )}

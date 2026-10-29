@@ -12,6 +12,7 @@ import {
 import FundValueHoldings from './FundValueHoldings';
 import FundValueBreakdown, { type PreviousFigures } from './FundValueBreakdown';
 import BrokerConnection from './BrokerConnection';
+import CorporateActionReview from './CorporateActionReview';
 import { hasIbkrConnection, pullFromIbkr } from '../../lib/ibkrSync';
 import { hasIbkrData, reconcileFund, saveReconciliations, type Reconciliation } from '../../lib/reconciliation';
 import ReconcileDialog, { ReconBadge } from './ReconcileDialog';
@@ -222,6 +223,8 @@ export default function FundValue() {
   const doApprove = (classId: string, month: string, date: string, reason = '') => run(`approve-${classId}-${month}`, async () => {
     if (!user?.id) return '';
     const rec = recs[`${classId}-${month}`];
+    const r = valuations.find((v) => v.classId === classId)?.months.find((x) => x.month === month);
+    if (!r?.final) return `${names[classId]} for ${monthLabel(month)} is not final yet: ${r?.finalReasons.join(' ') ?? 'no figures.'}`;
     const n = await approveClassMonth(fundId, classId, date, user.id, { status: rec.status, difference: rec.difference, reason });
     setRecOpen(null);
     return n ? `Approved ${names[classId]} for ${monthLabel(month)}${rec.status === 'matched' ? '' : ' with exceptions recorded'}.` : 'Nothing to approve. Save drafts first.';
@@ -266,6 +269,10 @@ export default function FundValue() {
       )}
       {tenantId && user?.id && (
         <FundReviewQueue tenantId={tenantId} userId={user.id} refreshKey={reviewKey} onApplied={(m) => { setMessage(m); reload(); }} />
+      )}
+
+      {data && user?.id && (
+        <CorporateActionReview decisions={data.corporate} valuations={valuations} names={names} userId={user.id} onChanged={(m) => { setMessage(m); reload(); }} />
       )}
 
       {error && <div className="flex items-start gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3"><AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />{error}</div>}
@@ -389,7 +396,7 @@ export default function FundValue() {
                               return (
                                 <>
                                   <ReconBadge rec={rec} onClick={() => setRecOpen(key)} />
-                                  {st && st !== 'approved' && !rec.provisional && (
+                                  {st && st !== 'approved' && !rec.provisional && r!.final && (
                                     <button onClick={(e) => { e.stopPropagation(); if (direct) doApprove(v.classId, m, r!.date); else setRecOpen(key); }} disabled={!!busy}
                                       className="ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-600/15 text-emerald-300 hover:bg-emerald-600/25 border border-emerald-500/30 transition disabled:opacity-50">
                                       {busy === `approve-${v.classId}-${m}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
@@ -422,7 +429,7 @@ export default function FundValue() {
         const st = statusOf(rec.classId, rec.date);
         return (
           <ReconcileDialog rec={rec} title={`${names[rec.classId]} - ${monthLabel(rec.month)}`}
-            canApprove={!!st && st !== 'approved' && !rec.provisional}
+            canApprove={!!st && st !== 'approved' && !rec.provisional && !!valuations.find((v) => v.classId === rec.classId)?.months.find((x) => x.month === rec.month)?.final}
             approving={busy === `approve-${rec.classId}-${rec.month}`}
             onApprove={(reason) => doApprove(rec.classId, rec.month, rec.date, reason)}
             onClose={() => setRecOpen(null)} />

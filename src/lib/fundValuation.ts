@@ -6,6 +6,7 @@ import { loadDealingTerms, numberOf, type DealingTerms } from './dealingTerms';
 import { fetchAll, fetchAllIn } from './fetchAll';
 import { DEFAULT_RULES, KIND_INFO, TREATMENT_INFO, loadMovementRules, movementKind, type MovementKind, type MovementRules } from './movementRules';
 import { dealSeries, seriesValue, type SeriesValue, type UnitSeries } from './unitSeries';
+import { loadCorporateActions, type CorporateCategory, type CorporateDecision, type CorporateEvent, type CorporateStatus } from './corporateActions';
 
 export interface UploadRow {
   id: string;
@@ -47,9 +48,23 @@ export interface ClassInfo {
   startPrice: number;
 }
 
-export type PriceSource = 'manual' | 'statement' | 'ibkr' | 'market' | 'trade' | 'broker_last' | 'missing' | 'expired';
+export type PriceSource = 'manual' | 'statement' | 'ibkr' | 'market' | 'trade' | 'broker_last' | 'missing' | 'expired' | 'escrow';
 
-export const isIbkrPrice = (s: PriceSource) => s === 'statement' || s === 'ibkr' || s === 'expired';
+export const isIbkrPrice = (s: PriceSource) => s === 'statement' || s === 'ibkr' || s === 'expired' || s === 'escrow';
+
+// Escrow and cancelled lines have no public market; only IBKR's own price counts, otherwise they are worth nil.
+export const isNonMarketable = (symbol: string) => /\.(ESC|OLD)$/i.test(symbol);
+
+export interface MonthCorporateAction {
+  key: string;
+  date: string;
+  symbol: string;
+  category: CorporateCategory;
+  description: string;
+  detected: boolean;
+  status: CorporateStatus;
+  impact: number;
+}
 
 export interface HoldingValue {
   symbol: string;
@@ -211,6 +226,9 @@ export interface MonthResult {
   manual: ManualLine[];
   chargesPayable: number;
   manualPaid: number;
+  corporate: MonthCorporateAction[];
+  corporateAdjustment: number;
+  holdingsGap: number | null;
 }
 
 export interface ClassValuation {
@@ -281,6 +299,7 @@ export function valueClass(
   official?: OfficialDealing,
   rules: MovementRules = DEFAULT_RULES,
   consolidate = true,
+  decisions: Map<string, CorporateStatus> = new Map(),
 ): ClassValuation {
   const notes: string[] = [];
   const own = uploads.filter((u) => u.share_class_id === cls.id);
@@ -312,6 +331,7 @@ export function valueClass(
         series: cls.units > 0 ? [{ n: 1, start: inceptionMonth, startPrice: cls.startPrice, units: cls.units, price: cls.startPrice, value: round(capital), hwm: cls.startPrice, issued: 0, redeemed: 0 }] : [], missingPrices: [], unofficialPrices: [], missingFx: [], unexplained: 0, tradeFx: {},
         final: false, finalReasons: ['No IBKR account activity for this class yet.'], changeInNav: null,
         trackRecord: !official, uninvestedCash: 0, redemptionsPayable: 0, dealt: [], manual: [], chargesPayable: 0, manualPaid: 0,
+        corporate: [], corporateAdjustment: 0, holdingsGap: null,
       })),
     };
   }
@@ -381,6 +401,7 @@ export function valueClass(
     if (statementPrices?.has(symbol)) return [statementPrices.get(symbol)!, 'statement'];
     const daily = ibkrDaily.get(date.slice(0, 7));
     if (daily?.prices.has(symbol)) return [daily.prices.get(symbol)!, 'ibkr', daily.dates[symbol]];
+    if (isNonMarketable(symbol)) return [0, 'escrow'];
     const expiry = isOption(assetCategory, symbol) ? optionExpiry(symbol) : null;
     if (expiry && expiry < date) return [0, 'expired'];
     if (manual.has(k)) return [manual.get(k)!, 'manual'];
@@ -412,6 +433,7 @@ export function valueClass(
   if (!hasBrokerCash) notes.push('The file had no cash balance, so the class starting capital was used as opening cash.');
 
   let prevValue: number;
+  let prevBroker: number | null = opening?.nav ?? null;
   // Broker cash lines often cover only one currency; the rest of the broker's opening value is carried as cash so it is not booked as a loss.
   let unitemisedCash = 0;
   if (opening?.nav != null) {
@@ -436,6 +458,7 @@ export function valueClass(
     units = opening.nav / unitPrice;
   }
   const results: MonthResult[] = [];
+  const knownEvents: CorporateEvent[] = [];
   let series: UnitSeries[] = [];
   let seriesCount = 0;
   let pending: Array<{ key: string; amount: number; date: string; sub?: DealingSubscription }> = [];
@@ -617,7 +640,22 @@ export function valueClass(
       unitemisedCash = closing.cash != null ? impliedCash - closing.cash : 0;
     }
     const brokerValue = closing?.nav ?? null;
-    const accountValue = brokerValue ?? computedValue;
+    const holdingsGap = closing && brokerHoldings && closing.nav != null && closing.cash != null
+      ? round(closing.nav - holdingsValue - closing.cash - (closing.accruals ?? 0)) : null;
+    knownEvents.push(...(data?.corporate_actions ?? []));
+    const corporate: MonthCorporateAction[] = knownEvents.filter((e) => e.date <= date).map((e) => {
+      const impact = e.legs.reduce((s, l) => {
+        const [price] = priceFor(l.symbol, l.assetCategory, date, statementPrices);
+        return s + l.quantity * fixMultiplier(l.multiplier, l.assetCategory, l.symbol) * price * fxFor(ccyOf(l.symbol), date, stmtRates);
+      }, e.proceeds);
+      return {
+        key: e.key, date: e.date, symbol: e.symbol, category: e.category, description: e.description, detected: e.detected,
+        status: decisions.get(e.key) ?? 'pending', impact: round(impact),
+      };
+    });
+    // IBKR's figures already include every corporate action; until an admin approves one, its effect is taken back out.
+    const corporateAdjustment = round(corporate.filter((c) => c.status !== 'approved').reduce((s, c) => s + c.impact, 0));
+    const accountValue = (brokerValue ?? computedValue) - corporateAdjustment;
     const cashByCurrency = Object.entries(closing?.cash_by_currency ?? {})
       .filter(([, amount]) => Math.abs(amount) >= 0.005)
       .map(([currency, amount]) => ({ currency, amount: round(amount), usd: round(amount * fxFor(currency, date, stmtRates)) }));
@@ -743,6 +781,14 @@ export function valueClass(
       const unexplainedMoves = movements.filter((x) => !x.confirmed).length;
       if (unexplainedMoves) finalReasons.push(`${unexplainedMoves} money or share movement${unexplainedMoves === 1 ? '' : 's'} not yet explained.`);
       finalReasons.push(...dealingReasons);
+      if (holdingsGap != null && Math.abs(holdingsGap) >= 1) {
+        finalReasons.push(`Holdings plus cash come to ${usdText(brokerValue! - holdingsGap)} but IBKR's month-end value is ${usdText(brokerValue!)}, a gap of ${usdText(holdingsGap)}.`);
+      }
+      if (changeInNav?.starting != null && prevBroker != null && Math.abs(changeInNav.starting - prevBroker) >= 0.005) {
+        finalReasons.push(`This month opens at ${usdText(changeInNav.starting)} in IBKR, but last month closed at ${usdText(prevBroker)}.`);
+      }
+      const waiting = corporate.filter((c) => c.status === 'pending');
+      if (waiting.length) finalReasons.push(`${waiting.length} corporate action${waiting.length === 1 ? '' : 's'} waiting for approval (${[...new Set(waiting.map((c) => c.symbol))].join(', ')}).`);
       results.push({
         month: mk, date, openingValue: round(prevValue), flows: round(flows), internalFlows: round(internalFlows), cash: round(cash), unitemisedCash: round(unitemisedCash), cashByCurrency, holdings, holdingsValue,
         movements, charges, dividends: round(dividends), interest: round(interest),
@@ -757,9 +803,11 @@ export function valueClass(
         final: finalReasons.length === 0, finalReasons, changeInNav,
         trackRecord: !official, uninvestedCash: round(pending.reduce((s, p) => s + p.amount, 0)), redemptionsPayable: round(payable), dealt,
         manual: monthManual, chargesPayable: round(chargesPayable), manualPaid: round(manualPaid),
+        corporate: corporate.filter((c) => c.date.slice(0, 7) === mk || c.status === 'pending'), corporateAdjustment, holdingsGap,
       });
     }
     prevValue = accountValue;
+    prevBroker = brokerValue;
   });
 
   return { classId: cls.id, months: results, notes: [...new Set(notes)] };
@@ -776,6 +824,7 @@ export interface FundData {
   dealing: OfficialDealing;
   terms: DealingTerms;
   rules: MovementRules;
+  corporate: CorporateDecision[];
 }
 
 type Joined<T> = T | T[] | null;
@@ -804,7 +853,7 @@ export async function loadFundData(fundId: string): Promise<FundData> {
       .eq('fund_id', fundId).eq('status', 'active').order('id')),
     loadDealingTerms(fundId),
   ]);
-  const rules = await loadMovementRules(fundId);
+  const [rules, corporate] = await Promise.all([loadMovementRules(fundId), loadCorporateActions(fundId)]);
   if (fundRes.error || !fundRes.data) throw new Error(fundRes.error?.message || 'Fund not found');
   if (scRes.error) throw new Error(scRes.error.message);
   if (openRes.error) throw new Error(openRes.error.message);
@@ -857,7 +906,7 @@ export async function loadFundData(fundId: string): Promise<FundData> {
   const inception = fund.inception_date ?? `${new Date().getFullYear()}-01-01`;
   const labels = Object.fromEntries(labelRows.map((l) => [l.movement_key, l.label as MovementLabel]));
   return {
-    classes, uploads: uploads as UploadRow[], items, marks: marks as PriceMark[], labels, inceptionMonth: inception.slice(0, 7), officialAccounts, dealing, terms: terms?.terms ?? {}, rules,
+    classes, uploads: uploads as UploadRow[], items, marks: marks as PriceMark[], labels, inceptionMonth: inception.slice(0, 7), officialAccounts, dealing, terms: terms?.terms ?? {}, rules, corporate,
   };
 }
 
@@ -869,14 +918,15 @@ export function valueFund(d: FundData): ClassValuation[] {
   const classNames = Object.fromEntries(d.classes.map((c) => [c.id, c.class_name]));
   const consolidate = d.terms.consolidate_series?.value !== false && d.terms.consolidate_series?.value !== 'false';
   return d.classes.map((c) => {
+    const decisions = new Map(d.corporate.filter((x) => x.share_class_id === c.id).map((x) => [x.event_key, x.status]));
     const off = d.officialAccounts[c.id];
-    if (!off) return valueClass(c, d.uploads, d.items, d.marks, d.inceptionMonth, fallback, d.labels, classNames, undefined, d.rules, consolidate);
+    if (!off) return valueClass(c, d.uploads, d.items, d.marks, d.inceptionMonth, fallback, d.labels, classNames, undefined, d.rules, consolidate, decisions);
     const isOfficial = (u: UploadRow) => u.share_class_id === c.id && u.broker_account === off.account;
     const trackUploads = d.uploads.filter((u) => u.share_class_id !== c.id || (!isOfficial(u) && uploadMonth(u) < off.fromMonth));
     const officialUploads = d.uploads.filter((u) => u.share_class_id !== c.id || (isOfficial(u) && uploadMonth(u) >= off.fromMonth));
-    const track = valueClass(c, trackUploads, d.items, d.marks, d.inceptionMonth, fallback.filter((m) => m < off.fromMonth), d.labels, classNames, undefined, d.rules, consolidate);
+    const track = valueClass(c, trackUploads, d.items, d.marks, d.inceptionMonth, fallback.filter((m) => m < off.fromMonth), d.labels, classNames, undefined, d.rules, consolidate, decisions);
     const launchFallback = fallback.length ? monthsBetween(`${off.fromMonth}-01`, `${[fallback[fallback.length - 1], off.fromMonth].sort().pop()}-01`) : [off.fromMonth];
-    const live = valueClass({ ...c, units: 0, startPrice: d.dealing.launchPrice }, officialUploads, d.items, d.marks, off.fromMonth, launchFallback, d.labels, classNames, d.dealing, d.rules, consolidate);
+    const live = valueClass({ ...c, units: 0, startPrice: d.dealing.launchPrice }, officialUploads, d.items, d.marks, off.fromMonth, launchFallback, d.labels, classNames, d.dealing, d.rules, consolidate, decisions);
     return {
       classId: c.id,
       months: [...track.months.filter((m) => m.month < off.fromMonth), ...live.months],
@@ -894,7 +944,7 @@ export async function refreshMarketPrices(tenantId: string, fundId: string, valu
     }
   })));
   d.uploads.forEach((u) => u.statement_data.opening?.positions.forEach((p) => {
-    if (isMarketPriceable(p.assetCategory)) {
+    if (isMarketPriceable(p.assetCategory) && !isNonMarketable(p.symbol)) {
       if (!needs.has(p.symbol)) needs.set(p.symbol, new Set());
       needs.get(p.symbol)!.add(u.statement_data.opening!.as_of);
     }

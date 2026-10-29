@@ -131,20 +131,31 @@ export function parseFlexXml(xml: string): ParsedStatement {
       addPrice(day(p.getAttribute('date')) || '', sym(p), num(p.getAttribute('price')));
     });
 
+    // With "Breakout by Day" IBKR repeats every holding for every day; only the last day of each month is kept, one row per security.
+    const openByDate = new Map<string, Map<string, Element>>();
     st.querySelectorAll('OpenPosition').forEach((p) => {
       const lvl = p.getAttribute('levelOfDetail');
       if (lvl && lvl !== 'SUMMARY') return;
+      const d = day(p.getAttribute('reportDate')) || to || '';
+      const id = p.getAttribute('conid') || sym(p);
+      if (!d || !id) return;
+      if (!openByDate.has(d)) openByDate.set(d, new Map());
+      openByDate.get(d)!.set(id, p);
+    });
+    const monthLast = new Map<string, string>();
+    [...openByDate.keys()].sort().forEach((d) => monthLast.set(d.slice(0, 7), d));
+    [...monthLast.values()].forEach((d) => openByDate.get(d)!.forEach((p) => {
       const qty = num(p.getAttribute('position'));
       const symbol = sym(p);
       if (!symbol || Number.isNaN(qty)) return;
-      addPrice(day(p.getAttribute('reportDate')) || to || '', symbol, num(p.getAttribute('markPrice')));
+      addPrice(d, symbol, num(p.getAttribute('markPrice')));
       const mult = num(p.getAttribute('multiplier'));
       out.positions.push({
         account: acct, symbol, assetCategory: p.getAttribute('assetCategory') || '', currency: p.getAttribute('currency') || 'USD',
-        quantity: qty, multiplier: Number.isNaN(mult) || mult === 0 ? 1 : mult,
+        quantity: qty, multiplier: Number.isNaN(mult) || mult === 0 ? 1 : mult, date: d, conid: p.getAttribute('conid') || undefined,
         closePrice: num(p.getAttribute('markPrice')) || 0, value: num(p.getAttribute('positionValue')) || 0, costBasis: num(p.getAttribute('costBasisMoney')) || 0,
       });
-    });
+    }));
 
     if (Object.keys(prices).length) s.pricesByDate = prices;
 
@@ -227,7 +238,9 @@ export function parseFlexXml(xml: string): ParsedStatement {
       out.cashEvents.push({ account: acct, date, type: signed >= 0 ? 'deposit' : 'withdrawal', description: `${internal ? 'Internal transfer' : 'Transfer'} ${t.getAttribute('account') || ''}`.trim(), currency, amount: signed, internal });
     });
 
-    st.querySelectorAll('CorporateAction').forEach((c) => {
+    const corp = [...st.querySelectorAll('CorporateAction')];
+    const corpDetail = corp.some((c) => c.getAttribute('levelOfDetail') === 'DETAIL');
+    corp.filter((c) => !corpDetail || c.getAttribute('levelOfDetail') === 'DETAIL').forEach((c) => {
       const symbol = sym(c);
       const qty = num(c.getAttribute('quantity'));
       const date = day(attr(c, 'reportDate', 'dateTime'));
@@ -235,6 +248,12 @@ export function parseFlexXml(xml: string): ParsedStatement {
       const value = num(c.getAttribute('value'));
       const proceeds = num(c.getAttribute('proceeds'));
       const cm = num(c.getAttribute('multiplier'));
+      (out.corporateActions ??= []).push({
+        account: acct, date, symbol, rawSymbol: c.getAttribute('symbol') || symbol, conid: c.getAttribute('conid') || '',
+        cusip: attr(c, 'cusip', 'securityID', 'isin'), type: c.getAttribute('type') || '', actionId: attr(c, 'actionID', 'transactionID'),
+        description: c.getAttribute('actionDescription') || c.getAttribute('description') || '', assetCategory: c.getAttribute('assetCategory') || 'STK',
+        quantity: qty, value: Number.isNaN(value) ? 0 : value, proceeds: Number.isNaN(proceeds) ? 0 : proceeds, multiplier: cm > 0 ? cm : 1,
+      });
       out.trades.push({
         account: acct, date, symbol, assetCategory: c.getAttribute('assetCategory') || 'STK', currency: c.getAttribute('currency') || 'USD',
         direction: qty >= 0 ? 'buy' : 'sell', quantity: Math.abs(qty), price: qty && !Number.isNaN(value) ? Math.abs(value / qty) : 0,

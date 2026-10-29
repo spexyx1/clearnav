@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { monthsBetween, type CashEvent, type ChangeInNav, type ParsedStatement, type ParsedTrade, type PositionRow } from './statementParser';
+import { detectUnlabeled, eventsFromIbkr, hashText, type CorporateEvent } from './corporateActions';
 
 export interface PositionSnapshot {
   symbol: string;
@@ -20,6 +21,8 @@ export interface StatementMonthData {
   fx_rates?: Record<string, number>;
   ibkr_prices?: { as_of: string; prices: Record<string, number>; dates?: Record<string, string> };
   change_in_nav?: ChangeInNav;
+  corporate_actions?: CorporateEvent[];
+  import_mode?: 'monthly';
   fingerprint?: string;
 }
 
@@ -38,11 +41,18 @@ function dayBefore(date: string) {
   return d.toISOString().slice(0, 10);
 }
 
+// Two IBKR security ids can briefly share one symbol around a corporate action, so rows are combined per symbol.
 function snapshot(rows: PositionRow[]): PositionSnapshot[] {
-  return rows.map((p) => ({ symbol: p.symbol, quantity: p.quantity, multiplier: p.multiplier, assetCategory: p.assetCategory, currency: p.currency, price: p.closePrice }));
+  const map = new Map<string, PositionSnapshot>();
+  rows.forEach((p) => {
+    const cur = map.get(p.symbol);
+    if (cur) { cur.quantity += p.quantity; if (!cur.price && p.closePrice) cur.price = p.closePrice; return; }
+    map.set(p.symbol, { symbol: p.symbol, quantity: p.quantity, multiplier: p.multiplier, assetCategory: p.assetCategory, currency: p.currency, price: p.closePrice });
+  });
+  return [...map.values()];
 }
 
-function deriveOpening(trades: ParsedTrade[], closing: PositionRow[]): PositionSnapshot[] {
+function deriveOpening(trades: ParsedTrade[], closing: PositionSnapshot[]): PositionSnapshot[] {
   const map = new Map<string, PositionSnapshot>();
   closing.forEach((p) => map.set(p.symbol, { symbol: p.symbol, quantity: p.quantity, multiplier: p.multiplier, assetCategory: p.assetCategory, currency: p.currency }));
   trades.forEach((t) => {
@@ -60,7 +70,11 @@ function monthFxRates(st: ParsedStatement, mk: string): Record<string, number> {
   return rates;
 }
 
-export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<string, string>): MonthlyBatch[] {
+export function buildMonthlyBatches(
+  st: ParsedStatement,
+  accountToClass: Record<string, string>,
+  previousClosing: Record<string, PositionSnapshot[]> = {},
+): MonthlyBatch[] {
   if (!st.periodStart || !st.periodEnd) return [];
   const start = st.periodStart;
   const end = st.periodEnd;
@@ -73,10 +87,18 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
     const trades = st.trades.filter((t) => t.account === account);
     const cash = st.cashEvents.filter((c) => c.account === account);
     const positions = st.positions.filter((p) => p.account === account);
+    const corporate = (st.corporateActions ?? []).filter((c) => c.account === account);
     const summary = st.summaries[account] ?? { account };
     const hasPositionsSection = st.format === 'ibkr_activity' || st.format === 'ibkr_flex';
     const navDates = Object.keys(summary.navByDate ?? {}).sort();
     const priceDates = Object.keys(summary.pricesByDate ?? {}).sort();
+    const dated = positions.length > 0 && positions.every((p) => p.date);
+    const monthPositions = (mk: string) => {
+      const rows = positions.filter((p) => p.date?.startsWith(mk));
+      const last = rows.map((p) => p.date!).sort().pop();
+      return last ? { asOf: last, rows: snapshot(rows.filter((p) => p.date === last)) } : null;
+    };
+    let prior: PositionSnapshot[] | null = previousClosing[account] ?? null;
 
     months.forEach((mk, i) => {
       const data: StatementMonthData = {
@@ -85,15 +107,35 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
         cash_events: cash.filter((c) => c.date.startsWith(mk)),
         period: { start, end },
       };
+      const monthTrades = trades.filter((t) => t.date.startsWith(mk));
+      const held = dated ? monthPositions(mk) : null;
       if (i === 0) {
+        const firstClosing = dated ? held?.rows ?? [] : snapshot(positions);
+        const firstTrades = dated ? monthTrades : trades;
         data.opening = {
           as_of: dayBefore(start),
           cash: summary.startingCash ?? null,
           nav: summary.priorNav ?? null,
-          positions: hasPositionsSection ? deriveOpening(trades, positions) : [],
+          positions: hasPositionsSection ? deriveOpening(firstTrades, firstClosing) : [],
         };
       }
-      if (i === months.length - 1 && hasPositionsSection) {
+      const labeled = eventsFromIbkr(corporate.filter((c) => c.date.startsWith(mk)));
+      if (held) {
+        const nav = summary.navByDate?.[held.asOf] ?? (held.asOf === end ? summary.currentNav : undefined);
+        data.closing = {
+          as_of: held.asOf,
+          cash: summary.cashByDate?.[held.asOf] ?? (held.asOf === end ? summary.endingCash ?? null : null),
+          nav: nav ?? null,
+          positions: held.rows,
+          ...(summary.accrualsByDate?.[held.asOf] != null ? { accruals: summary.accrualsByDate[held.asOf] } : {}),
+          ...(held.asOf === end && summary.cashByCurrency ? { cash_by_currency: summary.cashByCurrency } : {}),
+        };
+        if (held.asOf === end && Object.keys(st.fxRates).length) data.fx_rates = st.fxRates;
+        const detected = prior ? detectUnlabeled({ account, date: held.asOf, previous: prior, closing: held.rows, trades: monthTrades, labeled }) : [];
+        prior = held.rows;
+        if (labeled.length || detected.length) data.corporate_actions = [...labeled, ...detected];
+      } else if (!dated && i === months.length - 1 && hasPositionsSection) {
+        if (labeled.length) data.corporate_actions = labeled;
         data.closing = {
           as_of: end,
           cash: summary.endingCash ?? null,
@@ -105,6 +147,7 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
         };
         if (Object.keys(st.fxRates).length) data.fx_rates = st.fxRates;
       } else {
+        if (labeled.length) data.corporate_actions = labeled;
         const last = navDates.filter((d) => d.startsWith(mk)).pop();
         if (last) data.closing = { as_of: last, nav: summary.navByDate![last], cash: summary.cashByDate?.[last] ?? null, positions: [], has_positions: false, ...(summary.accrualsByDate?.[last] != null ? { accruals: summary.accrualsByDate[last] } : {}) };
       }
@@ -125,7 +168,7 @@ export function buildMonthlyBatches(st: ParsedStatement, accountToClass: Record<
         shareClassId,
         year: +mk.slice(0, 4),
         month: +mk.slice(5, 7),
-        trades: trades.filter((t) => t.date.startsWith(mk)),
+        trades: monthTrades,
         data,
       });
     });
@@ -158,10 +201,7 @@ interface SaveArgs {
 }
 
 function fingerprintOf(b: MonthlyBatch) {
-  const text = JSON.stringify([{ ...b.data, period: undefined, fingerprint: undefined }, b.trades]);
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
-  return `${text.length}-${(h >>> 0).toString(16)}`;
+  return hashText(JSON.stringify([{ ...b.data, period: undefined, fingerprint: undefined }, b.trades]));
 }
 
 async function carryOver(fundId: string, b: MonthlyBatch, first: boolean): Promise<boolean> {
