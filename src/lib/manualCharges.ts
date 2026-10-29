@@ -71,25 +71,22 @@ export async function linkPayment(id: string, movementKey: string | null, month:
   fail('Could not link the IBKR payment', error);
 }
 
-export const unitRef = (c: ChargeRow) => refFor({ ref: `${c.kind === 'investor_fee' ? 'fee' : 'reb'}:${c.id}`, kind: 'issue', name: '', amount: 0, units: 0, price: 0 });
+export const unitRef = (c: ChargeRow) => refFor({ ref: `fee:${c.id}`, kind: 'issue', name: '', amount: 0, units: 0, price: 0 });
 
 export async function applyToRegister(tenantId: string, fundId: string, c: ChargeRow, account: RegisterAccount, className: string, userId: string) {
-  if (c.kind === 'class_charge') throw new Error('Class charges change the unit price, not anyone\'s units.');
-  const dealMonth = c.kind === 'investor_fee' ? c.month : c.paidMonth;
-  if (!dealMonth) throw new Error('Arkline has not paid this rebate into IBKR yet. Link the payment first.');
-  const month = await finalMonth(fundId, c.classId, lastDay(dealMonth));
-  const ref = `${c.kind === 'investor_fee' ? 'fee' : 'reb'}:${c.id}`;
-  const deal = month.dealt.find((d) => d.ref === ref);
+  if (c.kind !== 'investor_fee') throw new Error('Only fees for one investor change anyone\'s units.');
+  const month = await finalMonth(fundId, c.classId, lastDay(c.month));
+  const deal = month.dealt.find((d) => d.ref === `fee:${c.id}`);
   if (!deal) throw new Error('The approved month does not include this item. Save the month again in Fund Value, then re-approve it.');
   const reference = unitRef(c);
   if (await existingDeal(fundId, reference)) return deal;
-  if (c.kind === 'investor_fee' && deal.units > account.storedUnits + 1e-6) throw new Error(`${account.investorName} does not hold enough units to pay this fee.`);
+  if (deal.units > account.storedUnits + 1e-6) throw new Error(`${account.investorName} does not hold enough units to pay this fee.`);
   const { error } = await supabase.from('capital_transactions').insert({
     tenant_id: tenantId, fund_id: fundId, capital_account_id: account.id,
-    transaction_type: c.kind === 'investor_fee' ? 'fee' : 'adjustment',
+    transaction_type: 'fee',
     transaction_date: month.navDate, settlement_date: month.navDate, amount: deal.amount, shares: deal.units, price_per_share: month.price,
     currency: 'USD', status: 'settled', reference_number: reference,
-    description: `${c.kind === 'investor_fee' ? 'Fee' : 'Fee rebate from Arkline'}: ${c.note} (${deal.units.toLocaleString('en-US')} ${className} units at ${month.price})`,
+    description: `Fee: ${c.note} (${deal.units.toLocaleString('en-US')} ${className} units at ${month.price})`,
     created_by: userId, approved_by: userId,
   });
   fail('Could not update the unit register', error);

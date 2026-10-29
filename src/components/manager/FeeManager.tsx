@@ -71,8 +71,7 @@ export default function FeeManager() {
     const accountById = new Map(data.register.accounts.map((a) => [a.id, a]));
     const active = data.charges.filter((c) => c.status === 'active');
     const owed = active.filter((c) => c.kind === 'manager_rebate' && !c.movementKey);
-    const toApply = active.filter((c) => c.kind !== 'class_charge' && !references.has(unitRef(c))
-      && isApproved(c.classId, c.kind === 'investor_fee' ? c.month : c.paidMonth));
+    const toApply = active.filter((c) => c.kind === 'investor_fee' && !references.has(unitRef(c)) && isApproved(c.classId, c.month));
     return { isApproved, openMonths, references, accountById, active, owed, toApply };
   }, [data]);
 
@@ -91,7 +90,7 @@ export default function FeeManager() {
     if (!account || !tenantId || !user) return;
     run(`apply-${c.id}`, async () => {
       const deal = await applyToRegister(tenantId, fundId, c, account, className[c.classId], user.id);
-      return `${deal.units.toLocaleString('en-US')} units ${c.kind === 'investor_fee' ? 'cancelled for' : 'issued to'} ${account.investorName} at ${deal.price}.`;
+      return `${deal.units.toLocaleString('en-US')} units cancelled for ${account.investorName} at ${deal.price}.`;
     });
   };
 

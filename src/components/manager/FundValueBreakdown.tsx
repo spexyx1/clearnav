@@ -26,6 +26,9 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
     ['Charges entered by hand', c.manual],
   ];
   const externalFlows = m.flows;
+  const rebates = m.manual.filter((x) => x.kind === 'manager_rebate' && x.status === 'paid').reduce((s, x) => s + x.amount, 0);
+  const transfersIn = m.movements.filter((x) => x.valueOnly && x.label === 'internal').reduce((s, x) => s + x.amount, 0);
+  const gainOnly = m.investmentGain - rebates - transfersIn;
   const accounted = Math.abs(m.unexplained) < 1;
   const brokerGap = m.brokerValue != null ? m.classNav - m.brokerValue : null;
 
@@ -35,10 +38,12 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
         <section className="bg-slate-900/70 border border-slate-800 rounded-lg p-4">
           <h4 className="text-xs uppercase tracking-wider text-slate-500 mb-2">Value</h4>
           <Line label="Start of month" value={usd(m.openingValue)} />
-          <Line label="Investment gain or loss" value={signed(m.investmentGain)} tone={m.investmentGain >= 0 ? 'up' : 'down'} />
+          <Line label="Investment gain or loss" value={signed(gainOnly)} tone={gainOnly >= 0 ? 'up' : 'down'} />
           <Line label="Dividends" value={signed(m.dividends)} tone={m.dividends ? (m.dividends > 0 ? 'up' : 'down') : 'muted'} />
           <Line label="Interest" value={signed(m.interest)} tone={m.interest ? (m.interest > 0 ? 'up' : 'down') : 'muted'} />
           <Line label="Fees and charges" value={signed(-totalCharges)} tone={totalCharges ? 'down' : 'muted'} />
+          <Line label="Fee rebates from Arkline" value={signed(rebates)} tone={rebates ? 'up' : 'muted'} />
+          <Line label="Transfers in from our other accounts" value={signed(transfersIn)} tone={transfersIn ? 'up' : 'muted'} />
           <Line label="Money in and out" value={signed(externalFlows)} tone={externalFlows ? undefined : 'muted'} />
           <Line label="End of month" value={usd(m.accountValue)} strong />
           <div className={`mt-3 flex items-start gap-2 text-xs rounded-md px-2.5 py-2 ${accounted ? 'bg-emerald-500/10 text-emerald-300' : 'bg-amber-500/10 text-amber-300'}`}>
@@ -55,7 +60,7 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
           <Line label="Total" value={signed(-totalCharges)} strong />
           {m.manual.length > 0 && (
             <ul className="mt-3 space-y-1.5 text-xs">
-              {m.manual.map((x) => (
+              {m.manual.filter((x) => !(x.kind === 'manager_rebate' && x.status === 'paid')).map((x) => (
                 <li key={`${x.id}-${x.status}`} className="flex justify-between gap-3 text-slate-400">
                   <span className="min-w-0 truncate" title={x.note}>
                     {x.kind === 'class_charge' ? 'Class' : x.kind === 'investor_fee' ? `Fee: ${x.name}` : `Rebate: ${x.name}`} - {x.note}
@@ -67,7 +72,7 @@ export default function FundValueBreakdown({ month: m, previous }: { month: Mont
             </ul>
           )}
           {m.chargesPayable > 0.005 && <Line label="Hand-entered charges not yet paid" value={usd(m.chargesPayable)} tone="muted" />}
-          <p className="text-xs text-slate-500 mt-3 leading-relaxed">Class fees lower the unit price. Fees for one investor cancel only that investor's units; rebates from Arkline add units.</p>
+          <p className="text-xs text-slate-500 mt-3 leading-relaxed">Class fees lower the unit price. Fees for one investor cancel only that investor's units. Rebates from Arkline and transfers from other accounts add value without issuing units.</p>
         </section>
 
         <section className="bg-slate-900/70 border border-slate-800 rounded-lg p-4">

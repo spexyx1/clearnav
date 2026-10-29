@@ -100,6 +100,8 @@ export interface Movement {
   reason: string;
   dealPrice?: number;
   units?: number;
+  valueOnly?: boolean;
+  netted?: boolean;
 }
 
 export interface Dealt {
@@ -118,7 +120,6 @@ export interface DealingSubscription {
   name: string;
   kind: 'cash' | 'in_kind';
   dealingDate: string;
-  ref?: string;
 }
 
 export type ManualKind = 'class_charge' | 'investor_fee' | 'manager_rebate';
@@ -518,12 +519,13 @@ export function valueClass(
           ? `Class switch: the same ${Number(t.quantity).toLocaleString('en-US')} ${t.instrument} ${signed > 0 ? 'left' : 'arrived in'} ${nameOf(uploadClass.get(peer.upload_id))} on ${peer.trade_date}.`
           : `no matching transfer in another class account, so it may be ${signed > 0 ? 'an investor bringing in shares' : 'shares sent to another fund'}.`;
         const { label, confirmed, reason } = classify(key, suggested, !!peer, why);
+        const valueOnly = label === 'internal' && signed > 0;
         movements.push({
-          key, date: t.trade_date, kind: 'shares', amount: round(value), suggested, label, confirmed, reason,
+          key, date: t.trade_date, kind: 'shares', amount: round(value), suggested, label, confirmed, reason, valueOnly,
           description: `${signed > 0 ? 'Received' : 'Sent out'} ${Number(t.quantity).toLocaleString('en-US')} ${t.instrument} at ${Number(t.price)} ${t.currency || ccyOf(t.instrument)}`,
         });
-        flows += value;
         if (label === 'internal') internalFlows += value;
+        if (!valueOnly) flows += value;
         return;
       }
       const proceeds = t.proceeds != null ? Number(t.proceeds) : -signed * Number(t.price) * mult;
@@ -588,7 +590,9 @@ export function valueClass(
         ? `IBKR type "${e.ibkrType || e.description}" is set to "ask me each time". Is it investor money, a cost or a transfer? Until answered it counts as a cost.`
         : `${context}Sorted by your rule for ${kindLabel}: ${TREATMENT_INFO[treatment].label.toLowerCase()}.`;
       const { label, confirmed, reason } = classify(key, suggested, treatment !== 'review', why);
-      const mv: Movement = { key, date: e.date, kind: 'cash', amount: round(amount), suggested, label, confirmed, reason, description };
+      const netted = label === 'internal' && !peer && paired.has(i);
+      const valueOnly = label === 'internal' && amount > 0;
+      const mv: Movement = { key, date: e.date, kind: 'cash', amount: round(amount), suggested, label, confirmed, reason, description, valueOnly, netted };
       movements.push(mv);
       const settles = official && transfer ? settleByKey.get(key) : undefined;
       if (settles) {
@@ -596,15 +600,14 @@ export function valueClass(
         manualPaid += -amount;
         return;
       }
-      const rebate = official && transfer ? rebateByKey.get(key) : undefined;
+      const rebate = transfer ? rebateByKey.get(key) : undefined;
       if (rebate) {
-        Object.assign(mv, { label: 'investor', confirmed: true });
-        flows += amount;
+        Object.assign(mv, { label: 'investor', confirmed: true, valueOnly: true });
         return;
       }
       if (label === 'fee') { bookNav(); return; }
-      flows += amount;
       if (label === 'internal') internalFlows += amount;
+      if (!mv.valueOnly && !mv.netted) flows += amount;
     });
 
     let unexplained = 0;
@@ -678,14 +681,15 @@ export function valueClass(
       let redeemed = 0;
       if (official) {
         const manual: ManualLine[] = [];
-        movements.filter((x) => x.label !== 'fee').forEach((x) => {
+        movements.filter((x) => x.label !== 'fee' && !x.netted).forEach((x) => {
           const reb = rebateByKey.get(x.key);
           if (reb) {
-            pending.push({ key: x.key, amount: x.amount, date: x.date, sub: { id: reb.id, classId: cls.id, key: x.key, name: reb.name, kind: 'cash', dealingDate: fullMonthEnd, ref: `reb:${reb.id}` } });
-            x.reason = `Arkline's payment of the fee rebate for ${reb.name} ("${reb.note}"). Units are issued to them at this month's final price.`;
+            x.reason = `Arkline's payment of the fee rebate for ${reb.name} ("${reb.note}"). It adds to the class value; no units are issued.`;
+            manual.push(lineOf(reb, 'paid'));
             if (Math.abs(x.amount - reb.amount) >= 0.005) dealingReasons.push(`Arkline paid ${usdText(x.amount)} for ${reb.name}'s rebate, but the rebate is ${usdText(reb.amount)}. Link the right IBKR payment on the Fees page.`);
             return;
           }
+          if (x.valueOnly) return;
           if (x.amount > 0) {
             const sub = subByKey.get(x.key);
             pending.push({ key: x.key, amount: x.amount, date: x.date, sub });
@@ -729,9 +733,7 @@ export function valueClass(
             const amount = round(issueValue(p));
             const u = round(amount / price, 4);
             issued += u;
-            dealt.push({ ref: p.sub!.ref ?? `sub:${p.sub!.id}`, kind: 'issue', name: p.sub!.name, amount, units: u, price: round(price, 6) });
-            const reb = p.sub!.ref ? ownManual.find((c) => `reb:${c.id}` === p.sub!.ref) : undefined;
-            if (reb) manual.push(lineOf(reb, 'paid', u));
+            dealt.push({ ref: `sub:${p.sub!.id}`, kind: 'issue', name: p.sub!.name, amount, units: u, price: round(price, 6) });
           });
           (official.redemptions ?? []).filter((r) => r.classId === cls.id && r.dealingDate.slice(0, 7) === mk).forEach((r) => {
             const u = round(r.shares ?? (r.amount ?? 0) / price, 4);
@@ -754,7 +756,7 @@ export function valueClass(
         unitPrice = price > 0 ? price : unitPrice;
         monthManual = manual;
       } else {
-        const dealtSeries = dealSeries(series, movements.filter((x) => x.label !== 'fee'), {
+        const dealtSeries = dealSeries(series, movements.filter((x) => x.label !== 'fee' && !x.netted && !x.valueOnly), {
           month: mk, prevValue, flows, accountValue, launchPrice: cls.startPrice, consolidate, nextN: () => ++seriesCount,
         });
         series = dealtSeries.series;

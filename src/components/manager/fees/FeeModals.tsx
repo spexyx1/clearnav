@@ -20,7 +20,7 @@ export interface FeeCtx {
 const KIND_HINTS: Record<ManualKind, string> = {
   class_charge: 'Shared by everyone in the class. It lowers the unit price for that month.',
   investor_fee: 'Charged to one investor only. Units worth the fee are cancelled at the final IBKR price.',
-  manager_rebate: 'Arkline pays the investor back. It shows as owed until Arkline\'s payment arrives in IBKR, then units are issued at the final price.',
+  manager_rebate: 'Arkline pays the investor back. The payment adds to the class value when it arrives in IBKR; no units are issued.',
 };
 
 export const monthName = (m: string) => new Date(`${m}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -125,7 +125,7 @@ export function LinkModal({ ctx, charge, onClose }: { ctx: FeeCtx; charge: Charg
     <Modal title={wantsDeposit ? "Link Arkline's payment" : 'Link the IBKR payment'} onClose={onClose}>
       <p className="text-sm text-slate-400 leading-relaxed">
         {wantsDeposit
-          ? `Pick the deposit Arkline made into the class account for this ${usd(target)} rebate. Units are issued at the final price of the month it arrived.`
+          ? `Pick the deposit Arkline made into the class account for this ${usd(target)} rebate. It adds to the class value on the month it arrived.`
           : `If this ${usd(target)} charge was paid out of the IBKR account, pick the payment so it is not counted as a second fee.`}
       </p>
       {options.length === 0 ? (

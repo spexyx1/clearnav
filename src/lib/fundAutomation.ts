@@ -183,7 +183,7 @@ function diagnoseMove(m: MonthResult, prev: MonthResult | undefined): Diagnosis 
   }
 
   if (m.internalFlows && Math.abs(m.internalFlows) > Math.abs(m.openingValue) * 0.05) {
-    lines.push(`${usd(Math.abs(m.internalFlows))} moved between your own accounts. This is not counted as gain or loss.`);
+    lines.push(`${usd(Math.abs(m.internalFlows))} moved between your own accounts. No units were issued for it; it is shown on its own line.`);
   }
   const fxHeavy = m.holdings.filter((h) => h.currency !== 'USD').reduce((s, h) => s + Math.abs(h.marketValue), 0);
   if (cause === 'market' && fxHeavy > Math.abs(m.accountValue) * 0.3) {
