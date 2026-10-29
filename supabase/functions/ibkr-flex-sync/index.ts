@@ -115,7 +115,7 @@ Deno.serve(async (req: Request) => {
       }
       const { error } = await admin.from("ibkr_flex_connections").upsert({
         tenant_id: fund.tenant_id, fund_id: fundId, query_id: queryId, token, token_expires_on: expires,
-        last_status: "connected", last_error: null, created_by: u.user.id, updated_at: new Date().toISOString(),
+        last_status: "connected", last_error: null, sections_found: [], created_by: u.user.id, updated_at: new Date().toISOString(),
       }, { onConflict: "fund_id" });
       if (error) throw error;
       return json({ ok: true });
@@ -139,7 +139,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "fetch") {
-      const { data: conn } = await admin.from("ibkr_flex_connections").select("id, token, query_id").eq("fund_id", fundId).maybeSingle();
+      const { data: conn } = await admin.from("ibkr_flex_connections").select("id, token, query_id, sections_found").eq("fund_id", fundId).maybeSingle();
       if (!conn) return json({ error: "Interactive Brokers is not connected for this fund." }, 404);
       const from = body.from_date ? String(body.from_date) : "";
       const to = body.to_date ? String(body.to_date) : "";
@@ -153,7 +153,8 @@ Deno.serve(async (req: Request) => {
       try {
         const { ref, url } = await sendRequest(conn.token, conn.query_id, range);
         const xml = await getStatement(conn.token, ref, url);
-        const sections_found = SECTION_TAGS.filter((t) => xml.includes(`<${t} `) || xml.includes(`<${t}>`) || xml.includes(`<${t}/`));
+        const found = SECTION_TAGS.filter((t) => xml.includes(`<${t} `) || xml.includes(`<${t}>`) || xml.includes(`<${t}/`));
+        const sections_found = [...new Set([...(Array.isArray(conn.sections_found) ? conn.sections_found : []), ...found])];
         const progress = cleanProgress(body.progress);
         await admin.from("ibkr_flex_connections").update({
           ...(range ? {} : { last_sync_at: new Date().toISOString() }), ...(progress ? { sync_progress: progress } : {}),

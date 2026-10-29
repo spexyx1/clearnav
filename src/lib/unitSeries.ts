@@ -42,7 +42,8 @@ interface DealContext {
 const money = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Investor money is dealt at month-end: existing series earn the class return, then
-// withdrawals cancel units oldest series first, then new money opens a new series at the launch price.
+// withdrawals cancel units oldest series first, then new money opens a series at the month-end price.
+// The launch price applies only to the first money into a class, when no units exist yet.
 export function dealSeries(current: UnitSeries[], moves: Movement[], ctx: DealContext) {
   const series = current.map((s) => ({ ...s, issued: 0, redeemed: 0 }));
   const problems: string[] = [];
@@ -86,10 +87,12 @@ export function dealSeries(current: UnitSeries[], moves: Movement[], ctx: DealCo
   const ins = moves.filter((x) => x.amount > 0);
   const newMoney = ins.reduce((s, x) => s + x.amount, 0);
   if (newMoney > 0.005) {
-    const u = newMoney / ctx.launchPrice;
-    series.push({ n: ctx.nextN(), start: ctx.month, startPrice: ctx.launchPrice, units: u, price: ctx.launchPrice, hwm: ctx.launchPrice, issued: u, redeemed: 0 });
+    const unitsHeld = series.reduce((s, x) => s + x.units, 0);
+    const price = unitsHeld > 1e-9 ? (ctx.accountValue - newMoney) / unitsHeld : ctx.launchPrice;
+    const u = newMoney / price;
+    series.push({ n: ctx.nextN(), start: ctx.month, startPrice: price, units: u, price, hwm: price, issued: u, redeemed: 0 });
     issued += u;
-    ins.forEach((x) => { x.dealPrice = ctx.launchPrice; x.units = round(x.amount / ctx.launchPrice, 4); });
+    ins.forEach((x) => { x.dealPrice = price; x.units = round(x.amount / price, 4); });
   }
 
   if (ctx.month.endsWith('-12')) {
