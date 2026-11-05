@@ -1,5 +1,6 @@
 import { Archive, Trash2, Star, Reply, ReplyAll, Clock, CornerUpRight, ArrowLeft } from 'lucide-react';
 import { sanitizeHtml } from '../../../lib/sanitize';
+import MessageAttachments from './MessageAttachments';
 
 interface EmailMessage {
   id: string;
@@ -178,6 +179,7 @@ export default function MessageView({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5">
+        {message.has_attachments && <MessageAttachments messageId={message.id} />}
         {hasVisibleHtml(message.body_html) ? (
           <div
             className="prose prose-invert prose-sm max-w-none text-slate-300

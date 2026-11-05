@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, X, RefreshCw, Minus, Maximize2, Paperclip, FileText, ChevronDown, Trash2, Check } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { formatBytes } from '../../../lib/format';
 import {
   buildTenantWelcomeEmailHtml,
   buildTenantWelcomeEmailText,
@@ -50,12 +51,6 @@ const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10 MB
 const TEMPLATES = [
   { id: 'welcome', label: 'New Tenant Welcome' },
 ];
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export default function EmailCompose({
   accounts,

@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { storeInboundAttachments } from "./attachments.ts";
 
 /**
  * Resend Inbound Email Webhook
@@ -269,6 +270,21 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ ok: false, error: routeError.message }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (routeResult?.message_id && providerId && resendApiKey) {
+      try {
+        await storeInboundAttachments({
+          supabase,
+          apiKey: resendApiKey,
+          messageId: routeResult.message_id,
+          accountId: routeResult.account_id,
+          providerEmailId: providerId,
+        });
+      } catch (attachErr) {
+        console.error("Attachment storage failed:", attachErr);
+      }
     }
 
     return new Response(
