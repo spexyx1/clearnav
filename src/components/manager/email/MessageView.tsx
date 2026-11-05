@@ -43,6 +43,12 @@ function formatFullDate(dateString: string | null) {
   });
 }
 
+function hasVisibleHtml(html: string | null): boolean {
+  if (!html) return false;
+  const text = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+  return text.length > 0 || /<(img|video|iframe|table)\b/i.test(html);
+}
+
 function parseAddresses(addresses: any): string {
   if (!addresses) return '';
   if (typeof addresses === 'string') return addresses;
@@ -172,7 +178,7 @@ export default function MessageView({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5">
-        {message.body_html ? (
+        {hasVisibleHtml(message.body_html) ? (
           <div
             className="prose prose-invert prose-sm max-w-none text-slate-300
               prose-a:text-cyan-400 prose-a:no-underline hover:prose-a:underline
@@ -182,7 +188,7 @@ export default function MessageView({
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(message.body_html) }}
           />
         ) : (
-          message.body_text ? (
+          message.body_text?.trim() ? (
             <pre className="whitespace-pre-wrap font-sans text-sm text-slate-300 leading-relaxed">
               {message.body_text}
             </pre>
