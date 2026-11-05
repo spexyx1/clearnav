@@ -182,9 +182,13 @@ export default function MessageView({
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(message.body_html) }}
           />
         ) : (
-          <pre className="whitespace-pre-wrap font-sans text-sm text-slate-300 leading-relaxed">
-            {message.body_text || '(No content)'}
-          </pre>
+          message.body_text ? (
+            <pre className="whitespace-pre-wrap font-sans text-sm text-slate-300 leading-relaxed">
+              {message.body_text}
+            </pre>
+          ) : (
+            <p className="text-sm italic text-slate-500">Content unavailable for this message.</p>
+          )
         )}
       </div>
     </div>

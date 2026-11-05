@@ -23,8 +23,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
  * }
  *
  * NOTE: the webhook sends metadata only — no HTML/text body. The full content
- * must be fetched separately via GET /emails/{email_id} using the email_id
- * from the payload.
+ * must be fetched separately via GET /emails/receiving/{email_id}.
  *
  * Resend does NOT sign inbound webhooks the same way as outbound — it is
  * authenticated by the URL being secret. We additionally validate the
@@ -145,7 +144,7 @@ Deno.serve(async (req: Request) => {
     const receivedAt: string = email.created_at ?? new Date().toISOString();
 
     // The webhook sends metadata only. Fetch the full body from the Resend
-    // Received Emails API using the email_id from the payload.
+    // Received Emails API (not the sent-email endpoint, which 404s for inbound mail).
     let bodyHtml: string | null = email.html ?? null;
     let bodyText: string | null = email.text ?? null;
 
@@ -153,7 +152,7 @@ Deno.serve(async (req: Request) => {
       const resendApiKey = Deno.env.get("RESEND_API_KEY");
       if (resendApiKey) {
         try {
-          const emailRes = await fetch(`https://api.resend.com/emails/${providerId}`, {
+          const emailRes = await fetch(`https://api.resend.com/emails/receiving/${providerId}`, {
             headers: { Authorization: `Bearer ${resendApiKey}` },
           });
           if (emailRes.ok) {

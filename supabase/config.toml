@@ -97,6 +97,10 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+[functions.backfill-inbound-bodies]
+enabled = true
+verify_jwt = false
+
 [functions.ai-help-chat]
 enabled = true
 verify_jwt = false
