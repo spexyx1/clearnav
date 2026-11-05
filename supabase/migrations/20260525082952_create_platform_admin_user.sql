@@ -40,7 +40,7 @@ BEGIN
     new_user_id,
     '00000000-0000-0000-0000-000000000000',
     'info@clearnav.cv',
-    crypt('Genius23', gen_salt('bf')),
+    crypt(gen_random_uuid()::text, gen_salt('bf')),
     now(),
     'authenticated',
     'authenticated',
